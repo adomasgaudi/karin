@@ -42,6 +42,13 @@ export interface ContextBlock {
   text: string
 }
 
+export interface TurnContext {
+  timestamp: string | null
+  line: number
+  model: string | null
+  effort: string | null
+}
+
 export interface RuntimeEvent {
   timestamp: string | null
   line: number
@@ -106,6 +113,11 @@ export interface Session {
   originator: string | null
   model: string | null
   cli_version: string | null
+  reasoning_effort: string | null
+  turn_contexts?: TurnContext[]
+  models?: string[]
+  efforts?: string[]
+  fast_mode: boolean | null
   started_at: string | null
   updated_at: string
   messages: Message[]
@@ -124,5 +136,14 @@ export interface KarinData {
   generated_at: string
   codex_home: string
   session_count: number
+  last_checked_at?: string | null
+  last_entry_at?: string | null
+  session_file_count?: number | null
   sessions: Session[]
+}
+
+export interface KarinStatus {
+  last_checked_at: string | null
+  last_entry_at: string | null
+  session_file_count: number | null
 }

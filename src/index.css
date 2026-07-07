@@ -20,6 +20,7 @@ body {
   margin: 0;
   font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Long code/patch blocks scroll inside their own box; page never scrolls sideways. */

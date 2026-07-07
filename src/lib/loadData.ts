@@ -1,7 +1,7 @@
 // Turns a text blob into a KarinData object. Accepts either:
 //   - plain JSON ( {"sessions":[...]} )
 //   - the indexer's JS wrapper ( window.KARIN_DATA = {...}; )
-import type { KarinData } from '../types'
+import type { KarinData, KarinStatus } from '../types'
 
 export function parseKarinText(text: string): KarinData {
   let src = text.trim()
@@ -41,4 +41,23 @@ export async function fetchLocalData(): Promise<KarinData | null> {
     }
   }
   return null
+}
+
+export async function fetchLocalStatus(): Promise<KarinStatus | null> {
+  const base = import.meta.env.BASE_URL || '/'
+  try {
+    const res = await fetch(base + 'data/karin-status.json', { cache: 'no-store' })
+    if (!res.ok) return null
+    const text = await res.text()
+    if (/^\s*<(!doctype|html)/i.test(text)) return null
+    const status = JSON.parse(text) as KarinStatus
+    if (!status || typeof status !== 'object') return null
+    return {
+      last_checked_at: status.last_checked_at ?? null,
+      last_entry_at: status.last_entry_at ?? null,
+      session_file_count: status.session_file_count ?? null,
+    }
+  } catch {
+    return null
+  }
 }

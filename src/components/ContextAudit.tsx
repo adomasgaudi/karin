@@ -1,27 +1,34 @@
 import type { Session } from '../types'
 
-const preClass = 'bg-neutral-100 dark:bg-neutral-800 rounded-md text-xs p-2 overflow-x-auto'
+const preClass =
+  'overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed text-neutral-700 dark:bg-neutral-950/55 dark:text-neutral-300'
 
 export default function ContextAudit({ session }: { session: Session }) {
   const audit = session.audit
   if (!audit) return null
 
+  const visibleCount = audit.visible?.reduce((sum, item) => sum + item.count, 0) ?? 0
+  const blindSpotCount = audit.not_available?.length ?? 0
+
   return (
-    <details className="context rounded-md border border-neutral-200 dark:border-neutral-800 border-l-4 border-l-violet-400 bg-violet-50 dark:bg-violet-950/40 mb-2 overflow-hidden">
-      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium [&::-webkit-details-marker]:hidden">
-        Context audit — visible context &amp; known blind spots
+    <details className="context overflow-hidden rounded-md border border-violet-200/80 bg-violet-50/70 dark:border-violet-900/60 dark:bg-violet-950/25">
+      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-violet-950 [&::-webkit-details-marker]:hidden dark:text-violet-100">
+        Context audit
+        <span className="ml-2 font-normal text-violet-700/80 dark:text-violet-300/80">
+          {visibleCount} visible records / {blindSpotCount} blind spots
+        </span>
       </summary>
-      <div className="px-3 pb-3 space-y-2">
+      <div className="space-y-3 border-t border-violet-200/70 px-3 pb-3 pt-2 dark:border-violet-900/60">
         <div>
-          <strong>Visible in Karin</strong>
+          <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">Visible in Karin</div>
           <pre className={preClass}>{JSON.stringify(audit.visible, null, 2)}</pre>
         </div>
         <div>
-          <strong>Not available from local transcript</strong>
+          <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">Not available locally</div>
           <pre className={preClass}>{JSON.stringify(audit.not_available, null, 2)}</pre>
         </div>
         <div>
-          <strong>Raw transcript counts</strong>
+          <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">Raw transcript counts</div>
           <pre className={preClass}>
             {JSON.stringify(
               {

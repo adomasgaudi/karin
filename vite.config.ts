@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { existsSync, createReadStream, mkdirSync, copyFileSync } from 'node:fs'
 
 const root = dirname(fileURLToPath(import.meta.url))
-const DATA_FILES = ['karin-data.json', 'karin-data.js']
+const DATA_FILES = ['karin-data.json', 'karin-data.js', 'karin-status.json']
 
 // Dev only: serve the locally-generated data/ files (e.g. karin-data.json) so the
 // app auto-loads real Codex data during `pnpm dev`. NOT part of the build, so the
