@@ -1,6 +1,7 @@
 {
   "name": "karin",
   "version": "0.1.0",
+  "displayVersion": "v.13",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
@@ -14,7 +15,8 @@
     "build:local": "tsc --noEmit && vite build --mode offline",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "index": "python bin/karin.py"
+    "index": "python bin/karin.py",
+    "index:watch": "python bin/karin.py --watch"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.1.3",

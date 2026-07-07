@@ -12,6 +12,8 @@ import argparse
 import json
 import os
 import re
+import shutil
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +25,8 @@ KARIN_HOME = Path(__file__).resolve().parents[1]
 DATA_DIR = KARIN_HOME / "data"
 DATA_JSON = DATA_DIR / "karin-data.json"
 DATA_JS = DATA_DIR / "karin-data.js"
+DATA_STATUS = DATA_DIR / "karin-status.json"
+DIST_DATA_DIR = KARIN_HOME / "dist" / "data"
 
 
 SECRET_PATTERNS = [
@@ -143,6 +147,8 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
         "originator": None,
         "model": None,
         "cli_version": None,
+        "reasoning_effort": None,
+        "fast_mode": None,
         "started_at": None,
         "updated_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
         "messages": [],
@@ -170,6 +176,7 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
         "token_events": [],
         "task_completions": [],
         "code_edits": [],
+        "turn_contexts": [],
         "counts": {"user": 0, "assistant": 0, "tool_calls": 0, "tool_outputs": 0, "code_edits": 0},
         "latest_total_usage": None,
     }
@@ -197,7 +204,10 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
                 session["title"] = names.get(session_id, session_id or session["title"])
                 session["cwd"] = meta.get("cwd")
                 session["originator"] = meta.get("originator")
-                session["model"] = meta.get("model") or meta.get("model_provider")
+                # A session can carry several session_meta records (resume/compaction); a
+                # later one often omits the model. Never let that clobber a real model
+                # already found (e.g. gpt-5.5 from turn_context) with the bare provider.
+                session["model"] = meta.get("model") or session["model"] or meta.get("model_provider")
                 session["cli_version"] = meta.get("cli_version")
                 session["started_at"] = meta.get("timestamp") or timestamp
                 meta_summary = {k: v for k, v in meta.items() if k not in ("base_instructions", "dynamic_tools")}
@@ -211,6 +221,16 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
             if kind == "turn_context":
                 session["model"] = payload.get("model") or session["model"]
                 session["cwd"] = payload.get("cwd") or session["cwd"]
+                settings = (payload.get("collaboration_mode") or {}).get("settings") or {}
+                session["reasoning_effort"] = payload.get("effort") or settings.get("reasoning_effort") or session["reasoning_effort"]
+                if payload.get("realtime_active") is not None:
+                    session["fast_mode"] = bool(payload.get("realtime_active"))
+                session["turn_contexts"].append({
+                    "line": line_no,
+                    "timestamp": timestamp,
+                    "model": payload.get("model"),
+                    "effort": payload.get("effort") or settings.get("reasoning_effort"),
+                })
                 session["contexts"].append(context_entry(timestamp, line_no, "turn_context", payload, "Codex runtime turn_context"))
                 continue
 
@@ -376,12 +396,39 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
     session["audit"]["response_item_counts"] = dict(response_item_counts)
     session["audit"]["role_counts"] = dict(role_counts)
     session["audit"]["event_counts"] = dict(event_counts)
+
+    def _distinct(values):
+        seen = []
+        for v in values:
+            if v and v not in seen:
+                seen.append(v)
+        return seen
+    tc_models = _distinct(tc.get("model") for tc in session["turn_contexts"])
+    tc_efforts = _distinct(tc.get("effort") for tc in session["turn_contexts"])
+    session["models"] = tc_models or ([session["model"]] if session["model"] else [])
+    session["efforts"] = tc_efforts or ([session["reasoning_effort"]] if session["reasoning_effort"] else [])
     return session
+
+
+def iso_from_mtime(mtime: float) -> str | None:
+    if not mtime:
+        return None
+    return datetime.fromtimestamp(mtime, timezone.utc).isoformat()
+
+
+def build_status(files: list[Path]) -> dict[str, Any]:
+    latest_mtime = max((path.stat().st_mtime for path in files), default=0.0)
+    return {
+        "last_checked_at": datetime.now(timezone.utc).isoformat(),
+        "last_entry_at": iso_from_mtime(latest_mtime),
+        "session_file_count": len(files),
+    }
 
 
 def build_payload(limit: int | None) -> dict[str, Any]:
     names = load_thread_names()
     files = iter_session_files()
+    status = build_status(files)
     if limit:
         files = files[:limit]
     sessions = []
@@ -393,6 +440,7 @@ def build_payload(limit: int | None) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "codex_home": str(CODEX_HOME),
         "session_count": len(sessions),
+        **status,
         "sessions": sessions,
     }
 
@@ -403,18 +451,70 @@ def write_data(payload: dict[str, Any]) -> None:
     text = json.dumps(payload, ensure_ascii=False)
     DATA_JSON.write_text(text, encoding="utf-8")
     DATA_JS.write_text("window.KARIN_DATA = " + text + ";\n", encoding="utf-8")
+    DATA_STATUS.write_text(json.dumps(status_from_payload(payload), ensure_ascii=False), encoding="utf-8")
+    if DIST_DATA_DIR.exists():
+        DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
+        shutil.copy2(DATA_JS, DIST_DATA_DIR / DATA_JS.name)
+        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+
+
+def status_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "last_checked_at": payload.get("last_checked_at"),
+        "last_entry_at": payload.get("last_entry_at"),
+        "session_file_count": payload.get("session_file_count"),
+    }
+
+
+def write_status(status: dict[str, Any]) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_STATUS.write_text(json.dumps(status, ensure_ascii=False), encoding="utf-8")
+    if DIST_DATA_DIR.exists():
+        DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+
+
+def latest_session_mtime() -> float:
+    files = iter_session_files()
+    if not files:
+        return 0.0
+    return max(path.stat().st_mtime for path in files)
+
+
+def index_once(limit: int | None) -> dict[str, Any]:
+    payload = build_payload(limit)
+    write_data(payload)
+    return payload
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Index local Codex sessions for the Karin web app.")
     parser.add_argument("--limit", type=int, default=None, help="Index only the newest N sessions.")
+    parser.add_argument("--watch", action="store_true", help="Keep indexing when Codex session files change.")
+    parser.add_argument("--interval", type=float, default=5.0, help="Watch polling interval in seconds.")
     args = parser.parse_args()
 
-    payload = build_payload(args.limit)
-    write_data(payload)
+    payload = index_once(args.limit)
     print(f"Karin indexed {payload['session_count']} sessions")
     print(f"JSON: {DATA_JSON}")
     print(f"JS:   {DATA_JS}")
+    if args.watch:
+        last_mtime = latest_session_mtime()
+        try:
+            while True:
+                time.sleep(max(args.interval, 1.0))
+                files = iter_session_files()
+                status = build_status(files)
+                write_status(status)
+                current_mtime = max((path.stat().st_mtime for path in files), default=0.0)
+                if current_mtime <= last_mtime:
+                    continue
+                payload = index_once(args.limit)
+                last_mtime = current_mtime
+                print(f"Karin indexed {payload['session_count']} sessions at {payload['generated_at']}", flush=True)
+        except KeyboardInterrupt:
+            return 0
     return 0
 
 

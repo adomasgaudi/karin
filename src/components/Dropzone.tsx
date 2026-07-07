@@ -3,6 +3,7 @@ import { Upload, Sun, Moon } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { parseKarinFile } from '../lib/loadData'
 import { cn } from '../lib/cn'
+import { APP_VERSION } from '../lib/appVersion'
 
 export default function Dropzone() {
   const error = useKarin((s) => s.error)
@@ -36,6 +37,7 @@ export default function Dropzone() {
       <div className="w-full max-w-xl">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-teal-700 dark:text-teal-400">Karin</h1>
+          <p className="mt-1 text-xs font-medium text-neutral-400 dark:text-neutral-500">{APP_VERSION}</p>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
             A private, local viewer for Codex CLI sessions.
           </p>

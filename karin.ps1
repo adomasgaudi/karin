@@ -39,6 +39,24 @@ if ($Limit -gt 0) {
 }
 python @indexArgs
 
+function Start-KarinWatcher {
+    $watchArgs = @($Indexer, "--watch")
+    if ($Limit -gt 0) {
+        $watchArgs += @("--limit", "$Limit")
+    }
+    $logDir = Join-Path $KarinHome "data"
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    $stdout = Join-Path $logDir "karin-watch.log"
+    $stderr = Join-Path $logDir "karin-watch.err.log"
+    return Start-Process -FilePath "python" -ArgumentList $watchArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+}
+
+function Stop-KarinWatcher($Process) {
+    if ($null -ne $Process -and -not $Process.HasExited) {
+        Stop-Process -Id $Process.Id -Force
+    }
+}
+
 # Step 2 — install dependencies on first run.
 $NodeModules = Join-Path $KarinHome "node_modules"
 if (-not $NoInstall -and -not (Test-Path -LiteralPath $NodeModules)) {
@@ -59,10 +77,12 @@ if ($Dev) {
     if (-not $NoOpen) {
         Start-Process $url | Out-Null
     }
+    $Watcher = Start-KarinWatcher
     Push-Location $KarinHome
     try {
         pnpm dev
     } finally {
+        Stop-KarinWatcher $Watcher
         Pop-Location
     }
 } else {
@@ -80,10 +100,12 @@ if ($Dev) {
     if (-not $NoOpen) {
         Start-Process $url | Out-Null
     }
+    $Watcher = Start-KarinWatcher
     Push-Location $KarinHome
     try {
         pnpm preview --port 4173
     } finally {
+        Stop-KarinWatcher $Watcher
         Pop-Location
     }
 }

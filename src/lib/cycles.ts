@@ -7,7 +7,10 @@ import type {
   RuntimeEvent,
   TokenEvent,
   CodeEdit,
+  TokenUsage,
+  TurnContext,
 } from '../types'
+import { addUsage } from './pricing'
 
 // A single transcript event, tagged by kind, used to build prompt/answer cycles.
 export type Entry =
@@ -90,12 +93,40 @@ export function cycleCounts(cycle: Cycle): string {
     .join(' · ')
 }
 
-// First user prompt in the cycle, trimmed for the summary title.
+export function cycleUsage(cycle: Cycle): TokenUsage {
+  return cycle.items
+    .filter((entry): entry is Extract<Entry, { kind: 'token' }> => entry.kind === 'token')
+    .reduce((sum, entry) => addUsage(sum, entry.item.last), {})
+}
+
+// Injected startup context is stored as a user message too (see karin.py
+// classify_context_message) — skip it so the title shows the owner's real prompt.
+function isInjectedContext(text: string): boolean {
+  return text.includes('# AGENTS.md instructions') || text.includes('<environment_context>')
+}
+
+// First real user prompt in the cycle, trimmed to a short summary title.
 export function cyclePrompt(cycle: Cycle): string {
-  const firstUser = cycle.items.find((e) => e.kind === 'message' && e.item.role === 'user')
-  if (firstUser && firstUser.kind === 'message') {
-    const t = firstUser.item.text?.trim().replace(/\s+/g, ' ').slice(0, 90)
-    if (t) return t
+  for (const e of cycle.items) {
+    if (e.kind !== 'message' || e.item.role !== 'user') continue
+    const raw = e.item.text?.trim() || ''
+    if (!raw || isInjectedContext(raw)) continue
+    const t = raw.replace(/\s+/g, ' ').slice(0, 40)
+    if (t) return raw.length > 40 ? `${t}…` : t
   }
   return 'context only'
+}
+
+// Model + reasoning effort active for a cycle: the latest turn_context at/before its first line.
+export function cycleModelEffort(
+  cycle: Cycle,
+  turnContexts: TurnContext[] | undefined,
+): { model: string | null; effort: string | null } {
+  const line = cycle.items[0]?.line ?? cycle.startLine
+  let picked: TurnContext | null = null
+  for (const tc of turnContexts || []) {
+    if (tc.line <= line) picked = tc
+    else break
+  }
+  return { model: picked?.model ?? null, effort: picked?.effort ?? null }
 }

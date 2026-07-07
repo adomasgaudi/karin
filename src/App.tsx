@@ -27,7 +27,7 @@ export default function App() {
 
   // Two-pane on md+. On mobile: show the list until a session is picked, then the detail.
   return (
-    <div className="flex h-dvh flex-col bg-neutral-50 text-neutral-900 md:flex-row dark:bg-neutral-950 dark:text-neutral-100">
+    <div className="flex h-dvh flex-col bg-neutral-100 text-neutral-900 md:flex-row dark:bg-black dark:text-neutral-100">
       <Sidebar className={cn('md:flex', selectedId ? 'hidden md:flex' : 'flex')} />
       <main className={cn('min-w-0 flex-1 flex-col overflow-hidden', selectedId ? 'flex' : 'hidden md:flex')}>
         <SessionDetail />
