@@ -1,0 +1,28 @@
+# Dependencies & build output
+node_modules
+dist
+
+# Private Codex transcripts — this folder holds your real, indexed sessions.
+# NEVER commit it: it may contain prompts, code, and secrets from your machine.
+data/
+karin-data.json
+karin-data.js
+
+# Retired static viewer (generated)
+karin.html
+
+# Process / pid files
+*.pid
+karin-server.pid
+
+# Python caches
+bin/__pycache__/
+__pycache__/
+
+# Local overrides & OS cruft
+*.local
+.DS_Store
+
+# Test artifacts
+playwright-report
+test-results

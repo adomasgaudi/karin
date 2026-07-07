@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 class-based dark mode: toggled by adding `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Long code/patch blocks scroll inside their own box; page never scrolls sideways. */
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
