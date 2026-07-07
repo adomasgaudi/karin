@@ -8,7 +8,7 @@ data/
 karin-data.json
 karin-data.js
 
-# Retired static viewer (generated)
+# Retired old static viewer (superseded by the React app)
 karin.html
 
 # Process / pid files

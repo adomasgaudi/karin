@@ -2,14 +2,13 @@
 
 A private, local viewer for [Codex CLI](https://developers.openai.com/codex/cli/) sessions — browse your prompts, token usage, tool calls, reasoning summaries, and code edits, reconstructed from local transcripts.
 
-## Two modes
+## Three ways to run it
 
-Karin runs from **one** codebase in two modes:
+- **Dev** — `pnpm dev` (or `./karin.ps1 -Dev`). A fast Vite dev server with hot reload; the dev middleware auto-serves `data/`, so the app loads your real Codex data instantly. Best for hacking on the app.
+- **Local deploy** — `pnpm build:local` + `pnpm preview` (or just `./karin.ps1`). A real, self-contained **offline** build: `build:local` uses relative asset paths and copies your real `data/karin-data.json` + `.js` into `dist/data/`, so the built app runs entirely from local files with your data baked in. `pnpm preview` serves it (default http://localhost:4173/).
+- **Online** — the public GitHub Pages build (`pnpm build`). It ships **no data**. Visitors drag-drop a file they generated themselves; parsing happens entirely in their browser.
 
-- **LOCAL** — you run it on your own machine (`pnpm dev` / `./karin.ps1`). The Python indexer reads your real Codex sessions into `data/karin-data.json`, and the app auto-loads that file. Everything is offline; your transcripts never leave your machine.
-- **ONLINE** — the public GitHub Pages build. It ships **no data**. Visitors drag-drop a file they generated themselves; parsing happens entirely in their browser.
-
-**Privacy by design:** the real dataset (`data/`, `karin-data.json`, `karin-data.js`) is gitignored and is never committed or published. The public site is empty until someone loads their own file.
+**Privacy by design:** the real dataset (`data/`, `karin-data.json`, `karin-data.js`) and the built `dist/` folder are gitignored and never committed or published — only the empty viewer code is. The public site is empty until a visitor loads their own file.
 
 ## Stack
 
@@ -25,17 +24,32 @@ Install dependencies once:
 pnpm install
 ```
 
-Then either do it in two steps:
+### Launcher (recommended)
 
 ```
-pnpm index      # or: python bin/karin.py  — generate data from your ~/.codex sessions
-pnpm dev        # start Vite; the app auto-loads data/karin-data.json
+./karin.ps1          # index → build:local → preview → open the local deploy
+./karin.ps1 -Dev     # index → run the fast dev server (pnpm dev) instead
 ```
 
-…or just run the launcher, which does both and opens your browser:
+`./karin.ps1` re-indexes your sessions, runs `pnpm build:local` to produce the
+self-contained offline bundle, serves it with `pnpm preview` (http://localhost:4173/),
+and opens your browser. Flags: `-NoOpen`, `-NoInstall`, `-Limit N`.
+
+### By hand
+
+Local deploy (offline build with your data):
 
 ```
-./karin.ps1
+pnpm index          # or: python bin/karin.py — generate data from ~/.codex sessions
+pnpm build:local    # build the offline bundle; copies data/ into dist/data/
+pnpm preview        # serve dist/ (default http://localhost:4173/)
+```
+
+…or the fast dev server:
+
+```
+pnpm index
+pnpm dev            # start Vite; the app auto-loads data/karin-data.json
 ```
 
 By default the indexer reads sessions from `~/.codex`. Set the `CODEX_HOME`
