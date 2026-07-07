@@ -1,17 +1,26 @@
-# Karin — LOCAL launcher.
-# Runs Karin in LOCAL mode: it re-indexes your real Codex sessions into
-# data/ and starts the Vite dev server, which auto-loads that data. Your
-# transcripts never leave this machine. (The public GitHub Pages build ships
-# no data and asks visitors to drag-drop their own file.)
+# Karin — LOCAL DEPLOY launcher (new React stack).
 #
-# Usage: ./karin.ps1 [-NoOpen] [-NoInstall] [-Limit N]
+# By default this runs the LOCAL DEPLOY: a real, self-contained OFFLINE build of
+# the React app with YOUR real Codex data baked in. It re-indexes your sessions
+# into data/, runs `pnpm build:local` (relative asset paths + your data copied
+# into dist/data/), then serves that built bundle with `pnpm preview`. The app
+# runs entirely from local files — your transcripts never leave this machine.
+# (The public GitHub Pages build ships no data and asks visitors to drag-drop
+# their own file.)
+#
+# Use -Dev to skip the build and run the fast Vite dev server instead
+# (hot reload; dev middleware auto-serves data/).
+#
+# Usage: ./karin.ps1 [-NoOpen] [-NoInstall] [-Dev] [-Limit N]
 #   -NoOpen     do not open the browser
 #   -NoInstall  skip `pnpm install` even if node_modules is missing
+#   -Dev        run the fast dev server (pnpm dev) instead of the local deploy
 #   -Limit N    index only the newest N sessions
 
 param(
     [switch]$NoOpen,
     [switch]$NoInstall,
+    [switch]$Dev,
     [int]$Limit = 0
 )
 
@@ -41,16 +50,40 @@ if (-not $NoInstall -and -not (Test-Path -LiteralPath $NodeModules)) {
     }
 }
 
-# Step 3 — start Vite. `pnpm dev` is long-running and holds the console.
-$url = "http://localhost:5173/"
-Write-Output "Karin starting in LOCAL mode — data/ regenerated. Opening $url"
-if (-not $NoOpen) {
-    Start-Process $url | Out-Null
-}
+# Step 3 — serve. `pnpm dev` / `pnpm preview` are long-running and hold the
+# console, so open the browser FIRST, then hand the console to the server.
+if ($Dev) {
+    # Fast dev server. Vite prints its own URL (~http://localhost:5173/).
+    $url = "http://localhost:5173/"
+    Write-Output "Karin starting in DEV mode (fast Vite server, hot reload) — data/ regenerated. Opening $url"
+    if (-not $NoOpen) {
+        Start-Process $url | Out-Null
+    }
+    Push-Location $KarinHome
+    try {
+        pnpm dev
+    } finally {
+        Pop-Location
+    }
+} else {
+    # LOCAL DEPLOY: build the offline bundle (your data baked in), then serve it.
+    Write-Output "Karin building LOCAL DEPLOY (offline bundle, your data baked in) — data/ regenerated. Please wait for the build..."
+    Push-Location $KarinHome
+    try {
+        pnpm build:local
+    } finally {
+        Pop-Location
+    }
 
-Push-Location $KarinHome
-try {
-    pnpm dev
-} finally {
-    Pop-Location
+    $url = "http://localhost:4173/"
+    Write-Output "Karin serving LOCAL DEPLOY from $url"
+    if (-not $NoOpen) {
+        Start-Process $url | Out-Null
+    }
+    Push-Location $KarinHome
+    try {
+        pnpm preview --port 4173
+    } finally {
+        Pop-Location
+    }
 }
