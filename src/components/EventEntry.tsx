@@ -140,6 +140,7 @@ function Row({
   step,
   bar,
   thin,
+  clamp,
   dim,
   dashed,
   children,
@@ -154,6 +155,9 @@ function Row({
   // A thin (~4px) always-visible usage bar in the collapsed summary; the full labelled bar
   // lives in the body (expanded). Lets a step show its token weight without a header row.
   thin?: ReactNode
+  // Render `title` as the row's body text, wrapping up to 3 lines (no separate label/meta) —
+  // used for assistant replies, which show their own text instead of an "assistant:" label.
+  clamp?: boolean
   dim?: boolean
   dashed?: boolean
   children: ReactNode
@@ -161,14 +165,21 @@ function Row({
   return (
     <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-70' : ''}`}>
       <summary className="flex cursor-pointer select-none list-none flex-col gap-px px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
-        <div className="flex items-center gap-1.5">
+        <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
           <Chevron />
           <NumBadge n={num} />
-          <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
-          {badge}
-          {meta != null && meta !== '' && (
-            <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
+          {clamp ? (
+            <span className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+          ) : (
+            <>
+              <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
+              {badge}
+              {meta != null && meta !== '' && (
+                <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
+              )}
+            </>
           )}
+          {clamp && badge}
           <StepDur step={step} />
         </div>
         {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
@@ -211,6 +222,45 @@ function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult, scal
       </span>
     </div>
   )
+}
+
+// A kind tag ("tool" / "edit") + the action name — replaces the old "tool / Name" title.
+function KindTitle({ kind, name }: { kind: string; name: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <Pill>{kind}</Pill>
+      <span className="font-semibold text-neutral-800 dark:text-neutral-100">{name}</span>
+    </span>
+  )
+}
+
+// The most informative one-liner for a tool call: its key argument (the command it ran, the
+// file it touched, the pattern it searched) instead of the opaque call id.
+function toolSummary(input: Record<string, unknown>): string {
+  const str = (k: string): string => (typeof input[k] === 'string' ? (input[k] as string) : '')
+  const clean = (v: string) => v.replace(/\s+/g, ' ').trim()
+  if (str('command')) return clean(str('command'))
+  const path = str('file_path') || str('path') || str('notebook_path')
+  if (path) return path.split(/[/\\]/).slice(-2).join('/')
+  const pattern = str('pattern')
+  if (pattern) {
+    const where = str('path') || str('glob')
+    return clean(where ? `${pattern}  ·  ${where}` : pattern)
+  }
+  for (const k of ['query', 'url', 'description', 'prompt', 'todos']) if (str(k)) return clean(str(k))
+  for (const v of Object.values(input)) if (typeof v === 'string' && v.trim()) return clean(v)
+  return ''
+}
+
+// Codex tools carry arguments as a JSON string; parse then summarise, else show the raw args.
+function toolSummaryCodex(argsJson: string): string {
+  try {
+    const o = JSON.parse(argsJson)
+    if (o && typeof o === 'object') return toolSummary(o as Record<string, unknown>)
+  } catch {
+    // not JSON — fall through
+  }
+  return argsJson.replace(/\s+/g, ' ').trim()
 }
 
 // One-line preview of a message body for the collapsed title (whitespace collapsed).
@@ -268,7 +318,7 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
   )
 }
 
-export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
+export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; num: number; step?: StepDuration; singleModel?: boolean } & UsageProps) {
   const tint = tintFor(entry)
   const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
   // Thin collapsed indicator: the same usage as a ~4px unlabelled bar, shown in the summary.
@@ -282,6 +332,23 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as Message | ClaudeMessage
       // Codex carries a phase (commentary/final); Claude carries the model.
       const tag = entry.source === 'codex' ? (item as Message).phase || undefined : (item as ClaudeMessage).model || undefined
+      // Assistant replies: when the session has a single model there's no "assistant" /
+      // model to disambiguate, so drop both and just show the reply text (up to 3 lines).
+      if (item.role === 'assistant') {
+        return (
+          <Row
+            num={num}
+            clamp
+            title={preview(item.text) || '(no text)'}
+            badge={!singleModel && tag ? <Pill>{tag}</Pill> : undefined}
+            tint={tint}
+            step={step}
+            bar={bar} thin={thin}
+          >
+            <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
+          </Row>
+        )
+      }
       return (
         <Row
           num={num}
@@ -349,8 +416,8 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         return (
           <Row
             num={num}
-            title={`tool / ${item.name}`}
-            meta={item.call_id || undefined}
+            title={<KindTitle kind="tool" name={item.name} />}
+            meta={toolSummary(item.input) || undefined}
             badge={
               item.is_error ? (
                 <span className="shrink-0 rounded-sm bg-rose-200/80 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
@@ -368,7 +435,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       }
       const item = entry.item as Tool
       return (
-        <Row num={num} title={`tool / ${item.name}`} meta={item.call_id || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row num={num} title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
           <pre className={preClass}>{item.arguments}</pre>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
@@ -382,7 +449,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       if (entry.source === 'claude') {
         const item = entry.item as ClaudeEdit
         return (
-          <Row num={num} title={`edit / ${item.name}`} meta={item.file_path || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+          <Row num={num} title={<KindTitle kind="edit" name={item.name} />} meta={item.file_path || undefined} tint={tint} step={step} bar={bar} thin={thin}>
             <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Diff</div>
             <DiffView structured={item.structured_patch} patch={item.patch} />
           </Row>
@@ -391,7 +458,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as CodeEdit
       const failed = item.result?.success === false ? 'failed' : undefined
       return (
-        <Row num={num} title={`edit / ${item.name}`} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row num={num} title={<KindTitle kind="edit" name={item.name} />} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Patch</div>
           <pre className={preClass}>{item.patch}</pre>
           {item.result && (

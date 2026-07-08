@@ -450,6 +450,7 @@ export default function SessionDetail() {
                     scaleMax={scaleMax}
                     model={model}
                     effort={effort}
+                    singleModel={(s.models?.length ?? 0) <= 1}
                   />
                 )
               })
