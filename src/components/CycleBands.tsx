@@ -102,9 +102,9 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
     <details className={`${rowBase} border-l-neutral-300 opacity-70 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
         <Chevron />
-        <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">hooks</span>
+        <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">context</span>
         <span className="min-w-0 flex-1 truncate font-normal italic text-neutral-400 dark:text-neutral-500">
-          not chosen by the AI · {entries.length} · {fmtCompact(totalChars)} chars
+          {entries.length} · {fmtCompact(totalChars)} chars
         </span>
       </summary>
       <div className="pb-1">{nodes}</div>
