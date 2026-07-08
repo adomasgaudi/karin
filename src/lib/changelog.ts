@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.70',
+    title: 'Per-cycle model pricing',
+    summary:
+      'Cycles are now priced by the model that answered them, so money mode re-weighs sonnet vs fable cycles after a mid-session switch.',
+    detail:
+      'All bars and timeline segments in a session used ONE rate table — the session-level model — so after a mid-session model switch, toggling token units → money changed nothing: Claude rate tables are proportional to each other, and only the absolute per-model rate distinguishes a sonnet cycle from a fable one. Cycle bars in the session detail and cycle segments on the timeline now look up rates from their own cycle\'s model (falling back to the session model), so a fable cycle correctly grows ~3.3× relative to a sonnet cycle in money mode.',
+  },
+  {
     version: 'v.69',
     title: 'One scale for all lines',
     summary:
