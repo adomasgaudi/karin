@@ -10,6 +10,7 @@ import {
   UNIT_MODE_LABELS,
   currencyModes,
   ratesForUnified,
+  stepTokenMult,
   tokenUnitRefs,
   unitModes,
   usageUnitTotal,
@@ -51,6 +52,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const setUnitMode = useKarin((s) => s.setUnitMode)
   const tokenRef = useKarin((s) => s.tokenRef)
   const setTokenRef = useKarin((s) => s.setTokenRef)
+  const tokenMult = useKarin((s) => s.tokenMult)
+  const setTokenMult = useKarin((s) => s.setTokenMult)
   const currency = useKarin((s) => s.currency)
   const setCurrency = useKarin((s) => s.setCurrency)
 
@@ -61,7 +64,7 @@ export default function Sidebar({ className }: SidebarProps) {
   // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
     const rates = ratesForUnified(s)
-    return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef) }
+    return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
   // Newest prompt across ALL sessions (both sources) — "minutes since last prompt".
@@ -161,6 +164,28 @@ export default function Sidebar({ className }: SidebarProps) {
               {TOKEN_UNIT_REF_LABELS[tokenRef]}
             </button>
           )}
+          {/* scaled ref → ± multiplier stepper. */}
+          {unitMode === 'token_units' && tokenRef === 'scaled' && (
+            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-medium text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <button
+                type="button"
+                onClick={() => setTokenMult(stepTokenMult(tokenMult, -1))}
+                title="Lower the token-unit multiplier"
+                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                −
+              </button>
+              <span className="min-w-[2.25rem] px-0.5 text-center tabular-nums" title="Token-unit multiplier">×{tokenMult}</span>
+              <button
+                type="button"
+                onClick={() => setTokenMult(stepTokenMult(tokenMult, 1))}
+                title="Raise the token-unit multiplier"
+                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                +
+              </button>
+            </div>
+          )}
           {unitMode === 'money' && (
             <button
               type="button"
@@ -203,7 +228,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     {/* Date + cached tokens live in the session detail now; the list row
                         stays lean with just total tokens + project. */}
                     <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                      {sessionTotalLabel(s, rates, unitMode, currency, tokenRef)}{project ? ` / ${project}` : ''}
+                      {sessionTotalLabel(s, rates, unitMode, currency, tokenRef, tokenMult)}{project ? ` / ${project}` : ''}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-neutral-500 dark:text-neutral-500">
                       <span>{s.counts.user} user</span>
@@ -217,6 +242,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       mode={unitMode}
                       currency={currency}
                       tokenRef={tokenRef}
+                      tokenMult={tokenMult}
                       compact
                       inlineLabels
                       showLegend={false}

@@ -12,6 +12,7 @@ import {
   UNIT_MODE_LABELS,
   currencyModes,
   ratesForUnified,
+  stepTokenMult,
   tokenUnitRefs,
   unitModes,
   usageUnitTotal,
@@ -212,7 +213,7 @@ export default function SessionDetail() {
 
         <div className="mt-2 flex items-start gap-1.5">
           <div className="min-w-0 flex-1">
-            <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} scaleMax={scaleMax} inlineLabels />
+            <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} inlineLabels />
           </div>
           {/* One pill cycling tokens → token units → money. */}
           <button
@@ -233,6 +234,28 @@ export default function SessionDetail() {
             >
               {TOKEN_UNIT_REF_LABELS[tokenRef]}
             </button>
+          )}
+          {/* scaled ref → ± multiplier stepper to tune the total near the raw token count. */}
+          {unitMode === 'token_units' && tokenRef === 'scaled' && (
+            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-300 bg-neutral-100 text-xs font-medium text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+              <button
+                type="button"
+                onClick={() => setTokenMult(stepTokenMult(tokenMult, -1))}
+                title="Lower the token-unit multiplier"
+                className="px-1.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              >
+                −
+              </button>
+              <span className="min-w-[2.5rem] px-1 text-center tabular-nums" title="Token-unit multiplier">×{tokenMult}</span>
+              <button
+                type="button"
+                onClick={() => setTokenMult(stepTokenMult(tokenMult, 1))}
+                title="Raise the token-unit multiplier"
+                className="px-1.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              >
+                +
+              </button>
+            </div>
           )}
           {unitMode === 'money' && (
             <button
@@ -351,6 +374,7 @@ export default function SessionDetail() {
                     unitMode={unitMode}
                     currency={currency}
                     tokenRef={tokenRef}
+                    tokenMult={tokenMult}
                     scaleMax={scaleMax}
                     model={model}
                     effort={effort}

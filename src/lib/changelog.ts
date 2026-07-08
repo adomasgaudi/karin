@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.55',
+    title: 'Scaled token unit',
+    summary:
+      'A fourth token-unit reference, "scaled", keeps the total near the raw token count, with a ± multiplier to tune it up or down.',
+    detail:
+      'input-eq / cached-eq / output-eq land far above or below the raw count (cached balloons, output shrinks), making it hard to see how re-weighting shifts the mix. The new "scaled" reference is output-equivalent times a tunable multiplier, so the total sits near the original token count while segments still re-weight relative to each other. When scaled is active a ±N stepper appears (both panes) to raise or lower the multiplier along a nice-number ladder; it is a token-unit multiplier, not a token multiplier, and persists across reloads.',
+  },
+  {
     version: 'v.54',
     title: 'Honest turn-state dots',
     summary:
