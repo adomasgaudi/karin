@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.67',
+    title: 'Cost-proportional timeline pills',
+    summary:
+      'Pill height now scales with total usage on one global scale, the usage line stays flat while idle, cycles are clickable, and the units toggle (tokens/tu/money) lives on the page.',
+    detail:
+      'Expensive sessions are now visibly thick and cheap ones thin: every pill\'s height is proportional to its total usage in the active unit, measured against one shared scale, bottom-aligned per lane for honest comparison. The cumulative line switched to a step profile — it climbs only across a cycle\'s span and holds flat through idle gaps, since no tokens are spent while idle. Clicking an individual cycle (not just the pill) now opens the session — pointer capture was swallowing child clicks; it now engages only after a real drag starts. The header gains the same global tokens / token-units / money toggle as the sidebar, and all heights, labels and tooltips re-express in the chosen unit.',
+  },
+  {
     version: 'v.66',
     title: 'Zoomable cycle timeline',
     summary:
