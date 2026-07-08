@@ -19,6 +19,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.62',
+    title: 'Token bar hugs the title',
+    summary:
+      'The per-action thin token bar moved from the right of the title to a tight full-width strip directly beneath it, adding almost no vertical height.',
+  },
+  {
     version: 'v.61',
     title: 'Per-model rate table',
     summary:

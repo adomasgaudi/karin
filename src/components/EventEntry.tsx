@@ -160,16 +160,20 @@ function Row({
 }) {
   return (
     <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-70' : ''}`}>
-      <summary className={summaryClass}>
-        <Chevron />
-        <NumBadge n={num} />
-        <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
-        {badge}
-        {meta != null && meta !== '' && (
-          <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
-        )}
-        {thin && <span className="w-24 shrink-0">{thin}</span>}
-        <StepDur step={step} />
+      <summary className="flex cursor-pointer select-none list-none flex-col gap-px px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
+        <div className="flex items-center gap-1.5">
+          <Chevron />
+          <NumBadge n={num} />
+          <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
+          {badge}
+          {meta != null && meta !== '' && (
+            <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
+          )}
+          <StepDur step={step} />
+        </div>
+        {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
+            almost no vertical space. The full labelled bar lives in the expanded body. */}
+        {thin && <div className="pl-6">{thin}</div>}
       </summary>
       <div className={bodyClass}>
         {bar}
