@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.65',
+    title: 'Model switch shows same cycle',
+    summary:
+      'A mid-session model change now tags the cycle it happened in, not one cycle late.',
+    detail:
+      'Cycle model/effort labels used the latest turn_context at or before the cycle\'s FIRST line. Claude records a model change on the first assistant message with the new model — which lands after the cycle-opening user prompt — so the very cycle where you switched models still showed the old model. Labels now resolve against the cycle\'s last line, so the switch cycle is tagged with the model that actually answered it. Codex cycles are unaffected (their turn_context precedes the turn).',
+  },
+  {
     version: 'v.64',
     title: 'Day timeline page',
     summary:

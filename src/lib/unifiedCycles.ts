@@ -518,13 +518,17 @@ export function cycleOrigin(cycle: Cycle): CycleOrigin {
   return 'context'
 }
 
-// Model + reasoning effort for a cycle: the latest turn_context at/before its first line.
+// Model + reasoning effort for a cycle: the latest turn_context at/before its LAST line.
+// Claude turn_contexts anchor on the first assistant message of the new model, which lands
+// AFTER the cycle-opening user prompt — keying off the first line would tag the very cycle
+// where the owner switched models with the OLD model. Codex turn_contexts precede the turn,
+// so the last line resolves them identically.
 // Both TurnContext and ClaudeTurnCtx share { line, model, effort } — one impl serves both.
 export function cycleModelEffort(
   cycle: Cycle,
   turnContexts: Array<{ line: number; model: string | null; effort: string | null }> | ClaudeTurnCtx[] | undefined,
 ): { model: string | null; effort: string | null } {
-  const line = cycle.items[0]?.line ?? cycle.startLine
+  const line = cycle.items[cycle.items.length - 1]?.line ?? cycle.startLine
   let picked: { model: string | null; effort: string | null } | null = null
   for (const tc of turnContexts || []) {
     if (tc.line <= line) picked = tc
