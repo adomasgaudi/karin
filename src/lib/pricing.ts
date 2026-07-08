@@ -18,6 +18,17 @@ export type TokenUnitRef = 'input' | 'cached' | 'output' | 'scaled'
 // How monetary amounts are displayed. Cents variants multiply by 100.
 export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
 
+// WHICH price the money mode shows — this is the toggle that answers "what kind of
+// price is this?".
+//  - api → the theoretical pay-as-you-go API LIST price: tokens × the published
+//          $/1M-token rate. What these exact tokens would cost billed à la carte on the
+//          API. It is NOT what a subscription costs you — for a heavy ~$200/mo plan it
+//          overstates the real cost ~10-25× (see PRICE_BASIS_NOTES).
+//  - sub → a PLAN ESTIMATE: the API list price divided by SUB_DIVISOR, because a flat
+//          subscription bundles far more usage than that fee would buy on the API. Exact
+//          plan allowances are unpublished, so this is a calibrated estimate you can tune.
+export type PriceBasis = 'api' | 'sub'
+
 export interface UsageParts {
   freshInput: number
   cachedInput: number
@@ -112,6 +123,70 @@ export const CURRENCY_LABELS: Record<CurrencyMode, string> = {
 }
 
 export const currencyModes: CurrencyMode[] = ['usd', 'usd_cents', 'eur', 'eur_cents']
+
+export const priceBasisModes: PriceBasis[] = ['api', 'sub']
+
+export const PRICE_BASIS_LABELS: Record<PriceBasis, string> = {
+  api: 'API list',
+  sub: 'plan est.',
+}
+
+// Divisor ladder for the plan-estimate basis. A ~$200/mo plan is widely reported to
+// deliver ~10-25× its fee in API-equivalent compute; since neither OpenAI nor Anthropic
+// publish exact token allowances, the plan estimate is API-list-price ÷ divisor and the
+// owner tunes the divisor to match their own plan. Default 20 lands a heavy month close
+// to the flat fee (e.g. €93 API list → ~€4.65 estimated).
+export const SUB_DIVISOR_STEPS = [5, 8, 10, 12, 15, 20, 25, 30, 40, 50]
+export const DEFAULT_SUB_DIVISOR = 20
+
+// Human-readable provenance shown in the money-mode "how is this computed?" panel so
+// every figure is traceable and mistakes are catchable. Keep in sync with the math above.
+export const PRICE_BASIS_NOTES: Record<PriceBasis, { title: string; formula: string; detail: string }> = {
+  api: {
+    title: 'API list price (theoretical)',
+    formula: 'cost = Σ (tokens per bucket × published $/1M-token rate) ÷ 1,000,000',
+    detail:
+      'What these exact tokens would cost billed à la carte on the pay-as-you-go API, at the rate table below. This is NOT what your subscription charges you — for a heavy ~$200/mo plan the API list price runs ~10-25× higher than the real cost, because a flat fee bundles far more usage than that fee buys on the API.',
+  },
+  sub: {
+    title: 'Plan estimate (subscription)',
+    formula: 'cost = API list price ÷ divisor',
+    detail:
+      'A subscription bundles far more usage than its fee would buy at API list price — reported real-world value for a ~$200/mo plan is ~10-25× API-equivalent compute (buildthisnow, findskill, apiyi analyses, July 2026). Exact plan token allowances are unpublished, so this divides the API list price by a calibrated divisor (default 20). Tune the ÷N stepper until a known period matches your plan — it is an estimate, not a billed figure.',
+  },
+}
+
+// Step the plan-estimate divisor one notch along the ladder, clamped to the ends.
+export function stepSubDivisor(current: number, dir: 1 | -1): number {
+  const nearest = SUB_DIVISOR_STEPS.reduce(
+    (best, v, i) => (Math.abs(v - current) < Math.abs(SUB_DIVISOR_STEPS[best] - current) ? i : best),
+    0,
+  )
+  const idx = Math.min(Math.max(nearest + dir, 0), SUB_DIVISOR_STEPS.length - 1)
+  return SUB_DIVISOR_STEPS[idx]
+}
+
+// Uniformly scale every $/1M-token rate by `factor`, leaving context/source untouched.
+// Applying the plan-estimate divisor here (factor = 1/divisor) discounts all money amounts
+// at once with no per-call threading; token_units ratios and raw token counts are invariant
+// under a uniform scale, so ONLY money-mode figures change. factor 1 returns rates as-is.
+export function scaleRates(rates: TokenRates | null, factor: number): TokenRates | null {
+  if (!rates || factor === 1) return rates
+  return {
+    ...rates,
+    input: rates.input * factor,
+    cached: rates.cached == null ? rates.cached : rates.cached * factor,
+    output: rates.output * factor,
+    cacheWrite5m: rates.cacheWrite5m == null ? rates.cacheWrite5m : rates.cacheWrite5m * factor,
+    cacheWrite1h: rates.cacheWrite1h == null ? rates.cacheWrite1h : rates.cacheWrite1h * factor,
+  }
+}
+
+// The rates a component should actually pass to bars/labels: API list rates for the 'api'
+// basis, or those rates divided by the divisor for the 'sub' plan estimate.
+export function effectiveRates(rates: TokenRates | null, basis: PriceBasis, subDivisor: number): TokenRates | null {
+  return basis === 'sub' ? scaleRates(rates, 1 / (subDivisor || 1)) : rates
+}
 
 // $/1M-token rate for a given segment kind.
 function rateForKind(kind: keyof Omit<UsageParts, 'total'>, rates: TokenRates): number {

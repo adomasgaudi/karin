@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
-import type { UsageUnitMode, CurrencyMode, TokenUnitRef } from '../lib/pricing'
-import { DEFAULT_TOKEN_MULT } from '../lib/pricing'
+import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis } from '../lib/pricing'
+import { DEFAULT_TOKEN_MULT, DEFAULT_SUB_DIVISOR } from '../lib/pricing'
 import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
 import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
@@ -45,6 +45,19 @@ function initialCurrency(): CurrencyMode {
   return saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents' ? saved : 'usd'
 }
 
+// Which price the money mode shows: theoretical API list price, or the subscription
+// plan estimate. Defaults to the plan estimate — the number the owner actually cares about.
+function initialPriceBasis(): PriceBasis {
+  const saved = localStorage.getItem('karin-pricebasis')
+  return saved === 'api' || saved === 'sub' ? saved : 'sub'
+}
+
+// Divisor applied to API list price for the 'sub' plan estimate (see pricing.ts).
+function initialSubDivisor(): number {
+  const saved = Number(localStorage.getItem('karin-subdiv'))
+  return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_SUB_DIVISOR
+}
+
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
@@ -63,6 +76,8 @@ interface KarinStore {
   tokenRef: TokenUnitRef
   tokenMult: number
   currency: CurrencyMode
+  priceBasis: PriceBasis
+  subDivisor: number
   theme: Theme
   error: string | null
 
@@ -78,6 +93,8 @@ interface KarinStore {
   setTokenRef: (r: TokenUnitRef) => void
   setTokenMult: (n: number) => void
   setCurrency: (c: CurrencyMode) => void
+  setPriceBasis: (b: PriceBasis) => void
+  setSubDivisor: (n: number) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
 }
@@ -134,6 +151,8 @@ export const useKarin = create<KarinStore>((set, get) => ({
   tokenRef: initialTokenRef(),
   tokenMult: initialTokenMult(),
   currency: initialCurrency(),
+  priceBasis: initialPriceBasis(),
+  subDivisor: initialSubDivisor(),
   theme: initialTheme(),
   error: null,
 
@@ -209,6 +228,14 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setCurrency: (c) => {
     localStorage.setItem('karin-currency', c)
     set({ currency: c })
+  },
+  setPriceBasis: (b) => {
+    localStorage.setItem('karin-pricebasis', b)
+    set({ priceBasis: b })
+  },
+  setSubDivisor: (n) => {
+    localStorage.setItem('karin-subdiv', String(n))
+    set({ subDivisor: n })
   },
   setError: (msg) => set({ error: msg }),
 
