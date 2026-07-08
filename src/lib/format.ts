@@ -1,4 +1,4 @@
-import type { Session } from '../types'
+import type { Session, UnifiedSession } from '../types'
 import { EUR_PER_USD, type CurrencyMode } from './pricing'
 
 const MONTHS = [
@@ -77,6 +77,37 @@ export function shortAge(value: string | null | undefined, now: Date = new Date(
   return `${days}d`
 }
 
+// Wall-clock time-of-day (HH:MM:SS) from an epoch-ms value; em-dash when absent.
+export function fmtClock(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return '—'
+  return fmtTime(new Date(ms))
+}
+
+// Two significant figures, never in exponent form: 0.042 → "0.042", 3.7 → "3.7",
+// 12.3 → "12". Keeps fast sub-cycle steps (often < 0.1s) legible instead of
+// collapsing to "0.0s". Returns null for non-finite input.
+function twoSigFigs(n: number): string | null {
+  if (!Number.isFinite(n)) return null
+  if (n === 0) return '0'
+  const p = n.toPrecision(2)
+  return p.includes('e') ? n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : p
+}
+
+// Human elapsed duration: "0.042s", "3.7s", "12s", "2m 14s", "1h 3m". Anything
+// under a minute is shown to 2 significant figures so sub-second steps keep their
+// accuracy; longer spans use m/h. "n/a" when the duration is unavailable.
+export function fmtDuration(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return 'n/a'
+  const s = ms / 1000
+  if (s < 60) return `${twoSigFigs(s) ?? 'n/a'}s`
+  const m = Math.floor(s / 60)
+  const rem = Math.round(s % 60)
+  if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  return mm ? `${h}h ${mm}m` : `${h}h`
+}
+
 export function fmtNum(n: number | null | undefined): string {
   return typeof n === 'number' ? n.toLocaleString() : 'n/a'
 }
@@ -136,4 +167,18 @@ export function sessionMatches(s: Session, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
   return haystack(s).includes(q)
+}
+
+// --- Unified-session variants (source-agnostic) ----------------------------
+
+export function tokensLabelUnified(s: UnifiedSession): string {
+  const total = s.latest_total_usage?.total_tokens
+  return total ? `${fmtCompact(total)} tokens` : 'tokens n/a'
+}
+
+// Search against the precomputed haystack the adapter built for either source.
+export function sessionMatchesUnified(s: UnifiedSession, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return s.haystack.includes(q)
 }
