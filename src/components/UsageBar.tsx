@@ -16,7 +16,9 @@ export default function UsageBar({
   currency = 'usd',
   compact = false,
   showLegend = true,
+  inlineLabels = false,
   scaleMax,
+  estimated = false,
 }: {
   usage: TokenUsage
   rates: TokenRates | null
@@ -24,15 +26,21 @@ export default function UsageBar({
   currency?: CurrencyMode
   compact?: boolean
   showLegend?: boolean
+  // Draw each segment's label + value inside the bar itself (no dot legend below).
+  inlineLabels?: boolean
   // When set, segment widths are drawn relative to this value (the session-total bar)
   // instead of the bar's own total, so cycles are proportional to the top bar.
   scaleMax?: number
+  // Estimated (not measured) usage: render hatched + faded + dashed so it reads as a
+  // guess, not a real recorded number.
+  estimated?: boolean
 }) {
   const parts = splitUsage(usage)
   const cost = usageCost(parts, rates)
   const segments = [
     { key: 'freshInput' as const, label: 'input', raw: parts.freshInput, className: 'bg-sky-500' },
     { key: 'cachedInput' as const, label: 'cached', raw: parts.cachedInput, className: 'bg-emerald-500' },
+    { key: 'cacheCreate' as const, label: 'cache write', raw: parts.cacheCreate, className: 'bg-violet-500' },
     { key: 'output' as const, label: 'output', raw: parts.output, className: 'bg-amber-500' },
     { key: 'reasoning' as const, label: 'reasoning', raw: parts.reasoning, className: 'bg-fuchsia-500' },
   ]
@@ -44,37 +52,67 @@ export default function UsageBar({
   const priced = mode === 'token_units' && rates != null
   const fmtSeg = (segment: { raw: number; value: number }) =>
     priced ? fmtCurrency(segment.value, currency) : fmtCompact(segment.raw)
+  // Inline-label bars need enough height to hold text; compact ones sit a touch
+  // shorter than the top session bar (h-6) but still readable.
+  const barHeight = inlineLabels ? (compact ? 'h-5' : 'h-6') : compact ? 'h-2' : 'h-3'
+  // Diagonal hatch overlaid on each segment's colour so estimated bars read as "not real".
+  const hatch = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.45) 0, rgba(255,255,255,0.45) 2px, transparent 2px, transparent 5px)'
 
   return (
-    <div className={compact ? 'min-w-0' : 'mt-3 max-w-4xl'}>
-      <div className={`flex overflow-hidden rounded-sm bg-neutral-200 dark:bg-neutral-800 ${compact ? 'h-2' : 'h-3'}`}>
+    <div className={compact ? 'min-w-0' : 'max-w-4xl'}>
+      <div
+        className={`flex overflow-hidden rounded-sm bg-neutral-200 dark:bg-neutral-800 ${barHeight} ${
+          estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
+        }`}
+      >
         {total > 0 ? (
-          segments.map((segment) => (
-            <div
-              key={segment.key}
-              className={segment.className}
-              style={{ width: `${(segment.value / denom) * 100}%` }}
-              title={`${segment.label}: ${fmtCompact(segment.raw)} tokens${priced ? `; ${fmtCurrency(segment.value, currency)}` : ''}`}
-            />
-          ))
+          segments.map((segment) => {
+            const frac = segment.value / denom
+            return (
+              <div
+                key={segment.key}
+                className={`flex items-center overflow-hidden whitespace-nowrap ${segment.className}`}
+                style={{ width: `${frac * 100}%`, ...(estimated ? { backgroundImage: hatch } : null) }}
+                title={`${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens${priced ? `; ${fmtCurrency(segment.value, currency)}` : ''}`}
+              >
+                {inlineLabels && frac >= 0.07 && (
+                  <span className={`${compact ? 'px-1 text-[0.6rem]' : 'px-1.5 text-[0.68rem]'} font-medium leading-none text-white/95`}>
+                    {segment.label} {fmtSeg(segment)}
+                  </span>
+                )}
+              </div>
+            )
+          })
         ) : (
           <div className="h-full w-full bg-neutral-300 dark:bg-neutral-700" />
         )}
       </div>
-      {showLegend && (
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-          {segments.map((segment) => (
-            <span key={segment.key} className="inline-flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-sm ${segment.className}`} />
-              {segment.label} {fmtSeg(segment)}
-            </span>
-          ))}
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+      {inlineLabels ? (
+        // The compact (cycle/card) bars carry their total elsewhere, so only the
+        // full-size top bar prints a total line under itself.
+        !compact && (
+          <div className="mt-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">
             {priced
               ? `total ${fmtCurrency(total, currency)}`
               : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
-          </span>
-        </div>
+          </div>
+        )
+      ) : (
+        showLegend && (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
+            {segments.map((segment) => (
+              <span key={segment.key} className="inline-flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-sm ${segment.className}`} />
+                {segment.label} {fmtSeg(segment)}
+              </span>
+            ))}
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              {priced
+                ? `total ${fmtCurrency(total, currency)}`
+                : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
+            </span>
+          </div>
+        )
       )}
     </div>
   )

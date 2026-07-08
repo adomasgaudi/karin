@@ -1,4 +1,4 @@
-import type { Session, TokenUsage } from '../types'
+import type { Session, TokenUsage, UnifiedSession } from '../types'
 
 // How bar segments are weighted: raw token counts, or price-weighted so each segment's
 // length reflects its share of cost ("match tokens by price").
@@ -10,6 +10,11 @@ export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
 export interface UsageParts {
   freshInput: number
   cachedInput: number
+  // Claude-only premium cache-write bucket (0 for Codex). cacheCreate is the total;
+  // cacheCreate5m/cacheCreate1h are its 5-minute / 1-hour TTL split (used for cost).
+  cacheCreate: number
+  cacheCreate5m: number
+  cacheCreate1h: number
   output: number
   reasoning: number
   total: number
@@ -19,11 +24,15 @@ export interface TokenRates {
   input: number
   cached: number | null
   output: number
+  // Claude-only cache-write rates ($/Mtok). Absent for Codex → treated as 0 in cost.
+  cacheWrite5m?: number | null
+  cacheWrite1h?: number | null
   context: 'short' | 'long'
   source: string
 }
 
 const PRICE_SOURCE = 'OpenAI API pricing, July 7 2026'
+const CLAUDE_PRICE_SOURCE = 'Anthropic API pricing, July 7 2026'
 
 const STANDARD_RATES: Record<string, { short: Omit<TokenRates, 'context' | 'source'>; long?: Omit<TokenRates, 'context' | 'source'> }> = {
   'gpt-5.5': { short: { input: 5, cached: 0.5, output: 30 }, long: { input: 10, cached: 1, output: 45 } },
@@ -34,6 +43,18 @@ const STANDARD_RATES: Record<string, { short: Omit<TokenRates, 'context' | 'sour
   'gpt-5.4-pro': { short: { input: 30, cached: null, output: 180 }, long: { input: 60, cached: null, output: 270 } },
   'gpt-5.3-codex': { short: { input: 1.75, cached: 0.175, output: 14 } },
   'chat-latest': { short: { input: 5, cached: 0.5, output: 30 } },
+}
+
+// Anthropic $/1M-token rates. cacheWrite5m/1h are the premium cache-creation rates for
+// 5-minute and 1-hour TTLs. All Claude context is treated as 'long'.
+export const CLAUDE_RATES: Record<string, { input: number; cached: number; cacheWrite5m: number; cacheWrite1h: number; output: number }> = {
+  'claude-opus-4-8': { input: 5, cached: 0.5, cacheWrite5m: 6.25, cacheWrite1h: 10, output: 25 },
+  'claude-opus-4-7': { input: 5, cached: 0.5, cacheWrite5m: 6.25, cacheWrite1h: 10, output: 25 },
+  'claude-opus-4-6': { input: 5, cached: 0.5, cacheWrite5m: 6.25, cacheWrite1h: 10, output: 25 },
+  'claude-sonnet-5': { input: 3, cached: 0.3, cacheWrite5m: 3.75, cacheWrite1h: 6, output: 15 },
+  'claude-sonnet-4-6': { input: 3, cached: 0.3, cacheWrite5m: 3.75, cacheWrite1h: 6, output: 15 },
+  'claude-haiku-4-5': { input: 1, cached: 0.1, cacheWrite5m: 1.25, cacheWrite1h: 2, output: 5 },
+  'claude-fable-5': { input: 10, cached: 1, cacheWrite5m: 12.5, cacheWrite1h: 20, output: 50 },
 }
 
 export const UNIT_MODE_LABELS: Record<UsageUnitMode, string> = {
@@ -56,7 +77,10 @@ export const currencyModes: CurrencyMode[] = ['usd', 'usd_cents', 'eur', 'eur_ce
 // $/1M-token rate for a given segment kind.
 function rateForKind(kind: keyof Omit<UsageParts, 'total'>, rates: TokenRates): number {
   const cachedRate = rates.cached ?? rates.input
-  return kind === 'freshInput' ? rates.input : kind === 'cachedInput' ? cachedRate : rates.output
+  if (kind === 'freshInput') return rates.input
+  if (kind === 'cachedInput') return cachedRate
+  if (kind === 'cacheCreate' || kind === 'cacheCreate5m' || kind === 'cacheCreate1h') return rates.cacheWrite5m ?? rates.input
+  return rates.output
 }
 
 function normalizeModel(model: string | null | undefined): string {
@@ -66,14 +90,20 @@ function normalizeModel(model: string | null | undefined): string {
 export function splitUsage(usage: TokenUsage | null | undefined): UsageParts {
   const cachedInput = usage?.cached_input_tokens || 0
   const freshInput = Math.max((usage?.input_tokens || 0) - cachedInput, 0)
+  const cacheCreate = usage?.cache_creation_input_tokens || 0
+  const cacheCreate5m = usage?.cache_creation_5m_input_tokens || 0
+  const cacheCreate1h = usage?.cache_creation_1h_input_tokens || 0
   const reasoning = usage?.reasoning_output_tokens || 0
   const output = Math.max((usage?.output_tokens || 0) - reasoning, 0)
   return {
     freshInput,
     cachedInput,
+    cacheCreate,
+    cacheCreate5m,
+    cacheCreate1h,
     output,
     reasoning,
-    total: freshInput + cachedInput + output + reasoning,
+    total: freshInput + cachedInput + cacheCreate + output + reasoning,
   }
 }
 
@@ -81,6 +111,9 @@ export function addUsage(a: TokenUsage | null | undefined, b: TokenUsage | null 
   return {
     input_tokens: (a?.input_tokens || 0) + (b?.input_tokens || 0),
     cached_input_tokens: (a?.cached_input_tokens || 0) + (b?.cached_input_tokens || 0),
+    cache_creation_input_tokens: (a?.cache_creation_input_tokens || 0) + (b?.cache_creation_input_tokens || 0),
+    cache_creation_5m_input_tokens: (a?.cache_creation_5m_input_tokens || 0) + (b?.cache_creation_5m_input_tokens || 0),
+    cache_creation_1h_input_tokens: (a?.cache_creation_1h_input_tokens || 0) + (b?.cache_creation_1h_input_tokens || 0),
     output_tokens: (a?.output_tokens || 0) + (b?.output_tokens || 0),
     reasoning_output_tokens: (a?.reasoning_output_tokens || 0) + (b?.reasoning_output_tokens || 0),
     total_tokens: (a?.total_tokens || 0) + (b?.total_tokens || 0),
@@ -99,7 +132,36 @@ export function ratesForSession(session: Session): TokenRates | null {
 export function usageCost(parts: UsageParts, rates: TokenRates | null): number | null {
   if (!rates) return null
   const cachedRate = rates.cached ?? rates.input
-  return ((parts.freshInput * rates.input) + (parts.cachedInput * cachedRate) + ((parts.output + parts.reasoning) * rates.output)) / 1_000_000
+  return (
+    (parts.freshInput * rates.input) +
+    (parts.cachedInput * cachedRate) +
+    (parts.cacheCreate5m * (rates.cacheWrite5m ?? 0)) +
+    (parts.cacheCreate1h * (rates.cacheWrite1h ?? 0)) +
+    ((parts.output + parts.reasoning) * rates.output)
+  ) / 1_000_000
+}
+
+export function ratesForClaudeModel(model: string | null | undefined): TokenRates | null {
+  let key = normalizeModel(model).replace(/\[1m\]$/, '')
+  if (key === 'claude-haiku-4-5-20251001') key = 'claude-haiku-4-5'
+  const r = CLAUDE_RATES[key]
+  if (!r) return null
+  return {
+    input: r.input,
+    cached: r.cached,
+    output: r.output,
+    cacheWrite5m: r.cacheWrite5m,
+    cacheWrite1h: r.cacheWrite1h,
+    context: 'long',
+    source: CLAUDE_PRICE_SOURCE,
+  }
+}
+
+// Pricing for a unified session — dispatches on source to the per-source rate table.
+// Codex needs the full session (its rates depend on the max context window seen); Claude
+// keys purely off the model name.
+export function ratesForUnified(s: UnifiedSession): TokenRates | null {
+  return s.source === 'codex' ? ratesForSession(s.raw as Session) : ratesForClaudeModel(s.model)
 }
 
 // Bar-segment weight. 'tokens' → raw count; 'token_units' → the segment's USD cost, so
@@ -117,6 +179,7 @@ export function usageUnitTotal(usage: TokenUsage | null | undefined, rates: Toke
   return (
     usageUnitValue(p.freshInput, 'freshInput', rates, mode) +
     usageUnitValue(p.cachedInput, 'cachedInput', rates, mode) +
+    usageUnitValue(p.cacheCreate, 'cacheCreate', rates, mode) +
     usageUnitValue(p.output, 'output', rates, mode) +
     usageUnitValue(p.reasoning, 'reasoning', rates, mode)
   )

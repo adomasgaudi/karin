@@ -1,10 +1,14 @@
-// Tiny IndexedDB wrapper: remembers the last-loaded Karin dataset so a refresh
-// re-opens it without re-picking the file. Data stays in the browser, never uploaded.
+// Tiny IndexedDB wrapper: remembers the last-loaded datasets (Codex + Claude) so a
+// refresh re-opens them without re-picking files. Data stays in the browser, never
+// uploaded. The `kv` object store is schemaless, so new keys need no DB version bump.
 import type { KarinData } from '../types'
+import type { ClaudeRawData } from './claudeRaw'
 
 const DB_NAME = 'karin'
 const STORE = 'kv'
-const KEY = 'last-data'
+const CODEX_KEY = 'codex-data'
+const CLAUDE_KEY = 'claude-data'
+const LEGACY_KEY = 'last-data' // pre-merge bare Codex payload — migrated to CODEX_KEY
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -17,12 +21,12 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export async function saveData(data: KarinData): Promise<void> {
+async function put(key: string, value: unknown): Promise<void> {
   try {
     const db = await openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
-      tx.objectStore(STORE).put(data, KEY)
+      tx.objectStore(STORE).put(value, key)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -32,13 +36,13 @@ export async function saveData(data: KarinData): Promise<void> {
   }
 }
 
-export async function loadSavedData(): Promise<KarinData | null> {
+async function getKey<T>(key: string): Promise<T | null> {
   try {
     const db = await openDb()
-    const result = await new Promise<KarinData | null>((resolve, reject) => {
+    const result = await new Promise<T | null>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
-      const req = tx.objectStore(STORE).get(KEY)
-      req.onsuccess = () => resolve((req.result as KarinData) ?? null)
+      const req = tx.objectStore(STORE).get(key)
+      req.onsuccess = () => resolve((req.result as T) ?? null)
       req.onerror = () => reject(req.error)
     })
     db.close()
@@ -48,12 +52,12 @@ export async function loadSavedData(): Promise<KarinData | null> {
   }
 }
 
-export async function clearSavedData(): Promise<void> {
+async function del(key: string): Promise<void> {
   try {
     const db = await openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
-      tx.objectStore(STORE).delete(KEY)
+      tx.objectStore(STORE).delete(key)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -61,4 +65,26 @@ export async function clearSavedData(): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+export function saveCodex(data: KarinData): Promise<void> {
+  return put(CODEX_KEY, data)
+}
+
+export function saveClaude(data: ClaudeRawData): Promise<void> {
+  return put(CLAUDE_KEY, data)
+}
+
+// Load both remembered datasets. A legacy bare Codex payload is migrated forward.
+export async function loadSaved(): Promise<{ codex: KarinData | null; claude: ClaudeRawData | null }> {
+  const [codex, legacy, claude] = await Promise.all([
+    getKey<KarinData>(CODEX_KEY),
+    getKey<KarinData>(LEGACY_KEY),
+    getKey<ClaudeRawData>(CLAUDE_KEY),
+  ])
+  return { codex: codex ?? legacy, claude }
+}
+
+export async function clearSaved(): Promise<void> {
+  await Promise.all([del(CODEX_KEY), del(CLAUDE_KEY), del(LEGACY_KEY)])
 }

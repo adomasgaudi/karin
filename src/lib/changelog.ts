@@ -19,6 +19,46 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.46',
+    title: 'Removed active-session dots',
+    summary:
+      'Dropped the green/gray live dots — the data has no reliable signal for whether a session is still running.',
+    detail:
+      'The dots inferred "active" from how recently a session was last written to, but a session that ended two minutes ago is indistinguishable from one still running — both just have a recent last-activity timestamp. Since Karin reads finished transcript files on disk and has no process/heartbeat signal, liveness can\'t be determined with certainty, so the feature was misleading (it showed ended sessions as live) and has been removed rather than left to guess.',
+  },
+  {
+    version: 'v.45',
+    title: 'Consistent significant figures',
+    summary:
+      'Every measured number — tokens, cost, durations — now shows 2 significant figures below 10 and 3 above, never fewer or more.',
+    detail:
+      'One shared sig-fig policy drives all value formatting: 2 significant figures under 10, 3 at or above (e.g. 7.3, 45.2, 45.2K, $0.071, 12.0s). Token amounts, compact counts, currency in every denomination, and sub-minute durations all route through it, so nothing shows a lone digit like "5" or an over-precise "45,231". Exact counts of discrete things — records, events, transcript tallies, and m/s time breakdowns — are deliberately left untouched, since a count of 5 is 5, not 5.0.',
+  },
+  {
+    version: 'v.44',
+    title: 'Token units by default',
+    summary:
+      'Usage now opens in the priced "token units" view everywhere; toggle back to raw token counts anytime.',
+    detail:
+      'The sidebar totals and the session detail both start in the "token units" mode instead of raw token counts, so costs are the first thing you see. Nothing else changed about the toggle — one click still switches either view back to raw tokens, and the currency selector still appears while token units are shown.',
+  },
+  {
+    version: 'v.43',
+    title: 'Active-session dots',
+    summary:
+      'Each session row now carries a green dot when it was active in the last 5 minutes, gray when idle.',
+    detail:
+      'A small status dot sits at the left of every session row in the sidebar. It turns green (with a soft pulse) when the session had activity within the last 5 minutes, and stays gray otherwise — so you can scan the list and see which sessions are live at a glance. The dot re-evaluates every second against the shared live clock, so a session goes gray the moment it crosses the 5-minute threshold.',
+  },
+  {
+    version: 'v.42',
+    title: 'Leaner session list',
+    summary:
+      'Session rows drop the date and cached-tokens figures — that detail now lives inside the session view.',
+    detail:
+      'The sidebar row previously repeated each session\'s date/time and a "N cached" total. Both were redundant with what the session detail shows once opened (per-cycle start/end times, and cached tokens in the usage bars), so the list row now carries just total tokens and the project — less noise when scanning sessions. The generated-at stamp and the live "Xm ago" age at the top of the sidebar are unchanged.',
+  },
+  {
     version: 'v.41',
     title: 'Sub-second step precision',
     summary:

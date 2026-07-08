@@ -6,11 +6,11 @@ import { dirname, join } from 'node:path'
 import { existsSync, createReadStream, mkdirSync, copyFileSync } from 'node:fs'
 
 const root = dirname(fileURLToPath(import.meta.url))
-const DATA_FILES = ['karin-data.json', 'karin-data.js', 'karin-status.json']
+const DATA_FILES = ['karin-data.json', 'karin-data.js', 'karin-status.json', 'claude-raw.json', 'claude-status.json']
 
 // Dev only: serve the locally-generated data/ files (e.g. karin-data.json) so the
-// app auto-loads real Codex data during `pnpm dev`. NOT part of the build, so the
-// public Pages bundle never ships any transcript data.
+// app auto-loads real Codex data during `pnpm dev`. NOT part of the build, so a plain
+// `pnpm build` bundle never ships any transcript data (only `build:local` bakes it in).
 function serveLocalData() {
   return {
     name: 'karin-serve-local-data',
@@ -59,12 +59,21 @@ function bundleLocalData() {
   }
 }
 
-// GitHub Pages serves the site from /<repo>/ — BASE_PATH is set in the deploy workflow.
-// `--mode local` uses relative paths so the built bundle serves from any local folder.
+// Karin builds for the LOCAL target only: relative asset paths ('./') so the bundle
+// serves from any origin — localhost:4173, a Cloudflare tunnel, or a bare file path.
+// The public GitHub Pages deploy was removed; to bring it back you'd reintroduce an
+// absolute base (BASE_PATH) + a deploy workflow.
+// `--mode offline` (pnpm build:local) additionally bakes your data/ into dist/data/.
 export default defineConfig(({ mode }) => {
   const isLocal = mode === 'offline'
+  // Allow Cloudflare quick-tunnel hosts (random *.trycloudflare.com each run) through
+  // Vite's DNS-rebinding guard, for both the dev server (:5173) and preview (:4173) —
+  // this is what makes `./karin.ps1 -Tunnel` reachable. localhost stays allowed by default.
+  const tunnelHosts = ['.trycloudflare.com']
   return {
-    base: isLocal ? './' : (process.env.BASE_PATH ?? '/'),
+    base: './',
+    server: { allowedHosts: tunnelHosts },
+    preview: { allowedHosts: tunnelHosts },
     plugins: [react(), tailwindcss(), serveLocalData(), ...(isLocal ? [bundleLocalData()] : [])],
   }
 })

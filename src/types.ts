@@ -6,6 +6,10 @@ export interface TokenUsage {
   output_tokens?: number
   reasoning_output_tokens?: number
   total_tokens?: number
+  // Claude-only: premium cache-write bucket (default absent for Codex).
+  cache_creation_input_tokens?: number
+  cache_creation_5m_input_tokens?: number
+  cache_creation_1h_input_tokens?: number
 }
 
 export interface Message {
@@ -146,4 +150,60 @@ export interface KarinStatus {
   last_checked_at: string | null
   last_entry_at: string | null
   session_file_count: number | null
+}
+
+// --- Unified session model -------------------------------------------------
+// One shape both pipelines (Codex `Session` + Claude `ClaudeDetailSession`) adapt into,
+// so the sidebar/detail/cycle components read a single summary and never re-branch on
+// `if 'records' in s`. Genuine divergence is captured as (a) a few optional fields here
+// and (b) the small source-tagged `UnifiedEntry` union in lib/unifiedCycles.ts. The
+// underlying enriched session is carried verbatim on `raw` for the cycle builder, which
+// is the only place that dispatches on `source` to read source-specific arrays.
+
+export type SessionSource = 'codex' | 'claude'
+
+// Superset counts for a session summary row (Claude-only tallies optional).
+export interface UnifiedCounts {
+  user: number
+  assistant: number
+  tool_calls: number
+  code_edits: number
+  thinking?: number
+  contexts?: number
+  subagents?: number
+}
+
+// One label/value row rendered in the detail header's ⋮ metadata popover. The set of
+// rows is source-specific (Codex: path/cli_version/fast_mode/effort; Claude:
+// version/branch/entrypoint/service_tier/…), but the row shape is uniform.
+export interface UnifiedMetaRow {
+  label: string
+  value: string | null
+}
+
+export interface UnifiedSession {
+  uid: string // `${source}:${id}` — globally unique across both sources
+  source: SessionSource
+  id: string
+  title: string
+  subtitle: string | null // Claude first_prompt; null for Codex
+  cwd: string | null
+  model: string | null
+  models: string[]
+  started_at: string | null
+  updated_at: string | null
+  counts: UnifiedCounts
+  latest_total_usage: TokenUsage | null
+  // Grouping — Claude sessions live under a project; Codex is flat (null).
+  projectSlug: string | null
+  projectCwd: string | null
+  haystack: string // precomputed lower-cased search blob
+  meta: UnifiedMetaRow[] // ⋮ popover rows, source-specific
+  // The enriched source session, read only by the cycle builder (dispatched on source).
+  raw: unknown
+  // Claude-only extras (undefined for Codex).
+  rawRecords?: unknown[] // ClaudeRecord[] — raw JSONL lines for the Raw toggle
+  recordTypeCounts?: Record<string, number>
+  recordCount?: number
+  titleOps?: unknown[] // ClaudeSession[] — folded auto-title label sessions
 }
