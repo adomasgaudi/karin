@@ -89,9 +89,27 @@ function freshestGeneratedAt(codex: KarinData | null, claude: ClaudeRawData | nu
   return stamps.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b))
 }
 
+// Freeze the sidebar order so the active session doesn't jump to the top on every refresh.
+// mergeSessions returns updated_at-desc; we hold that order for RESORT_MS, then take a fresh
+// snapshot. New sessions (absent from the snapshot) surface at the top in recency order.
+const RESORT_MS = 5 * 60 * 1000
+let sortSnapshot: { at: number; rank: Map<string, number> } | null = null
+
+function frozenOrder(sorted: UnifiedSession[]): UnifiedSession[] {
+  const now = Date.now()
+  if (!sortSnapshot || now - sortSnapshot.at >= RESORT_MS) {
+    sortSnapshot = { at: now, rank: new Map(sorted.map((s, i) => [s.uid, i])) }
+    return sorted
+  }
+  const rank = sortSnapshot.rank
+  const known = sorted.filter((s) => rank.has(s.uid)).sort((a, b) => rank.get(a.uid)! - rank.get(b.uid)!)
+  const fresh = sorted.filter((s) => !rank.has(s.uid))
+  return [...fresh, ...known]
+}
+
 // Recompute the merged list + derived fields from whatever codex/claude are set.
 function derive(codex: KarinData | null, claude: ClaudeRawData | null, selectedUid: string | null) {
-  const sessions = mergeSessions(codex, claude)
+  const sessions = frozenOrder(mergeSessions(codex, claude))
   const stillSelected = selectedUid && sessions.some((s) => s.uid === selectedUid) ? selectedUid : null
   return { sessions, generatedAt: freshestGeneratedAt(codex, claude), selectedUid: stillSelected }
 }
