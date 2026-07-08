@@ -19,6 +19,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.50',
+    title: 'Token units split from cost',
+    summary:
+      'Three usage modes now — tokens, token units, money — each with its own sub-toggle; token units measures token weight, not price.',
+    detail:
+      'Usage now has three independent modes instead of two. "tokens" shows raw counts. "token units" re-expresses every token type as the equivalent number of a chosen reference token (input-eq / cached-eq / output-eq) at their relative rates — so 7M mostly-cached tokens might read as ~1M output-eq, measuring how wastefully a model spends tokens regardless of absolute price, and letting you compare Codex vs Claude on token weight. "money" is the actual cost, with the currency sub-toggle ($ / ¢ / € / €¢) that used to hang off token units. The reference and currency pickers appear only for their own mode, and the currency picker is finally on the sidebar (main page) too, not just the session view.',
+  },
+  {
+    version: 'v.49',
+    title: 'Drop empty message rows',
+    summary:
+      'Assistant/user turns that carried only thinking + tool calls no longer render as a blank "assistant:" line — those turns already show via their thinking/tool rows.',
+    detail:
+      'A Claude turn whose content was purely a thinking block plus a tool call has no text block, so it flattened to an empty string and rendered as a blank message row with no preview and nothing inside. Those rows are now skipped: the turn is still fully represented by its adjacent thinking, tool, and usage rows, so no information is lost — the transcript just stops showing empty "assistant:" placeholders.',
+  },
+  {
     version: 'v.48',
     title: 'Compact borderless events',
     summary:

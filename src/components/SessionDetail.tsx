@@ -8,11 +8,15 @@ import { buildCycles, cycleUsage, cycleModelEffort } from '../lib/unifiedCycles'
 import { fmtNum, shortAge } from '../lib/format'
 import {
   CURRENCY_LABELS,
+  TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
   currencyModes,
   ratesForUnified,
+  tokenUnitRefs,
+  unitModes,
   usageUnitTotal,
 } from '../lib/pricing'
+import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import Cycle from './Cycle'
@@ -80,6 +84,8 @@ export default function SessionDetail() {
   // token display across both panes at once.
   const unitMode = useKarin((st) => st.unitMode)
   const setUnitMode = useKarin((st) => st.setUnitMode)
+  const tokenRef = useKarin((st) => st.tokenRef)
+  const setTokenRef = useKarin((st) => st.setTokenRef)
   const currency = useKarin((st) => st.currency)
   const setCurrency = useKarin((st) => st.setCurrency)
   const [metaOpen, setMetaOpen] = useState(false)
@@ -93,8 +99,8 @@ export default function SessionDetail() {
   const u: TokenUsage = s?.latest_total_usage || {}
   // One shared ruler for the top session-total bar AND every cycle bar.
   const scaleMax = Math.max(
-    usageUnitTotal(u, rates, unitMode),
-    ...cycles.map((c) => usageUnitTotal(cycleUsage(c), rates, unitMode)),
+    usageUnitTotal(u, rates, unitMode, tokenRef),
+    ...cycles.map((c) => usageUnitTotal(cycleUsage(c), rates, unitMode, tokenRef)),
   )
 
   // Reset the raw-mode type filter whenever the selected session changes.
@@ -205,16 +211,38 @@ export default function SessionDetail() {
 
         <div className="mt-2 flex items-start gap-1.5">
           <div className="min-w-0 flex-1">
-            <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} scaleMax={scaleMax} inlineLabels />
+            <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} scaleMax={scaleMax} inlineLabels />
           </div>
-          <button
-            type="button"
-            onClick={() => setUnitMode(unitMode === 'tokens' ? 'token_units' : 'tokens')}
-            className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
-          >
-            {UNIT_MODE_LABELS[unitMode]}
-          </button>
+          {/* Mode pill group: tokens / token units / money. */}
+          <div className="inline-flex shrink-0 rounded-md border border-neutral-300 bg-neutral-100 p-0.5 dark:border-neutral-700 dark:bg-neutral-800">
+            {unitModes.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setUnitMode(m)}
+                className={cn(
+                  'rounded-sm px-2 py-0.5 text-xs font-medium',
+                  unitMode === m
+                    ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-950 dark:text-neutral-50'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-neutral-100',
+                )}
+              >
+                {UNIT_MODE_LABELS[m]}
+              </button>
+            ))}
+          </div>
+          {/* token units → pick the reference token type; money → pick the currency. */}
           {unitMode === 'token_units' && (
+            <button
+              type="button"
+              onClick={() => setTokenRef(tokenUnitRefs[(tokenUnitRefs.indexOf(tokenRef) + 1) % tokenUnitRefs.length])}
+              title="Reference token type: every segment is shown as the equivalent number of these tokens"
+              className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
+            >
+              {TOKEN_UNIT_REF_LABELS[tokenRef]}
+            </button>
+          )}
+          {unitMode === 'money' && (
             <button
               type="button"
               onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
@@ -330,6 +358,7 @@ export default function SessionDetail() {
                     rates={rates}
                     unitMode={unitMode}
                     currency={currency}
+                    tokenRef={tokenRef}
                     scaleMax={scaleMax}
                     model={model}
                     effort={effort}

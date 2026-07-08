@@ -4,8 +4,10 @@ import {
   splitUsage,
   usageCost,
   usageUnitValue,
+  TOKEN_UNIT_REF_LABELS,
   type CurrencyMode,
   type TokenRates,
+  type TokenUnitRef,
   type UsageUnitMode,
 } from '../lib/pricing'
 
@@ -14,6 +16,7 @@ export default function UsageBar({
   rates,
   mode,
   currency = 'usd',
+  tokenRef = 'output',
   compact = false,
   showLegend = true,
   inlineLabels = false,
@@ -24,6 +27,8 @@ export default function UsageBar({
   rates: TokenRates | null
   mode: UsageUnitMode
   currency?: CurrencyMode
+  // Reference token type for token_units mode (which type = 1.0).
+  tokenRef?: TokenUnitRef
   compact?: boolean
   showLegend?: boolean
   // Draw each segment's label + value inside the bar itself (no dot legend below).
@@ -44,14 +49,16 @@ export default function UsageBar({
     { key: 'output' as const, label: 'output', raw: parts.output, className: 'bg-amber-500' },
     { key: 'reasoning' as const, label: 'reasoning', raw: parts.reasoning, className: 'bg-fuchsia-500' },
   ]
-    .map((segment) => ({ ...segment, value: usageUnitValue(segment.raw, segment.key, rates, mode) }))
+    .map((segment) => ({ ...segment, value: usageUnitValue(segment.raw, segment.key, rates, mode, tokenRef) }))
     .filter((segment) => segment.raw > 0)
   const total = segments.reduce((sum, segment) => sum + segment.value, 0)
   const denom = scaleMax && scaleMax > 0 ? scaleMax : total
-  // In token_units mode segment.value is a USD cost; render it in the chosen currency.
-  const priced = mode === 'token_units' && rates != null
+  // Money mode renders segment.value as currency; tokens / token-units render it as a
+  // token count (raw, or reference-equivalent). refSuffix labels the token-units unit.
+  const isMoney = mode === 'money' && rates != null
+  const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
   const fmtSeg = (segment: { raw: number; value: number }) =>
-    priced ? fmtCurrency(segment.value, currency) : fmtCompact(segment.raw)
+    isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value)
   // Inline-label bars need enough height to hold text; compact ones sit a touch
   // shorter than the top session bar (h-6) but still readable.
   const barHeight = inlineLabels ? (compact ? 'h-5' : 'h-6') : compact ? 'h-2' : 'h-3'
@@ -73,7 +80,7 @@ export default function UsageBar({
                 key={segment.key}
                 className={`flex items-center overflow-hidden whitespace-nowrap ${segment.className}`}
                 style={{ width: `${frac * 100}%`, ...(estimated ? { backgroundImage: hatch } : null) }}
-                title={`${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens${priced ? `; ${fmtCurrency(segment.value, currency)}` : ''}`}
+                title={`${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens${mode === 'money' && rates ? `; ${fmtCurrency(segment.value, currency)}` : mode === 'token_units' && rates ? `; ${fmtCompact(segment.value)}${refSuffix}` : ''}`}
               >
                 {inlineLabels && frac >= 0.07 && (
                   <span className={`${compact ? 'px-1 text-[0.6rem]' : 'px-1.5 text-[0.68rem]'} font-medium leading-none text-white/95`}>
@@ -92,8 +99,10 @@ export default function UsageBar({
         // full-size top bar prints a total line under itself.
         !compact && (
           <div className="mt-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">
-            {priced
+            {isMoney
               ? `total ${fmtCurrency(total, currency)}`
+              : mode === 'token_units' && rates != null
+              ? `total ${fmtCompact(total)}${refSuffix}`
               : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
           </div>
         )
@@ -107,8 +116,10 @@ export default function UsageBar({
               </span>
             ))}
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              {priced
+              {isMoney
                 ? `total ${fmtCurrency(total, currency)}`
+                : mode === 'token_units' && rates != null
+                ? `total ${fmtCompact(total)}${refSuffix}`
                 : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
             </span>
           </div>

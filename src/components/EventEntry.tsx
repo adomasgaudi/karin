@@ -12,7 +12,15 @@ import type {
   ClaudeSubagent,
 } from '../lib/claudeModel'
 import { fmtCompact, fmtCurrency, fmtDuration } from '../lib/format'
-import { splitUsage, usageUnitTotal, type CurrencyMode, type TokenRates, type UsageUnitMode } from '../lib/pricing'
+import {
+  splitUsage,
+  usageUnitTotal,
+  TOKEN_UNIT_REF_LABELS,
+  type CurrencyMode,
+  type TokenRates,
+  type TokenUnitRef,
+  type UsageUnitMode,
+} from '../lib/pricing'
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
 import DiffView from './DiffView'
@@ -22,6 +30,7 @@ interface UsageProps {
   rates: TokenRates | null
   unitMode: UsageUnitMode
   currency: CurrencyMode
+  tokenRef: TokenUnitRef
   // Cycle total in the active unit, so each card's bar is its true fraction of the cycle.
   scaleMax?: number
 }
@@ -168,16 +177,21 @@ function Row({
 // an ESTIMATED (hatched, "≈ … est") bar, Codex token frames + every Claude usage frame get
 // a MEASURED (solid, "… measured") bar, and cards with no entry in the map get none — which
 // is exactly Claude's content-card behavior (no per-card bar).
-function UsageMini({ usage, rates, unitMode, currency, scaleMax }: UsageProps) {
+function UsageMini({ usage, rates, unitMode, currency, tokenRef, scaleMax }: UsageProps) {
   if (!usage) return null
   const total = splitUsage(usage.usage).total
   if (total <= 0) return null
-  const priced = unitMode === 'token_units' && rates != null
-  const shown = priced ? fmtCurrency(usageUnitTotal(usage.usage, rates, unitMode), currency) : fmtCompact(total)
+  const unitTotal = usageUnitTotal(usage.usage, rates, unitMode, tokenRef)
+  const shown =
+    unitMode === 'money' && rates != null
+      ? fmtCurrency(unitTotal, currency)
+      : unitMode === 'token_units' && rates != null
+      ? `${fmtCompact(unitTotal)} ${TOKEN_UNIT_REF_LABELS[tokenRef]}`
+      : fmtCompact(total)
   return (
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">
-        <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} compact inlineLabels scaleMax={scaleMax} estimated={usage.estimated} />
+        <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact inlineLabels scaleMax={scaleMax} estimated={usage.estimated} />
       </div>
       <span
         className={`shrink-0 font-mono text-[0.6rem] ${usage.estimated ? 'italic text-neutral-400/80 dark:text-neutral-500/80' : 'text-neutral-500 dark:text-neutral-400'}`}
@@ -244,9 +258,9 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
   )
 }
 
-export default function EventEntry({ entry, num, usage, rates, unitMode, currency, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
+export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
   const tint = tintFor(entry)
-  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} scaleMax={scaleMax} />
+  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} scaleMax={scaleMax} />
 
   switch (entry.kind) {
     case 'message': {

@@ -4,7 +4,16 @@ import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
-import { UNIT_MODE_LABELS, ratesForUnified, usageUnitTotal, type UsageUnitMode } from '../lib/pricing'
+import {
+  CURRENCY_LABELS,
+  TOKEN_UNIT_REF_LABELS,
+  UNIT_MODE_LABELS,
+  currencyModes,
+  ratesForUnified,
+  tokenUnitRefs,
+  unitModes,
+  usageUnitTotal,
+} from '../lib/pricing'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import DateStamp from './DateStamp'
 import UsageBar from './UsageBar'
@@ -14,8 +23,6 @@ import SourceBadge from './SourceBadge'
 interface SidebarProps {
   className?: string
 }
-
-const unitModes: UsageUnitMode[] = ['tokens', 'token_units']
 
 // Last path segment of a Claude session's project cwd (fallback: the slug) — shown inline
 // so Claude rows carry their project without a separate grouping column.
@@ -41,7 +48,10 @@ export default function Sidebar({ className }: SidebarProps) {
   // every token display at once, not just this pane's bars.
   const unitMode = useKarin((s) => s.unitMode)
   const setUnitMode = useKarin((s) => s.setUnitMode)
+  const tokenRef = useKarin((s) => s.tokenRef)
+  const setTokenRef = useKarin((s) => s.setTokenRef)
   const currency = useKarin((s) => s.currency)
+  const setCurrency = useKarin((s) => s.setCurrency)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -50,7 +60,7 @@ export default function Sidebar({ className }: SidebarProps) {
   // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
     const rates = ratesForUnified(s)
-    return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode) }
+    return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
   // Newest prompt across ALL sessions (both sources) — "minutes since last prompt".
@@ -148,6 +158,26 @@ export default function Sidebar({ className }: SidebarProps) {
               </button>
             ))}
           </div>
+          {/* token units → reference token type; money → currency. */}
+          {unitMode === 'token_units' && (
+            <button
+              type="button"
+              onClick={() => setTokenRef(tokenUnitRefs[(tokenUnitRefs.indexOf(tokenRef) + 1) % tokenUnitRefs.length])}
+              title="Reference token type: every segment is shown as the equivalent number of these tokens"
+              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {TOKEN_UNIT_REF_LABELS[tokenRef]}
+            </button>
+          )}
+          {unitMode === 'money' && (
+            <button
+              type="button"
+              onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
+              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {CURRENCY_LABELS[currency]}
+            </button>
+          )}
         </div>
       </div>
 
@@ -180,7 +210,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     {/* Date + cached tokens live in the session detail now; the list row
                         stays lean with just total tokens + project. */}
                     <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                      {sessionTotalLabel(s, rates, unitMode, currency)}{project ? ` / ${project}` : ''}
+                      {sessionTotalLabel(s, rates, unitMode, currency, tokenRef)}{project ? ` / ${project}` : ''}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-neutral-500 dark:text-neutral-500">
                       <span>{s.counts.user} user</span>
@@ -193,6 +223,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       rates={rates}
                       mode={unitMode}
                       currency={currency}
+                      tokenRef={tokenRef}
                       compact
                       inlineLabels
                       showLegend={false}

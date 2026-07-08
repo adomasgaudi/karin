@@ -1,5 +1,13 @@
 import type { Session, UnifiedSession } from '../types'
-import { EUR_PER_USD, usageUnitTotal, type CurrencyMode, type TokenRates, type UsageUnitMode } from './pricing'
+import {
+  EUR_PER_USD,
+  TOKEN_UNIT_REF_LABELS,
+  usageUnitTotal,
+  type CurrencyMode,
+  type TokenRates,
+  type TokenUnitRef,
+  type UsageUnitMode,
+} from './pricing'
 
 const MONTHS = [
   'january',
@@ -205,16 +213,20 @@ export function tokensLabelUnified(s: UnifiedSession): string {
 }
 
 // Session total in the ACTIVE usage unit, so the row label tracks the global toggle
-// like the bars do: raw "5.8M tokens" in tokens mode, or the priced total (e.g. "$1.20")
-// in token-units mode. Falls back to raw tokens when the model has no known pricing.
+// like the bars do: raw "5.8M tokens" in tokens mode, "1.2M output-eq" in token-units
+// mode, or "$1.20" in money mode. Falls back to raw tokens when the model has no pricing.
 export function sessionTotalLabel(
   s: UnifiedSession,
   rates: TokenRates | null,
   mode: UsageUnitMode,
   currency: CurrencyMode,
+  ref: TokenUnitRef = 'output',
 ): string {
+  if (mode === 'money' && rates) {
+    return fmtCurrency(usageUnitTotal(s.latest_total_usage, rates, mode, ref), currency)
+  }
   if (mode === 'token_units' && rates) {
-    return fmtCurrency(usageUnitTotal(s.latest_total_usage, rates, mode), currency)
+    return `${fmtCompact(usageUnitTotal(s.latest_total_usage, rates, mode, ref))} ${TOKEN_UNIT_REF_LABELS[ref]}`
   }
   const total = s.latest_total_usage?.total_tokens
   return total ? `${fmtCompact(total)} tokens` : 'tokens n/a'
