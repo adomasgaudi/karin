@@ -36,6 +36,7 @@ export interface BandDisplay {
   unitMode: UsageUnitMode
   currency: CurrencyMode
   tokenRef: TokenUnitRef
+  tokenMult?: number
   scaleMax: number
   entryUsage: Map<UnifiedEntry, EntryUsage>
   steps: Map<UnifiedEntry, StepDuration>
@@ -54,6 +55,7 @@ function leafRow(entry: UnifiedEntry, d: BandDisplay) {
       unitMode={d.unitMode}
       currency={d.currency}
       tokenRef={d.tokenRef}
+      tokenMult={d.tokenMult}
       scaleMax={d.scaleMax}
     />
   )
@@ -63,9 +65,9 @@ function leafRow(entry: UnifiedEntry, d: BandDisplay) {
 function figure(usage: TokenUsage | null, d: BandDisplay): string {
   const total = splitUsage(usage).total
   if (total <= 0) return ''
-  if (d.unitMode === 'money' && d.rates != null) return fmtCurrency(usageUnitTotal(usage, d.rates, d.unitMode, d.tokenRef), d.currency)
+  if (d.unitMode === 'money' && d.rates != null) return fmtCurrency(usageUnitTotal(usage, d.rates, d.unitMode, d.tokenRef, d.tokenMult), d.currency)
   if (d.unitMode === 'token_units' && d.rates != null)
-    return `${fmtCompact(usageUnitTotal(usage, d.rates, d.unitMode, d.tokenRef))} ${TOKEN_UNIT_REF_LABELS[d.tokenRef]}`
+    return `${fmtCompact(usageUnitTotal(usage, d.rates, d.unitMode, d.tokenRef, d.tokenMult))} ${TOKEN_UNIT_REF_LABELS[d.tokenRef]}`
   return `${fmtCompact(total)} tok`
 }
 
@@ -158,7 +160,7 @@ export function ClaudeBlock({
                 </span>
                 {has && (
                   <div className="min-w-0 flex-1">
-                    <UsageBar usage={g.usage!} rates={d.rates} mode={d.unitMode} currency={d.currency} tokenRef={d.tokenRef} compact inlineLabels scaleMax={d.scaleMax} />
+                    <UsageBar usage={g.usage!} rates={d.rates} mode={d.unitMode} currency={d.currency} tokenRef={d.tokenRef} tokenMult={d.tokenMult} compact inlineLabels scaleMax={d.scaleMax} />
                   </div>
                 )}
                 <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-[0.6rem] text-neutral-500 dark:text-neutral-400">

@@ -221,12 +221,13 @@ export function sessionTotalLabel(
   mode: UsageUnitMode,
   currency: CurrencyMode,
   ref: TokenUnitRef = 'output',
+  mult?: number,
 ): string {
   if (mode === 'money' && rates) {
-    return fmtCurrency(usageUnitTotal(s.latest_total_usage, rates, mode, ref), currency)
+    return fmtCurrency(usageUnitTotal(s.latest_total_usage, rates, mode, ref, mult), currency)
   }
   if (mode === 'token_units' && rates) {
-    return `${fmtCompact(usageUnitTotal(s.latest_total_usage, rates, mode, ref))} ${TOKEN_UNIT_REF_LABELS[ref]}`
+    return `${fmtCompact(usageUnitTotal(s.latest_total_usage, rates, mode, ref, mult))} ${TOKEN_UNIT_REF_LABELS[ref]}`
   }
   const total = s.latest_total_usage?.total_tokens
   return total ? `${fmtCompact(total)} tokens` : 'tokens n/a'

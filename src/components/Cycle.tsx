@@ -25,6 +25,7 @@ export default function Cycle({
   unitMode,
   currency,
   tokenRef,
+  tokenMult,
   scaleMax,
   model,
   effort,
@@ -36,6 +37,7 @@ export default function Cycle({
   unitMode: UsageUnitMode
   currency: CurrencyMode
   tokenRef: TokenUnitRef
+  tokenMult?: number
   scaleMax?: number
   model?: string | null
   effort?: string | null
@@ -53,7 +55,7 @@ export default function Cycle({
   const steps = useMemo(() => stepDurations(cycle), [cycle])
   const hasWait = timing.waitMs != null && timing.waitMs > 1000
   // Each card's bar scales against the cycle total, so a card's fill = its fraction of the cycle.
-  const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef)
+  const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef, tokenMult)
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
@@ -70,7 +72,7 @@ export default function Cycle({
     cycle.items.forEach((e, i) => m.set(e, i + 1))
     return m
   }, [cycle])
-  const display: BandDisplay = { rates, unitMode, currency, tokenRef, scaleMax: cardScaleMax, entryUsage, steps, numFor }
+  const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
   let hooksBuf: UnifiedEntry[] = []
   let claudeBuf: UnifiedEntry[] = []
@@ -154,7 +156,7 @@ export default function Cycle({
           )}
         </div>
         {hasUsage && (
-          <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact showLegend={false} scaleMax={scaleMax} />
+          <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact showLegend={false} scaleMax={scaleMax} />
         )}
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-2 dark:border-neutral-800/80 dark:bg-neutral-950/30">
@@ -188,7 +190,7 @@ export default function Cycle({
             and every card bar below is proportional to it via the same cardScaleMax. */}
         {hasUsage && (
           <div className="mb-2 rounded-md bg-neutral-50 px-2 py-2 dark:bg-neutral-950/60">
-            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact inlineLabels scaleMax={cardScaleMax} />
+            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact inlineLabels scaleMax={cardScaleMax} />
           </div>
         )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}

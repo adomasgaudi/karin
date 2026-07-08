@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.54',
+    title: 'Honest turn-state dots',
+    summary:
+      'Session rows show an amber (working), gray (waiting on you), or rose (interrupted) dot deduced from the AI’s own stop signal.',
+    detail:
+      'The old green “live” dots guessed from recency and lied; these read the AI’s own stop signal in the last record — Claude’s stop_reason (end_turn → waiting, tool_use → working, max_tokens → interrupted) and Codex’s final-phase message — so an ended session correctly reads “waiting”, never “working”. It reflects the turn state as of the last index (pair it with “Xm ago”), not live process state, which the transcript can’t reveal. Hover a dot for its exact meaning; logic lives in src/lib/turnState.ts.',
+  },
+  {
     version: 'v.53',
     title: 'Unit picker is one pill',
     summary:

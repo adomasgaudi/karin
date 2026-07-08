@@ -17,6 +17,7 @@ export default function UsageBar({
   mode,
   currency = 'usd',
   tokenRef = 'output',
+  tokenMult,
   compact = false,
   showLegend = true,
   inlineLabels = false,
@@ -29,6 +30,8 @@ export default function UsageBar({
   currency?: CurrencyMode
   // Reference token type for token_units mode (which type = 1.0).
   tokenRef?: TokenUnitRef
+  // Multiplier for the 'scaled' reference.
+  tokenMult?: number
   compact?: boolean
   showLegend?: boolean
   // Draw each segment's label + value inside the bar itself (no dot legend below).
@@ -49,7 +52,7 @@ export default function UsageBar({
     { key: 'output' as const, label: 'output', raw: parts.output, className: 'bg-amber-500' },
     { key: 'reasoning' as const, label: 'reasoning', raw: parts.reasoning, className: 'bg-fuchsia-500' },
   ]
-    .map((segment) => ({ ...segment, value: usageUnitValue(segment.raw, segment.key, rates, mode, tokenRef) }))
+    .map((segment) => ({ ...segment, value: usageUnitValue(segment.raw, segment.key, rates, mode, tokenRef, tokenMult) }))
     .filter((segment) => segment.raw > 0)
   const total = segments.reduce((sum, segment) => sum + segment.value, 0)
   const denom = scaleMax && scaleMax > 0 ? scaleMax : total

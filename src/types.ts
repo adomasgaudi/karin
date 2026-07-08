@@ -194,6 +194,10 @@ export interface UnifiedSession {
   updated_at: string | null
   counts: UnifiedCounts
   latest_total_usage: TokenUsage | null
+  // Turn state deduced from the last record (see lib/turnState.ts): whether the AI is
+  // mid-turn ('working'), idle awaiting the human ('waiting'), or cut off ('interrupted').
+  // Reflects the last INDEX, not live process state.
+  turnState: import('./lib/turnState').TurnState
   // Grouping — Claude sessions live under a project; Codex is flat (null).
   projectSlug: string | null
   projectCwd: string | null
