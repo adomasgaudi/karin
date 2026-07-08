@@ -141,23 +141,14 @@ export default function Sidebar({ className }: SidebarProps) {
 
         <div className="mt-2 flex items-center gap-2">
           <span className="shrink-0 text-[0.68rem] text-neutral-400 dark:text-neutral-500">units</span>
-          <div className="inline-flex max-w-full overflow-x-auto rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
-            {unitModes.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setUnitMode(mode)}
-                className={cn(
-                  'shrink-0 rounded-sm px-2 py-0.5 text-[0.68rem]',
-                  unitMode === mode
-                    ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-800 dark:text-neutral-50'
-                    : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-neutral-100',
-                )}
-              >
-                {UNIT_MODE_LABELS[mode]}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setUnitMode(unitModes[(unitModes.indexOf(unitMode) + 1) % unitModes.length])}
+            title="Cycle usage unit: tokens → token units → money"
+            className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+          >
+            {UNIT_MODE_LABELS[unitMode]}
+          </button>
           {/* token units → reference token type; money → currency. */}
           {unitMode === 'token_units' && (
             <button

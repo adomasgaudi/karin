@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.53',
+    title: 'Unit picker is one pill',
+    summary:
+      'The tokens / token units / money selector is now a single pill that cycles on click, instead of three side-by-side buttons.',
+    detail:
+      'Both the sidebar and the session view had a three-segment button row for the usage unit. It is now one pressable pill showing the current unit, advancing tokens → token units → money on each click — matching the reference and currency sub-toggles, which already cycle the same way. Less width, one consistent interaction for every unit control.',
+  },
+  {
     version: 'v.52',
     title: 'Neutral context band',
     summary:
