@@ -186,6 +186,70 @@ export function cycleUsage(cycle: Cycle): TokenUsage {
     .reduce((sum, entry) => addUsage(sum, entry.item.last), {})
 }
 
+// --- Authorship bands ------------------------------------------------------
+// A cycle reads as three bands by WHO authored each entry:
+//   • human  — the owner's prompt / interjection / answer (the touchpoint).
+//   • hooks  — injected context the AI did NOT choose: environment/attachment/
+//     session-state context blocks, Codex runtime events, and tool/harness-injected
+//     user records (deferred_tools_delta, hook_additional_context, …).
+//   • claude — everything the AI chose to do: its replies, thinking, tool calls,
+//     edits, subagents (usage frames ride along as token accounting, not actions).
+export type CycleBand = 'human' | 'hooks' | 'claude'
+
+export function entryBand(entry: UnifiedEntry): CycleBand {
+  if (isHumanPrompt(entry) || isAnsweredQuestion(entry)) return 'human'
+  if (entry.kind === 'context' || entry.kind === 'runtime') return 'hooks'
+  // A user-role message that is NOT a genuine human prompt is an injected record
+  // (tool result / environment) — not chosen by the AI, so it bands with hooks.
+  if (entry.kind === 'message' && (entry.item as Message | ClaudeMessage).role === 'user') return 'hooks'
+  return 'claude'
+}
+
+// A message whose flattened text is empty — the turn's substance was only thinking +
+// tool calls, so there is nothing to render. It still counts toward its group's tokens.
+export function isEmptyMessage(entry: UnifiedEntry): boolean {
+  return entry.kind === 'message' && !(entry.item as { text?: string }).text?.trim()
+}
+
+// --- Claude action grouping ------------------------------------------------
+// Usage is not an action — every usage frame instead CLOSES a group of the actions
+// it measured, and its `last` total becomes that group's token label. Empty assistant
+// messages merge forward into the next real action's group (they never anchor a group of
+// their own). So each group = one API call's worth of chosen work + its measured tokens.
+export interface ActionGroup {
+  actions: UnifiedEntry[] // real, non-empty actions to render (usage frames + empty msgs excluded)
+  usage: TokenUsage | null // summed measured usage of the frame(s) that closed this group
+  measured: boolean // whether any usage frame backed this group's tokens
+}
+
+export function groupClaudeActions(entries: UnifiedEntry[]): ActionGroup[] {
+  const groups: ActionGroup[] = []
+  let actions: UnifiedEntry[] = []
+  let usage: TokenUsage = {}
+  let sawUsage = false
+  const close = () => {
+    // Only close once there is a real action; a usage frame that arrives with no
+    // pending action carries its tokens forward into the next group.
+    if (actions.length === 0) return
+    groups.push({ actions, usage: sawUsage ? usage : null, measured: sawUsage })
+    actions = []
+    usage = {}
+    sawUsage = false
+  }
+  for (const e of entries) {
+    if (e.kind === 'usage') {
+      usage = addUsage(usage, (e.item as { last?: TokenUsage }).last ?? {})
+      sawUsage = true
+      close()
+      continue
+    }
+    if (isEmptyMessage(e)) continue
+    actions.push(e)
+  }
+  if (actions.length > 0) groups.push({ actions, usage: sawUsage ? usage : null, measured: sawUsage })
+  return groups
+}
+
 // --- Per-entry usage attribution -------------------------------------------
 // Codex records tokens only per model TURN (the token_count events), never per card, so
 // each frame's real usage is distributed across the cards it closes (weighted by text
