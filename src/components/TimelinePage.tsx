@@ -267,9 +267,13 @@ export default function TimelinePage() {
   }, [placed, priceBasis, subDivisors, unitValue])
 
   const globalMax = useMemo(() => Math.max(1e-9, ...valued.map((v) => v.total)), [valued])
+  // ONE value→pixels scale shared by pill heights AND the in-pill lines, so a €0.10
+  // session's line is literally 10× lower than a €1 session's. Pills clamp to
+  // MIN_PILL for hoverability — the line inside keeps the true (unclamped) height.
+  const pxPerValue = MAX_PILL / globalMax
   const pillHeight = useCallback(
-    (total: number) => MIN_PILL + (total / globalMax) * (MAX_PILL - MIN_PILL),
-    [globalMax],
+    (total: number) => Math.min(MAX_PILL, Math.max(MIN_PILL, total * pxPerValue)),
+    [pxPerValue],
   )
 
   // Variable-height lanes: each lane is as tall as its tallest pill; pills sit on
@@ -587,13 +591,15 @@ export default function TimelinePage() {
 
               // Step profile: the line climbs only across a cycle's span and holds
               // flat through idle gaps — two points per segment (start@before, end@after).
-              const maxCum = p.total || 1
+              // Y uses the GLOBAL value→pixel scale (not the pill's own top), so line
+              // heights are proportional across sessions; the svg y% converts px→pill%.
+              const yPct = (v: number) => 100 - Math.min(98, (v * pxPerValue * 0.94) / pillH * 100)
               let cum = 0
               const stepPts: Array<{ x: number; y: number }> = [{ x: 0, y: 100 }]
               p.segs.forEach((seg, i) => {
-                stepPts.push({ x: relPct(seg.start), y: 100 - (cum / maxCum) * 94 })
+                stepPts.push({ x: relPct(seg.start), y: yPct(cum) })
                 cum += p.segVals[i]
-                stepPts.push({ x: relPct(seg.end), y: 100 - (cum / maxCum) * 94 })
+                stepPts.push({ x: relPct(seg.end), y: yPct(cum) })
               })
               stepPts.push({ x: 100, y: stepPts[stepPts.length - 1].y })
               const polyline = stepPts.map((pt) => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(' ')
