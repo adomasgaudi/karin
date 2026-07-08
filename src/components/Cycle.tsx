@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
-import type { Cycle as CycleData } from '../lib/unifiedCycles'
+import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
 import { attributeCycleUsage, cycleCounts, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import { fmtClock, fmtCompact, fmtCurrency, fmtDuration } from '../lib/format'
 import type { CurrencyMode, TokenRates, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageCost, usageUnitTotal } from '../lib/pricing'
-import EventEntry from './EventEntry'
+import EventEntry, { SessionMetaGroup, isSessionMeta } from './EventEntry'
 import UsageBar from './UsageBar'
 
 // Colour + label per touchpoint kind: owner prompt (neutral), mid-turn interjection
@@ -57,6 +57,57 @@ export default function Cycle({
   // What human touchpoint opened this cycle: a fresh prompt, a mid-turn interjection,
   // or the owner's answer to an AI question. A small tag makes the shape legible.
   const origin = cycleOrigin(cycle)
+
+  // Render each event as a compact row, but collapse any run of consecutive session-state
+  // context blocks (last-prompt / mode / permission-mode / ai-title) into one SessionMetaGroup
+  // so those low-signal, repetitive records stop taking a row each.
+  const eventNodes: ReactNode[] = []
+  let metaRun: UnifiedEntry[] = []
+  let metaNum = 0
+  const flushMeta = () => {
+    if (metaRun.length === 0) return
+    if (metaRun.length === 1) {
+      const only = metaRun[0]
+      eventNodes.push(
+        <EventEntry
+          key={metaNum}
+          num={metaNum + 1}
+          entry={only}
+          usage={entryUsage.get(only)}
+          step={steps.get(only)}
+          rates={rates}
+          unitMode={unitMode}
+          currency={currency}
+          scaleMax={cardScaleMax}
+        />,
+      )
+    } else {
+      eventNodes.push(<SessionMetaGroup key={`meta-${metaNum}`} entries={metaRun} num={metaNum + 1} />)
+    }
+    metaRun = []
+  }
+  cycle.items.forEach((entry, i) => {
+    if (isSessionMeta(entry)) {
+      if (metaRun.length === 0) metaNum = i
+      metaRun.push(entry)
+      return
+    }
+    flushMeta()
+    eventNodes.push(
+      <EventEntry
+        key={i}
+        num={i + 1}
+        entry={entry}
+        usage={entryUsage.get(entry)}
+        step={steps.get(entry)}
+        rates={rates}
+        unitMode={unitMode}
+        currency={currency}
+        scaleMax={cardScaleMax}
+      />,
+    )
+  })
+  flushMeta()
 
   return (
     <details
@@ -139,19 +190,7 @@ export default function Cycle({
         )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         <div className="ml-1 border-l-2 border-neutral-200/80 pl-2 dark:border-neutral-800">
-          {cycle.items.map((entry, i) => (
-            <EventEntry
-              key={i}
-              num={i + 1}
-              entry={entry}
-              usage={entryUsage.get(entry)}
-              step={steps.get(entry)}
-              rates={rates}
-              unitMode={unitMode}
-              currency={currency}
-              scaleMax={cardScaleMax}
-            />
-          ))}
+          {eventNodes}
         </div>
         {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}
         <div className="mt-2 flex items-center gap-2 px-1 text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
