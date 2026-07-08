@@ -4,6 +4,7 @@ import {
   EUR_PER_USD,
   PRICE_BASIS_NOTES,
   SUB_DIVISOR_SOURCE_NOTES,
+  allModelRates,
   stepSubDivisor,
   type CurrencyMode,
   type PriceBasis,
@@ -46,6 +47,81 @@ function DivisorRow({
   )
 }
 
+const PROVIDER_LABELS: Record<'openai' | 'anthropic', string> = {
+  openai: 'OpenAI (Codex)',
+  anthropic: 'Anthropic (Claude)',
+}
+
+// The full per-model $/1M-token reference table, built from allModelRates() — the SAME
+// STANDARD_RATES / CLAUDE_RATES the cost math reads, so what you verify here is exactly what
+// prices the bars. Collapsed by default; the active session's model row is highlighted. "—"
+// means that bucket doesn't exist for the model (e.g. Codex has no premium cache-write, and
+// pro models bill cache at the input rate).
+function AllModelRates({ activeModel }: { activeModel?: string | null }) {
+  const rows = allModelRates()
+  const norm = (activeModel || '').toLowerCase().replace(/\[1m\]$/, '').replace('claude-haiku-4-5-20251001', 'claude-haiku-4-5')
+  const providers: Array<'openai' | 'anthropic'> = ['openai', 'anthropic']
+  const cell = (v: number | null) => (v == null ? '—' : v)
+  return (
+    <details className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+      <summary className="cursor-pointer select-none font-medium text-neutral-600 dark:text-neutral-300">
+        All model rates <span className="font-normal text-neutral-400 dark:text-neutral-500">— $ per 1M tokens (API list)</span>
+      </summary>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="w-full border-collapse text-[0.66rem] tabular-nums">
+          <thead>
+            <tr className="text-neutral-400 dark:text-neutral-500">
+              <th className="py-0.5 pr-2 text-left font-medium">model</th>
+              <th className="px-1 text-left font-medium">ctx</th>
+              <th className="px-1 text-right font-medium">in</th>
+              <th className="px-1 text-right font-medium">cache</th>
+              <th className="px-1 text-right font-medium" title="premium cache write, 5-minute TTL">cw·5m</th>
+              <th className="px-1 text-right font-medium" title="premium cache write, 1-hour TTL">cw·1h</th>
+              <th className="pl-1 text-right font-medium">out</th>
+            </tr>
+          </thead>
+          {providers.map((prov) => {
+            const provRows = rows.filter((r) => r.provider === prov)
+            return (
+              <tbody key={prov}>
+                <tr>
+                  <td colSpan={7} className="pt-1.5 pb-0.5 font-semibold text-neutral-500 dark:text-neutral-400">
+                    {PROVIDER_LABELS[prov]}
+                  </td>
+                </tr>
+                {provRows.map((r) => {
+                  const active = norm !== '' && r.model === norm
+                  return (
+                    <tr
+                      key={`${r.model}-${r.context}`}
+                      className={active ? 'bg-sky-50 dark:bg-sky-950/40' : ''}
+                    >
+                      <td className="py-0.5 pr-2 font-mono text-neutral-700 dark:text-neutral-200">
+                        {r.model}
+                        {active && <span className="ml-1 text-[0.6rem] font-sans text-sky-600 dark:text-sky-400">← this session</span>}
+                      </td>
+                      <td className="px-1 text-neutral-400 dark:text-neutral-500">{r.context === 'long' ? 'lg' : 'sm'}</td>
+                      <td className="px-1 text-right text-neutral-700 dark:text-neutral-200">{r.input}</td>
+                      <td className="px-1 text-right text-neutral-700 dark:text-neutral-200">{cell(r.cached)}</td>
+                      <td className="px-1 text-right text-neutral-500 dark:text-neutral-400">{cell(r.cacheWrite5m)}</td>
+                      <td className="px-1 text-right text-neutral-500 dark:text-neutral-400">{cell(r.cacheWrite1h)}</td>
+                      <td className="pl-1 text-right text-neutral-700 dark:text-neutral-200">{r.output}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            )
+          })}
+        </table>
+      </div>
+      <p className="mt-1 text-[0.62rem] leading-relaxed text-neutral-400 dark:text-neutral-500">
+        Straight from the rate tables that price every bar (cached "—" = billed at the input rate; cw = premium
+        cache-write, Claude only). These are API list rates, before any plan divisor.
+      </p>
+    </details>
+  )
+}
+
 // Traceable pricing-model dropdown for money mode. Explains what the active price MEANS
 // (api list vs plan estimate + formula + caveats), lets the owner tune the plan-estimate
 // divisor SEPARATELY per source (Codex vs Claude plans differ), and — when a single session
@@ -60,6 +136,7 @@ export default function PriceModelPanel({
   currency,
   model,
   onClose,
+  posClass = 'right-0 w-80',
 }: {
   basis: PriceBasis
   subDivisors: Record<SessionSource, number>
@@ -69,6 +146,10 @@ export default function PriceModelPanel({
   currency: CurrencyMode
   model?: string | null
   onClose: () => void
+  // Positioning + width of the panel, relative to its `relative` ancestor. Defaults to a
+  // fixed 320px pinned to the button's right; the sidebar (narrow) overrides this to span
+  // its toolbar so the panel can't overflow the window's left edge.
+  posClass?: string
 }) {
   const note = PRICE_BASIS_NOTES[basis]
   const rateRows: { label: string; value: number | null; hint?: string }[] = apiRates
@@ -84,7 +165,7 @@ export default function PriceModelPanel({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 z-50 mt-1 max-h-[70vh] w-80 overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+      <div className={`absolute z-50 mt-1 max-h-[70vh] overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-900 ${posClass}`}>
         <div className="mb-1 flex items-center justify-between">
           <span className="font-semibold text-neutral-700 dark:text-neutral-200">How this price is computed</span>
           <button type="button" onClick={onClose} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
@@ -135,6 +216,8 @@ export default function PriceModelPanel({
             </div>
           </div>
         )}
+
+        <AllModelRates activeModel={model} />
       </div>
     </>
   )

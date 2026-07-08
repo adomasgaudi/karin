@@ -156,7 +156,7 @@ export default function Sidebar({ className }: SidebarProps) {
           />
         </label>
 
-        <div className="mt-2 flex items-center gap-2">
+        <div className="relative mt-2 flex items-center gap-2">
           <span className="shrink-0 text-[0.68rem] text-neutral-400 dark:text-neutral-500">units</span>
           <button
             type="button"
@@ -221,26 +221,27 @@ export default function Sidebar({ className }: SidebarProps) {
           )}
           {/* money → "?" opens the pricing model: basis explainer + per-plan divisors. */}
           {unitMode === 'money' && (
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setPriceInfoOpen((o) => !o)}
-                aria-label="How this price is computed"
-                title="How this price is computed — per-plan divisors, source"
-                className="inline-flex h-[1.35rem] w-[1.35rem] items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-              >
-                ?
-              </button>
-              {priceInfoOpen && (
-                <PriceModelPanel
-                  basis={priceBasis}
-                  subDivisors={subDivisors}
-                  onSetDivisor={setSubDivisor}
-                  currency={currency}
-                  onClose={() => setPriceInfoOpen(false)}
-                />
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setPriceInfoOpen((o) => !o)}
+              aria-label="How this price is computed"
+              title="How this price is computed — per-plan divisors, source"
+              className="inline-flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              ?
+            </button>
+          )}
+          {/* Panel spans the whole toolbar row (its `relative` ancestor), not the tiny "?"
+              button, so its fixed width can't overflow the window's left edge. */}
+          {unitMode === 'money' && priceInfoOpen && (
+            <PriceModelPanel
+              basis={priceBasis}
+              subDivisors={subDivisors}
+              onSetDivisor={setSubDivisor}
+              currency={currency}
+              onClose={() => setPriceInfoOpen(false)}
+              posClass="left-0 right-0 top-full"
+            />
           )}
         </div>
       </div>

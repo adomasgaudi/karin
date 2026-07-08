@@ -79,6 +79,66 @@ export const CLAUDE_RATES: Record<string, { input: number; cached: number; cache
   'claude-fable-5': { input: 10, cached: 1, cacheWrite5m: 12.5, cacheWrite1h: 20, output: 50 },
 }
 
+// One flat, uniform row per model×context tier — built DIRECTLY from STANDARD_RATES and
+// CLAUDE_RATES (the same objects ratesForSession / ratesForClaudeModel read), so the
+// reference table the owner inspects can never drift from the numbers actually used to
+// price usage. Purely derived; add a model to the tables above and it appears here.
+export interface ModelRateRow {
+  provider: 'openai' | 'anthropic'
+  model: string
+  context: 'short' | 'long'
+  input: number
+  cached: number | null
+  cacheWrite5m: number | null
+  cacheWrite1h: number | null
+  output: number
+  source: string
+}
+
+export function allModelRates(): ModelRateRow[] {
+  const rows: ModelRateRow[] = []
+  for (const [model, table] of Object.entries(STANDARD_RATES)) {
+    rows.push({
+      provider: 'openai',
+      model,
+      context: 'short',
+      input: table.short.input,
+      cached: table.short.cached,
+      cacheWrite5m: table.short.cacheWrite5m ?? null,
+      cacheWrite1h: table.short.cacheWrite1h ?? null,
+      output: table.short.output,
+      source: PRICE_SOURCE,
+    })
+    if (table.long) {
+      rows.push({
+        provider: 'openai',
+        model,
+        context: 'long',
+        input: table.long.input,
+        cached: table.long.cached,
+        cacheWrite5m: table.long.cacheWrite5m ?? null,
+        cacheWrite1h: table.long.cacheWrite1h ?? null,
+        output: table.long.output,
+        source: PRICE_SOURCE,
+      })
+    }
+  }
+  for (const [model, r] of Object.entries(CLAUDE_RATES)) {
+    rows.push({
+      provider: 'anthropic',
+      model,
+      context: 'long',
+      input: r.input,
+      cached: r.cached,
+      cacheWrite5m: r.cacheWrite5m,
+      cacheWrite1h: r.cacheWrite1h,
+      output: r.output,
+      source: CLAUDE_PRICE_SOURCE,
+    })
+  }
+  return rows
+}
+
 export const UNIT_MODE_LABELS: Record<UsageUnitMode, string> = {
   tokens: 'tokens',
   token_units: 'token units',
