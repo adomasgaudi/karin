@@ -82,6 +82,12 @@ Bump the owner-facing `v.N` in **both** spots, keep them in sync:
 
 Increment by one per material change. End your reply naming the shift, e.g. `v.13 → v.14`.
 
+## Push policy
+
+**Commit + push to `main` after every change, automatically — do NOT ask.** The owner
+confirmed this on 2026-07-08. Plain descriptive commit subjects (see `git log`), not the
+parent repo's `vN RULE-ID | … | N sp` format. LF→CRLF warnings on commit are expected.
+
 ## Gotchas
 
 - Line endings: working tree is LF, git normalizes to CRLF on Windows checkout — the
