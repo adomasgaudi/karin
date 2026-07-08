@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.56',
+    title: 'Smarter titles, calmer list',
+    summary:
+      'Session names now prefer Claude’s own latest generated tab-label (falling back to the freshest substantive prompt), and the sidebar only re-sorts every 5 minutes so rows stop jumping.',
+    detail:
+      'The title used to be the frozen first prompt (e.g. "check the project"), which stops meaning anything once the session moves on. It now prefers, in order: Claude Code’s newest terminal-tab-label op (its own topic-aware title, regenerated as the conversation evolves), then a real ai-title record, then the latest substantive human prompt (skipping terse "fix"/"ok" lines), then the old title. Separately, the session list held its order for 5 minutes before re-sorting by recency — previously it re-sorted on every 5-second refresh, so the active session kept jumping to the top mid-read. New sessions still appear at the top immediately.',
+  },
+  {
     version: 'v.55',
     title: 'Scaled token unit',
     summary:

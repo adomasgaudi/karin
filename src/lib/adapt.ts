@@ -88,6 +88,57 @@ function claudeHaystack(s: ClaudeDetailSession): string {
     .toLowerCase()
 }
 
+// Tidy a raw label: collapse whitespace, strip wrapping quotes, clip to a sane width.
+function cleanTitle(raw: string): string {
+  const t = raw.replace(/\s+/g, ' ').trim().replace(/^["'`]+|["'`]+$/g, '').trim()
+  return t.length > 60 ? `${t.slice(0, 60)}…` : t
+}
+
+// The tab label Claude Code generated for this session: the assistant output of its newest
+// terminal-tab-label op (title_ops are newest-first, folded in by the indexer). Because
+// Claude regenerates that label as the conversation's topic shifts, it tracks the LATEST
+// topic — a far better session name than the frozen first prompt.
+function generatedLabel(session: ClaudeSession): string | null {
+  const ops = (session as unknown as { title_ops?: Array<{ messages?: Array<{ role?: string; text?: string | null }> }> }).title_ops
+  for (const op of ops || []) {
+    const msgs = op.messages
+    if (!Array.isArray(msgs)) continue
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m?.role === 'assistant' && m.text && m.text.trim()) return cleanTitle(m.text)
+    }
+  }
+  return null
+}
+
+// Fallback when there is no generated label and no real ai-title: the LATEST substantive
+// human prompt (skipping terse ones like "fix" / "ok" and injected environment blocks), so
+// the name still reflects where the session went, not just where it started.
+function latestHumanPrompt(s: ClaudeDetailSession): string | null {
+  const msgs = s.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i] as { role?: string; origin_kind?: string; text?: string | null }
+    if (m.role !== 'user' || (m.origin_kind && m.origin_kind !== 'human')) continue
+    const t = (m.text || '').replace(/\s+/g, ' ').trim()
+    if (t.length < 8 || t.includes('# AGENTS.md instructions') || t.includes('<environment_context>')) continue
+    return cleanTitle(t)
+  }
+  return null
+}
+
+// Best session name, in priority order: Claude's own latest generated tab label → a real
+// ai-title record → the latest substantive prompt → the indexer title → the id.
+function bestClaudeTitle(s: ClaudeDetailSession, session: ClaudeSession): string {
+  const generated = generatedLabel(session)
+  if (generated) return generated
+  // s.title = `ai_title or first_prompt[:80]`; if it differs from the first prompt it is a
+  // real ai-title, which beats a raw prompt.
+  const firstClip = (s.first_prompt || '').slice(0, 80).trim()
+  const t = (s.title || '').trim()
+  if (t && t !== firstClip) return cleanTitle(t)
+  return latestHumanPrompt(s) || t || s.id
+}
+
 // A raw ClaudeSession from the feed is already enriched (bin/karin_claude.py emits the
 // structured arrays alongside `records`); the raw type just doesn't declare them.
 export function adaptClaudeSession(session: ClaudeSession, project: ClaudeProject): UnifiedSession {
@@ -98,7 +149,7 @@ export function adaptClaudeSession(session: ClaudeSession, project: ClaudeProjec
     uid: `claude:${s.id}`,
     source: 'claude',
     id: s.id,
-    title: s.title || s.id,
+    title: bestClaudeTitle(s, session),
     subtitle: s.first_prompt || null,
     cwd: s.cwd,
     model: s.model,
