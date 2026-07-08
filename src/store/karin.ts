@@ -9,6 +9,7 @@ import { mergeSessions } from '../lib/adapt'
 
 type Theme = 'light' | 'dark'
 export type SourceFilter = 'all' | 'codex' | 'claude'
+export type View = 'sessions' | 'timeline'
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem('karin-theme')
@@ -83,6 +84,7 @@ interface KarinStore {
   priceBasis: PriceBasis
   subDivisors: Record<SessionSource, number>
   theme: Theme
+  view: View
   error: string | null
 
   boot: () => Promise<void>
@@ -100,6 +102,7 @@ interface KarinStore {
   setPriceBasis: (b: PriceBasis) => void
   setSubDivisor: (source: SessionSource, n: number) => void
   setError: (msg: string | null) => void
+  setView: (v: View) => void
   toggleTheme: () => void
 }
 
@@ -161,6 +164,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
     claude: initialSubDivisor('karin-subdiv-claude', SUB_DIVISOR_DEFAULTS.claude),
   },
   theme: initialTheme(),
+  view: 'sessions',
   error: null,
 
   // Startup: prefer the freshest of saved vs local for EACH source, then keep polling.
@@ -245,6 +249,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
     set((st) => ({ subDivisors: { ...st.subDivisors, [source]: n } }))
   },
   setError: (msg) => set({ error: msg }),
+  setView: (v) => set({ view: v }),
 
   toggleTheme: () => {
     const theme: Theme = get().theme === 'dark' ? 'light' : 'dark'
