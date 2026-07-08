@@ -1,11 +1,12 @@
 import { useMemo, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
-import { attributeCycleUsage, cycleCounts, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
+import { attributeCycleUsage, cycleCounts, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import { fmtClock, fmtCompact, fmtCurrency, fmtDuration } from '../lib/format'
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageCost, usageUnitTotal } from '../lib/pricing'
-import EventEntry, { SessionMetaGroup, isSessionMeta } from './EventEntry'
+import EventEntry from './EventEntry'
+import { HooksBand, ClaudeBlock, type BandDisplay } from './CycleBands'
 import UsageBar from './UsageBar'
 
 // Colour + label per touchpoint kind: owner prompt (neutral), mid-turn interjection
@@ -14,13 +15,6 @@ const ORIGIN_TAG: Record<'prompt' | 'interjection' | 'answer', { label: string; 
   prompt: { label: 'owner', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300' },
   interjection: { label: 'interjected', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' },
   answer: { label: 'answer', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' },
-}
-
-// A turn whose content was only thinking + tool calls flattens to empty text (see
-// karin_claude.py message_text) — its substance already shows as the adjacent thinking /
-// tool rows, so the blank "assistant:" line is dropped rather than rendered empty.
-function isEmptyMessage(entry: UnifiedEntry): boolean {
-  return entry.kind === 'message' && !(entry.item as { text?: string }).text?.trim()
 }
 
 export default function Cycle({
@@ -67,23 +61,42 @@ export default function Cycle({
   // or the owner's answer to an AI question. A small tag makes the shape legible.
   const origin = cycleOrigin(cycle)
 
-  // Render each event as a compact row, but collapse any run of consecutive session-state
-  // context blocks (last-prompt / mode / permission-mode / ai-title) into one SessionMetaGroup
-  // so those low-signal, repetitive records stop taking a row each.
+  // Split the cycle into authorship bands: each human touchpoint is its own row, the
+  // injected context it did not choose folds into a hooks band, and everything the AI
+  // chose folds into a claude block (grouped by usage frame). Order within a segment is
+  // human → hooks → claude, per the owner's layout.
+  const numFor = useMemo(() => {
+    const m = new Map<UnifiedEntry, number>()
+    cycle.items.forEach((e, i) => m.set(e, i + 1))
+    return m
+  }, [cycle])
+  const display: BandDisplay = { rates, unitMode, currency, tokenRef, scaleMax: cardScaleMax, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
-  let metaRun: UnifiedEntry[] = []
-  let metaNum = 0
-  const flushMeta = () => {
-    if (metaRun.length === 0) return
-    if (metaRun.length === 1) {
-      const only = metaRun[0]
+  let hooksBuf: UnifiedEntry[] = []
+  let claudeBuf: UnifiedEntry[] = []
+  let seg = 0
+  const flushBands = () => {
+    if (hooksBuf.length) {
+      eventNodes.push(<HooksBand key={`hooks-${seg}`} entries={hooksBuf} d={display} />)
+      hooksBuf = []
+    }
+    if (claudeBuf.length) {
+      eventNodes.push(<ClaudeBlock key={`claude-${seg}`} entries={claudeBuf} sourceLabel={source} model={model} d={display} />)
+      claudeBuf = []
+    }
+    seg++
+  }
+  for (const entry of cycle.items) {
+    const band = entryBand(entry)
+    if (band === 'human') {
+      flushBands()
       eventNodes.push(
         <EventEntry
-          key={metaNum}
-          num={metaNum + 1}
-          entry={only}
-          usage={entryUsage.get(only)}
-          step={steps.get(only)}
+          key={`human-${numFor.get(entry)}`}
+          num={numFor.get(entry) ?? 0}
+          entry={entry}
+          usage={entryUsage.get(entry)}
+          step={steps.get(entry)}
           rates={rates}
           unitMode={unitMode}
           currency={currency}
@@ -91,35 +104,13 @@ export default function Cycle({
           scaleMax={cardScaleMax}
         />,
       )
+    } else if (band === 'hooks') {
+      hooksBuf.push(entry)
     } else {
-      eventNodes.push(<SessionMetaGroup key={`meta-${metaNum}`} entries={metaRun} num={metaNum + 1} />)
+      claudeBuf.push(entry)
     }
-    metaRun = []
   }
-  cycle.items.forEach((entry, i) => {
-    if (isSessionMeta(entry)) {
-      if (metaRun.length === 0) metaNum = i
-      metaRun.push(entry)
-      return
-    }
-    flushMeta()
-    if (isEmptyMessage(entry)) return
-    eventNodes.push(
-      <EventEntry
-        key={i}
-        num={i + 1}
-        entry={entry}
-        usage={entryUsage.get(entry)}
-        step={steps.get(entry)}
-        rates={rates}
-        unitMode={unitMode}
-        currency={currency}
-        tokenRef={tokenRef}
-        scaleMax={cardScaleMax}
-      />,
-    )
-  })
-  flushMeta()
+  flushBands()
 
   return (
     <details

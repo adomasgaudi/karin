@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.51',
+    title: 'Authorship bands per cycle',
+    summary:
+      'Each cycle now reads as user → hooks → claude: the human prompt, then injected context the AI did not choose, then a claude block grouping its actions by usage frame with tokens per group.',
+    detail:
+      'A cycle used to be a flat list mixing the owner, the harness, and the AI. It now splits by author: the user prompt (and answers) sit at top level; everything injected that the AI did not choose — environment/attachment context, session-state, hook_additional_context, Codex runtime — folds into one collapsed "hooks" band after the prompt; everything the AI chose folds into a "claude:" block. Usage is no longer an action row — each usage frame instead closes a group of the actions it measured, and its tokens become that group\'s label, so every step shows what it cost. Empty assistant turns (only thinking + a tool call) merge into the next real action instead of showing as blank rows.',
+  },
+  {
     version: 'v.50',
     title: 'Token units split from cost',
     summary:
