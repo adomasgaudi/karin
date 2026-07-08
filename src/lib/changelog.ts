@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.69',
+    title: 'One scale for all lines',
+    summary:
+      'In-pill usage lines now share one global value→pixel scale — a €0.10 session\'s line sits 10× lower than a €1 session\'s instead of both topping out their pills.',
+    detail:
+      'Each pill\'s line was normalized to its own total, so every session\'s line ended at its own pill top and slopes were incomparable. Now one value→pixels ratio (set by the most expensive session at 75px) drives both pill heights and line heights: the line ends at the session\'s true value height, which only touches the pill top for the biggest session. Pills below the 16px hover minimum keep their true (lower) line inside the clamped pill.',
+  },
+  {
     version: 'v.68',
     title: 'Halved pills, 2-axis pan',
     summary:
