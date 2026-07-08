@@ -19,6 +19,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.61',
+    title: 'Per-model rate table',
+    summary:
+      'The pricing “?” panel now has a collapsible “All model rates” table listing every model’s $/1M-token rates, built from the same constants that price your usage.',
+    detail:
+      'You can now verify the exact cost-per-token used for every model and provider. The money-mode “?” panel gains a collapsible table of every OpenAI/Codex and Anthropic/Claude model, showing input / cached / cache-write (5m, 1h) / output $ per 1M tokens, split by short/long context. It is generated directly from the STANDARD_RATES and CLAUDE_RATES objects the cost math itself reads (via a new allModelRates() helper), so the displayed numbers cannot drift from the ones actually applied. The active session’s model row is highlighted; “—” marks buckets that don’t apply (Codex has no premium cache-write; pro models bill cache at the input rate).',
+  },
+  {
+    version: 'v.60',
+    title: 'Price panel fits its bounds',
+    summary:
+      'The money “?” pricing dropdown no longer overflows off the window’s left edge in the sidebar — it now spans the toolbar width instead of a fixed 320px pinned to the tiny button.',
+    detail:
+      'In the narrow sidebar the panel was absolute-positioned at a fixed 320px width anchored to the small “?” button near the right edge, so its left side ran past the window edge and clipped the text. The panel now takes a position/width class from its caller: the sidebar anchors it to the whole toolbar row (left-0 right-0) so it always fits, while the wider detail pane keeps the pinned 320px. No content changed — it just stays on-screen.',
+  },
+  {
     version: 'v.59',
     title: 'Leaner steps, traceable rows',
     summary:
