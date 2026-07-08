@@ -5,6 +5,7 @@ import Dropzone from './components/Dropzone'
 import Sidebar from './components/Sidebar'
 import SessionDetail from './components/SessionDetail'
 import TimelinePage from './components/TimelinePage'
+import SummaryPage from './components/SummaryPage'
 import ChangelogButton from './components/ChangelogButton'
 
 export default function App() {
@@ -38,6 +39,14 @@ export default function App() {
     return (
       <>
         <TimelinePage />
+        <ChangelogButton />
+      </>
+    )
+
+  if (view === 'summary')
+    return (
+      <>
+        <SummaryPage />
         <ChangelogButton />
       </>
     )

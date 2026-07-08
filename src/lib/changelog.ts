@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.74',
+    title: 'Summary page',
+    summary:
+      'New Summary view reconstructs what happened as 10–20 work items and shows where effort went per project, with log-rule altitude.',
+    detail:
+      'A "Summary" button in the sidebar opens a page with Today / 7 days / All ranges. It groups sessions by project, shows an effort-share bar (tokens, wall time, session counts), then lists at most 20 reconstructed work items. Altitude follows the log rule: if one project holds ≥50% of the effort, its items are specified individually (retry sessions folded by normalized title) while other projects collapse to one line each; if effort is spread, every project stays a one-liner with a few title clues.',
+  },
+  {
     version: 'v.73',
     title: 'Gist export',
     summary:
