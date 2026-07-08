@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Crosshair } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { cn } from '../lib/cn'
-import type { UnifiedSession, TokenUsage } from '../types'
-import { buildCycles, cycleTiming, cyclePrompt, cycleUsage } from '../lib/unifiedCycles'
+import type { Session, UnifiedSession, TokenUsage } from '../types'
+import type { ClaudeDetailSession } from '../lib/claudeModel'
+import { buildCycles, cycleModelEffort, cycleTiming, cyclePrompt, cycleUsage } from '../lib/unifiedCycles'
 import {
   CURRENCY_LABELS,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
   currencyModes,
   effectiveRates,
+  ratesForClaudeModel,
   ratesForUnified,
   tokenUnitRefs,
   unitModes,
@@ -34,6 +36,9 @@ interface Seg {
   end: number
   prompt: string
   usage: TokenUsage
+  // The model that answered THIS cycle — a mid-session switch changes pricing, so
+  // money mode must weigh each segment by its own model's rates.
+  model: string | null
 }
 
 interface SessionTrack {
@@ -65,6 +70,7 @@ function sessionTrack(s: UnifiedSession): SessionTrack | null {
   let track: SessionTrack | null = null
   try {
     const cycles = buildCycles(s)
+    const turnContexts = s.source === 'claude' ? (s.raw as ClaudeDetailSession).turn_contexts : (s.raw as Session).turn_contexts
     const segs: Seg[] = []
     for (const c of cycles) {
       const t = cycleTiming(c)
@@ -74,6 +80,7 @@ function sessionTrack(s: UnifiedSession): SessionTrack | null {
         end: Math.max(t.endMs, t.startMs + 1000),
         prompt: cyclePrompt(c),
         usage: cycleUsage(c),
+        model: cycleModelEffort(c, turnContexts).model,
       })
     }
     if (segs.length > 0) {
@@ -260,7 +267,12 @@ export default function TimelinePage() {
   const valued = useMemo(() => {
     return placed.map((p) => {
       const rates = effectiveRates(ratesForUnified(p.session), priceBasis, subDivisors[p.session.source])
-      const segVals = p.segs.map((seg) => unitValue(seg.usage, rates))
+      // Per-segment rates: price each cycle with the model that answered it (falls back
+      // to the session-level rates when the cycle's model has no pricing entry).
+      const segVals = p.segs.map((seg) => {
+        const own = p.session.source === 'claude' ? ratesForClaudeModel(seg.model) : null
+        return unitValue(seg.usage, own ? effectiveRates(own, priceBasis, subDivisors[p.session.source]) : rates)
+      })
       const total = segVals.reduce((a, b) => a + b, 0)
       return { ...p, rates, segVals, total }
     })

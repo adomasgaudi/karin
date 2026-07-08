@@ -15,6 +15,7 @@ import {
   currencyModes,
   effectiveRates,
   priceBasisModes,
+  ratesForClaudeModel,
   ratesForUnified,
   stepTokenMult,
   tokenUnitRefs,
@@ -115,10 +116,24 @@ export default function SessionDetail() {
   const subDivisor = s ? subDivisors[s.source] : 20
   const rates = effectiveRates(apiRates, priceBasis, subDivisor)
   const u: TokenUsage = s?.latest_total_usage || {}
+  const turnContexts = s
+    ? s.source === 'claude'
+      ? (s.raw as ClaudeDetailSession).turn_contexts
+      : (s.raw as Session).turn_contexts
+    : undefined
+  // A mid-session model switch changes what every later token COSTS, so each cycle must
+  // price with ITS OWN model's rates, not the session-level model — with one shared rate
+  // table, money mode couldn't re-weigh a fable cycle against a sonnet one (all Claude
+  // rate tables are proportional, so only the per-cycle absolute rate distinguishes them).
+  const cycleInfos = cycles.map((cycle) => {
+    const { model, effort } = cycleModelEffort(cycle, turnContexts)
+    const own = s?.source === 'claude' ? ratesForClaudeModel(model) : null
+    return { cycle, model, effort, rates: effectiveRates(own ?? apiRates, priceBasis, subDivisor) }
+  })
   // One shared ruler for the top session-total bar AND every cycle bar.
   const scaleMax = Math.max(
     usageUnitTotal(u, rates, unitMode, tokenRef, tokenMult),
-    ...cycles.map((c) => usageUnitTotal(cycleUsage(c), rates, unitMode, tokenRef, tokenMult)),
+    ...cycleInfos.map((ci) => usageUnitTotal(cycleUsage(ci.cycle), ci.rates, unitMode, tokenRef, tokenMult)),
   )
 
   // Reset the raw-mode type filter whenever the selected session changes.
@@ -136,7 +151,6 @@ export default function SessionDetail() {
 
   const isClaude = s.source === 'claude'
   const mode: DetailMode = isClaude ? rawModeByUid[s.uid] || 'structured' : 'structured'
-  const turnContexts = isClaude ? (s.raw as ClaudeDetailSession).turn_contexts : (s.raw as Session).turn_contexts
   const records: ClaudeRecord[] = isClaude ? (s.rawRecords as ClaudeRecord[]) ?? [] : []
   const typeCounts = s.recordTypeCounts ?? {}
   const typeKeys = Object.keys(typeCounts)
@@ -434,15 +448,14 @@ export default function SessionDetail() {
             {cycles.length === 0 ? (
               <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No structured cycles for this session.</p>
             ) : (
-              cycles.map((cycle, i) => {
-                const { model, effort } = cycleModelEffort(cycle, turnContexts)
+              cycleInfos.map(({ cycle, model, effort, rates: cycleRates }, i) => {
                 return (
                   <Cycle
                     key={i}
                     cycle={cycle}
                     index={i}
                     source={s.source}
-                    rates={rates}
+                    rates={cycleRates}
                     unitMode={unitMode}
                     currency={currency}
                     tokenRef={tokenRef}
