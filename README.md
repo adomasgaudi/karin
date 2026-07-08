@@ -1,14 +1,24 @@
 # Karin
 
-A private, local viewer for [Codex CLI](https://developers.openai.com/codex/cli/) sessions — browse your prompts, token usage, tool calls, reasoning summaries, and code edits, reconstructed from local transcripts.
+A private, **local-only** viewer for [Codex CLI](https://developers.openai.com/codex/cli/) and Claude Code sessions — browse your prompts, token usage, tool calls, reasoning summaries, and code edits, reconstructed from local transcripts.
 
-## Three ways to run it
+## Karin runs locally — there is no public site
 
-- **Dev** — `pnpm dev` (or `./karin.ps1 -Dev`). A fast Vite dev server with hot reload; the dev middleware auto-serves `data/`, so the app loads your real Codex data instantly. Best for hacking on the app.
-- **Local deploy** — `pnpm build:local` + `pnpm preview` (or just `./karin.ps1`). A real, self-contained **offline** build: `build:local` uses relative asset paths and copies your real `data/karin-data.json` + `.js` into `dist/data/`, so the built app runs entirely from local files with your data baked in. `pnpm preview` serves it (default http://localhost:4173/).
-- **Online** — the public GitHub Pages build (`pnpm build`). It ships **no data**. Visitors drag-drop a file they generated themselves; parsing happens entirely in their browser.
+Karin used to have a public GitHub Pages mirror. It was **deliberately removed** (2026-07-08) and must not be resurrected silently, for two reasons:
 
-**Privacy by design:** the real dataset (`data/`, `karin-data.json`, `karin-data.js`) and the built `dist/` folder are gitignored and never committed or published — only the empty viewer code is. The public site is empty until a visitor loads their own file.
+1. **Sensitive data.** The dataset is built from your real session transcripts — prompts, file paths, code, tool output. That cannot be shared on a public host, and publishing it would push transcripts off-machine, breaking the "transcripts stay on the machine" principle.
+2. **Too much data.** The indexed dataset is far too large to ship with a static page; a static host also can't reach this PC to track live activity.
+
+The only target is the local instance on this machine. To reach it from another device, use the Cloudflare tunnel (below) — it relays requests down to this PC; the data itself never leaves the machine or enters git.
+
+## Two ways to run it
+
+- **Local deploy** — `./karin.ps1` (or by hand: `pnpm build:local` + `pnpm preview`). A real, self-contained **offline** build: `build:local` uses relative asset paths and copies your real `data/karin-data.json` + `.js` into `dist/data/`, so the built app runs entirely from local files with your data baked in. Served at http://localhost:4173/. Serves a built bundle from disk, so a `src/` change needs a rebuild (`pnpm build:local`) before it shows up.
+- **Dev** — `./karin.ps1 -Dev` (or `pnpm dev`). A fast Vite dev server with hot reload at http://localhost:5173/; the dev middleware auto-serves `data/`, so the app loads your real Codex data instantly. Best for hacking on the app.
+
+(`pnpm build` still exists but ships **no** data — it is only the starting point if a public version is ever deliberately rebuilt.)
+
+**Privacy by design:** the real dataset (`data/`, `karin-data.json`, `karin-data.js`) and the built `dist/` folder are gitignored and never committed or published — only the viewer code is.
 
 ## Stack
 
@@ -29,6 +39,7 @@ pnpm install
 ```
 ./karin.ps1          # index → build:local → preview → open the local deploy
 ./karin.ps1 -Dev     # index → run the fast dev server (pnpm dev) instead
+./karin.ps1 -Tunnel  # local deploy + Cloudflare quick tunnel (public URL to this PC)
 ```
 
 `./karin.ps1` re-indexes your sessions, runs `pnpm build:local` to produce the
@@ -67,19 +78,25 @@ obvious secret patterns (API keys, tokens, passwords), and writes both
 `data/karin-data.json` (the app's primary source) and `data/karin-data.js`
 (a `window.KARIN_DATA` wrapper convenient for drag-drop).
 
-## Deploy (GitHub Pages)
+## Reaching it from another device (Cloudflare tunnel)
 
-Push to `main`. The [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
-GitHub Action builds the app and deploys it.
+```
+./karin.ps1 -Tunnel        # tunnel over the local deploy (:4173)
+./karin.ps1 -Dev -Tunnel   # tunnel over the dev server (:5173)
+```
 
-One-time setup: in the repo **Settings → Pages**, set **Source = "GitHub Actions"**.
-
-The public site ships no data, so it stays empty until a visitor loads their own
-generated file.
+Prints a `https://<random>.trycloudflare.com` URL you can open from any device. Requests
+are relayed down to this PC — the data is still served locally and never copied
+off-machine. The PC must stay on and the launcher window open, and anyone with the URL
+can view it, so share it carefully. `tools/cloudflared.exe` (git-ignored, downloaded
+per-machine) provides the binary; the launcher falls back to `cloudflared` on PATH.
 
 ## Privacy
 
-- Karin never uploads anything. File parsing happens entirely in-browser.
+- Karin never uploads anything. All parsing and rendering happens locally.
 - The last-loaded dataset is cached in the browser's IndexedDB — local only.
 - The indexer redacts common secret patterns, but review any generated file
   before sharing it. Your `data/` folder is gitignored and never published.
+- There is no hosted build. If a public version is ever wanted again, it must be
+  rebuilt deliberately (host workflow + absolute base path + a data strategy that
+  ships **no** real transcripts) — see `CLAUDE.md`.
