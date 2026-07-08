@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.73',
+    title: 'Gist export',
+    summary:
+      'New "AI gist" export compresses all sessions to ~1–3 lines each — clues, not completeness; the full digest moved to a secondary button.',
+    detail:
+      'The v.71 full export ran ~2000 lines for a day of work — too much as AI input. The gist keeps only the vital signals per session: date/time, source+project, title, up to 3 prompts sampled across the session (start…end fragments of long texts), the top edited files, and a compact prompts/tools/edits/tokens tally. It is deliberately lossy: enough for a reading AI to reconstruct roughly what happened. The sidebar button now downloads the gist; "full" sits beside it.',
+  },
+  {
     version: 'v.72',
     title: 'Docs: local-only',
     summary:

@@ -179,16 +179,103 @@ export function buildAiExport(sessions: UnifiedSession[]): string {
   return out.join('\n')
 }
 
-// Browser download of the export as a .md file the owner can hand to any AI.
-export function downloadAiExport(sessions: UnifiedSession[]): void {
-  const md = buildAiExport(sessions)
+// --- Gist export -------------------------------------------------------------
+// The full export above runs ~2000 lines for a day of work; this one aims at ~20.
+// One line per session: enough CLUES (title, prompt fragments, top edited files,
+// effort) for an AI to reconstruct the gist of what happened — approximate on
+// purpose, not complete or exact.
+
+// Keep the start AND end of a long text — the ask usually opens it, the constraint
+// usually closes it — and drop the middle.
+function gistClip(raw: string | null | undefined, head = 48, tail = 20): string | null {
+  const t = (raw || '').replace(/\s+/g, ' ').trim()
+  if (!t) return null
+  if (t.length <= head + tail + 1) return t
+  return `${t.slice(0, head)}…${t.slice(-tail)}`
+}
+
+function baseName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
+// Up to `max` prompts sampled across the session (first, spread, last) — the arc of
+// the conversation rather than an exhaustive list.
+function samplePrompts(cycles: Cycle[], max: number): string[] {
+  const prompts = cycles
+    .filter((c) => cycleOrigin(c) === 'prompt' || cycleOrigin(c) === 'interjection')
+    .map((c) => promptText(c))
+    .filter((p): p is string => !!p)
+  if (prompts.length <= max) return prompts.map((p) => gistClip(p)!).filter(Boolean)
+  const picks: string[] = []
+  for (let i = 0; i < max; i++) {
+    const idx = Math.round((i * (prompts.length - 1)) / (max - 1))
+    picks.push(gistClip(prompts[idx])!)
+  }
+  return picks
+}
+
+function gistSessionLine(s: UnifiedSession): string {
+  const cycles = buildCycles(s)
+  const prompts = samplePrompts(cycles, 3)
+  const files = editedFiles(cycles.flatMap((c) => c.items))
+  const fileCounts = new Map<string, number>()
+  for (const f of files) fileCounts.set(baseName(f), (fileCounts.get(baseName(f)) || 0) + 1)
+  const topFiles = [...fileCounts.keys()].slice(0, 3)
+  const moreFiles = fileCounts.size - topFiles.length
+
+  const project = baseName(s.projectCwd || s.cwd || '') || null
+  const day = fmtDay(s.started_at || s.updated_at)
+  const time = fmtTime(s.started_at || s.updated_at)
+  const src = s.source === 'codex' ? 'cx' : 'cl'
+  const usage = s.latest_total_usage || {}
+
+  const bits: string[] = [
+    `- ${day} ${time} [${src}${project ? ` ${project}` : ''}] ${gistClip(s.title || s.id, 40, 0) || s.id}`,
+  ]
+  if (prompts.length) bits.push(`  asks: ${prompts.map((p) => `"${p}"`).join(' · ')}`)
+  const work: string[] = []
+  if (topFiles.length) work.push(`edited ${topFiles.join(', ')}${moreFiles > 0 ? ` +${moreFiles}` : ''}`)
+  work.push(`${s.counts.user}p/${s.counts.tool_calls}t/${s.counts.code_edits}e`, `${fmtTokens(usage.total_tokens)} tok`)
+  bits.push(`  work: ${work.join(' · ')}`)
+  return bits.join('\n')
+}
+
+export function buildGistExport(sessions: UnifiedSession[]): string {
+  const ordered = [...sessions].sort((a, b) =>
+    (a.started_at || a.updated_at || '').localeCompare(b.started_at || b.updated_at || ''),
+  )
+  const totalTokens = ordered.reduce((sum, s) => sum + (s.latest_total_usage?.total_tokens || 0), 0)
+  const out: string[] = [
+    '# Karin gist — AI coding sessions, most vital clues only',
+    `# ${ordered.length} sessions · ${fmtTokens(totalTokens)} tokens · cx=Codex cl=Claude · Np/Nt/Ne = prompts/tools/edits`,
+    '# Reconstruct the gist of what was worked on and roughly accomplished. Texts are',
+    '# fragments (start…end of longer prompts) — infer, approximate, do not expect completeness.',
+    '',
+  ]
+  for (const s of ordered) out.push(gistSessionLine(s))
+  return out.join('\n')
+}
+
+// Browser download helper shared by both exports.
+function downloadMd(md: string, stem: string): void {
   const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `karin-ai-export-${new Date().toISOString().slice(0, 10)}.md`
+  a.download = `${stem}-${new Date().toISOString().slice(0, 10)}.md`
   document.body.appendChild(a)
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+// Full digest — every prompt cycle with tools/files/result excerpts.
+export function downloadAiExport(sessions: UnifiedSession[]): void {
+  downloadMd(buildAiExport(sessions), 'karin-ai-export')
+}
+
+// Gist digest — ~1–3 lines per session, clues only.
+export function downloadGistExport(sessions: UnifiedSession[]): void {
+  downloadMd(buildGistExport(sessions), 'karin-ai-gist')
 }

@@ -5,7 +5,7 @@ import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
-import { downloadAiExport } from '../lib/aiExport'
+import { downloadAiExport, downloadGistExport } from '../lib/aiExport'
 import {
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
@@ -131,16 +131,29 @@ export default function Sidebar({ className }: SidebarProps) {
               <CalendarClock className="h-3.5 w-3.5" />
               Timeline
             </button>
-            <button
-              type="button"
-              onClick={() => downloadAiExport(useKarin.getState().sessions)}
-              disabled={sessions.length === 0}
-              title="Download a markdown digest of ALL sessions, ready to hand to another AI for a what-was-done summary"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              <FileDown className="h-3.5 w-3.5" />
-              AI export
-            </button>
+            {/* AI exports: "gist" (~1–3 lines/session, clues only) is the primary; "full"
+                (every cycle, ~100× bigger) hangs off it as a small secondary. */}
+            <div className="inline-flex h-8 items-stretch overflow-hidden rounded-md border border-neutral-200 bg-white text-xs text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <button
+                type="button"
+                onClick={() => downloadGistExport(useKarin.getState().sessions)}
+                disabled={sessions.length === 0}
+                title="Download an ultra-compact gist of ALL sessions (~1–3 lines each) — just enough clues for another AI to summarize what happened"
+                className="inline-flex items-center gap-1.5 px-2 hover:bg-neutral-50 disabled:opacity-40 dark:hover:bg-neutral-800"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                AI gist
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadAiExport(useKarin.getState().sessions)}
+                disabled={sessions.length === 0}
+                title="Download the FULL digest — every prompt cycle with tools, files and reply excerpts (much larger)"
+                className="border-l border-neutral-200 px-1.5 text-[0.68rem] text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-800 dark:hover:bg-neutral-800"
+              >
+                full
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => useKarin.getState().reset()}
