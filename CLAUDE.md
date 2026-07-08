@@ -88,6 +88,22 @@ Increment by one per material change. End your reply naming the shift, e.g. `v.1
 confirmed this on 2026-07-08. Plain descriptive commit subjects (see `git log`), not the
 parent repo's `vN RULE-ID | … | N sp` format. LF→CRLF warnings on commit are expected.
 
+## Live-deploy rule — commit ≠ live (READ THIS)
+
+**The owner views the BUILT bundle at http://localhost:4173/, NOT your source.** A commit
+does NOT update it — `:4173` serves `dist/` from disk, so your change is invisible there
+until `dist/` is rebuilt. This is the #1 recurring mistake: an AI commits, says "it's
+live", and the owner still sees the old version. Do not claim live off a commit.
+
+- A **post-commit hook** (`.githooks/post-commit`, enabled via `git config core.hooksPath
+  .githooks`) now **auto-rebuilds `dist/` after every commit** — so a browser refresh on
+  `:4173` shows it. If you clone fresh or the config is lost, re-run that `git config`.
+- **Always verify** after a change: `curl -s -o /dev/null -w "%{http_code}" http://localhost:4173/`
+  is `200`, and the served JS carries the new version. Then tell the owner to hard-refresh
+  (Ctrl+Shift+R) to bust the browser cache.
+- The **`:5173` dev server hot-reloads** and needs no rebuild — the fastest way to see a
+  change live is `./karin.ps1 -Dev`.
+
 ## Gotchas
 
 - Line endings: working tree is LF, git normalizes to CRLF on Windows checkout — the
