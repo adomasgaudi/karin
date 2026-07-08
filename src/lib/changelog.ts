@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.71',
+    title: 'AI-handoff export',
+    summary:
+      'New sidebar "AI export" button downloads all sessions as one markdown digest another AI can summarize.',
+    detail:
+      'The digest (karin-ai-export-<date>.md) opens with instructions for the reading AI, then lists every session chronologically: when/where/model/token totals, and each human prompt cycle with the tools used, files edited, and a clipped excerpt of the final reply. Works across both sources (Codex + Claude) via the unified cycle builder. Excerpts are truncated on purpose — it is a summarization input, not an archive.',
+  },
+  {
     version: 'v.70',
     title: 'Per-cycle model pricing',
     summary:
