@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.66',
+    title: 'Zoomable cycle timeline',
+    summary:
+      'Timeline is now continuously zoomable (minutes → months) and pannable; pills turned neutral, segmented by real cycles with idle gaps, a cumulative token area-line, and cost tooltips.',
+    detail:
+      'The day-paged bars are gone. One continuous canvas: scroll to zoom around the cursor (1 minute to ~4 months across the screen), drag or shift-scroll to pan, ←/→ and ±  keys work, and 1h/Day/Week/All/Now presets jump around. Session pills are now light neutral containers — the darker accent-tinted blocks inside are the actual cycles (prompt → work), so idle stretches within a session finally show as light gaps. A gray area-line under the segments plots tokens accumulating across the session (the cost story); hovering any cycle shows its prompt, times, duration, tokens and cost, and the pill shows totals. Cycle extraction is cached per session so the 5s data poll stays cheap.',
+  },
+  {
     version: 'v.65',
     title: 'Model switch shows same cycle',
     summary:
