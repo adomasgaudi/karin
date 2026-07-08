@@ -4,13 +4,29 @@ import { useKarin } from '../store/karin'
 import { cn } from '../lib/cn'
 import type { UnifiedSession, TokenUsage } from '../types'
 import { buildCycles, cycleTiming, cyclePrompt, cycleUsage } from '../lib/unifiedCycles'
-import { effectiveRates, ratesForUnified, splitUsage, usageCost, EUR_PER_USD, type CurrencyMode } from '../lib/pricing'
+import {
+  CURRENCY_LABELS,
+  TOKEN_UNIT_REF_LABELS,
+  UNIT_MODE_LABELS,
+  currencyModes,
+  effectiveRates,
+  ratesForUnified,
+  tokenUnitRefs,
+  unitModes,
+  usageUnitTotal,
+  EUR_PER_USD,
+  type TokenRates,
+} from '../lib/pricing'
 
 // ---------------------------------------------------------------------------
 // Data model: each session becomes an envelope [start..end] holding its cycles
 // as activity segments — the light space between segments IS the idle time.
-// A cumulative token line (area fill) runs under the segments, so the pill
-// itself reads as "when work happened" + "how usage piled up".
+//
+// Two proportionality rules make cost legible at a glance:
+//  • pill HEIGHT is proportional to the session's total (in the active unit)
+//    on ONE global scale — spendy sessions are visibly thicker;
+//  • the in-pill cumulative line uses a step profile: it only climbs DURING a
+//    cycle and stays flat across idle gaps (tokens aren't spent while idle).
 // ---------------------------------------------------------------------------
 
 interface Seg {
@@ -18,7 +34,6 @@ interface Seg {
   end: number
   prompt: string
   usage: TokenUsage
-  tokens: number
 }
 
 interface SessionTrack {
@@ -26,9 +41,6 @@ interface SessionTrack {
   start: number
   end: number
   segs: Seg[]
-  // Cumulative token points (session-relative), for the usage sparkline.
-  points: Array<{ t: number; cum: number }>
-  totalTokens: number
 }
 
 interface Placed extends SessionTrack {
@@ -37,13 +49,9 @@ interface Placed extends SessionTrack {
 
 const MIN_SPAN = 60_000 // fully zoomed in: 1 minute across the screen
 const MAX_SPAN = 120 * 86_400_000 // fully zoomed out: ~4 months
-const LANE_H = 52
-const PILL_H = 44
-
-function segTokens(u: TokenUsage): number {
-  const p = splitUsage(u)
-  return p.freshInput + p.cachedInput + p.cacheCreate + p.output
-}
+const MIN_PILL = 18 // even near-free sessions stay hoverable
+const MAX_PILL = 150 // the most expensive session gets this much height
+const LANE_GAP = 8
 
 // Build (and cache) the cycle segments for one session. Cycle building flattens the
 // whole transcript, so results are cached by uid+updated_at — only sessions that
@@ -61,31 +69,26 @@ function sessionTrack(s: UnifiedSession): SessionTrack | null {
     for (const c of cycles) {
       const t = cycleTiming(c)
       if (t.startMs == null || t.endMs == null) continue
-      const usage = cycleUsage(c)
       segs.push({
         start: t.startMs,
         end: Math.max(t.endMs, t.startMs + 1000),
         prompt: cyclePrompt(c),
-        usage,
-        tokens: segTokens(usage),
+        usage: cycleUsage(c),
       })
     }
     if (segs.length > 0) {
       segs.sort((a, b) => a.start - b.start)
-      const start = segs[0].start
-      const end = Math.max(...segs.map((x) => x.end))
-      let cum = 0
-      const points = segs.map((x) => {
-        cum += x.tokens
-        return { t: x.end, cum }
-      })
-      track = { session: s, start, end, segs, points, totalTokens: cum }
+      track = {
+        session: s,
+        start: segs[0].start,
+        end: Math.max(...segs.map((x) => x.end)),
+        segs,
+      }
     } else {
-      // No timestamped cycles — fall back to the envelope alone.
       const start = s.started_at ? Date.parse(s.started_at) : NaN
       const end = s.updated_at ? Date.parse(s.updated_at) : NaN
       if (Number.isFinite(start) && Number.isFinite(end)) {
-        track = { session: s, start, end: Math.max(end, start + 1000), segs: [], points: [], totalTokens: 0 }
+        track = { session: s, start, end: Math.max(end, start + 1000), segs: [] }
       }
     }
   } catch {
@@ -129,20 +132,10 @@ function fmtDur(ms: number): string {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
-function fmtTokens(n: number): string {
+function fmtCompact(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 10e6 ? 0 : 1)}M`
   if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 10e3 ? 0 : 1)}k`
   return String(Math.round(n))
-}
-
-function fmtCost(usd: number | null, currency: CurrencyMode): string | null {
-  if (usd == null) return null
-  const eur = currency === 'eur' || currency === 'eur_cents'
-  const v = eur ? usd * EUR_PER_USD : usd
-  const sym = eur ? '€' : '$'
-  if (v >= 100) return `${sym}${Math.round(v)}`
-  if (v >= 1) return `${sym}${v.toFixed(2)}`
-  return `${sym}${v.toFixed(3)}`
 }
 
 function fmtDayTime(ms: number): string {
@@ -184,7 +177,6 @@ function buildTicks(start: number, end: number, widthPx: number): { step: number
       t = d.getTime()
     }
   } else {
-    // Sub-day: align to the step within the local day.
     const base = localMidnight(start)
     for (let t = base + Math.floor((start - base) / step) * step; t <= end; t += step) {
       if (t >= start) ticks.push(t)
@@ -204,11 +196,9 @@ function tickLabel(t: number, step: number): string {
 // --- Source accents (accents only — the pill itself stays neutral) ------------
 
 const ACCENT = {
-  codex: { bar: 'bg-sky-500', seg: 'bg-sky-500/30 hover:bg-sky-500/50 dark:bg-sky-400/25 dark:hover:bg-sky-400/45' },
-  claude: { bar: 'bg-orange-500', seg: 'bg-orange-500/30 hover:bg-orange-500/50 dark:bg-orange-400/25 dark:hover:bg-orange-400/45' },
+  codex: { bar: 'bg-sky-500', seg: 'bg-sky-500/30 hover:bg-sky-500/55 dark:bg-sky-400/25 dark:hover:bg-sky-400/50' },
+  claude: { bar: 'bg-orange-500', seg: 'bg-orange-500/30 hover:bg-orange-500/55 dark:bg-orange-400/25 dark:hover:bg-orange-400/50' },
 } as const
-
-// --- Tooltip -------------------------------------------------------------------
 
 interface Tip {
   x: number
@@ -224,7 +214,35 @@ export default function TimelinePage() {
   const select = useKarin((s) => s.select)
   const priceBasis = useKarin((s) => s.priceBasis)
   const subDivisors = useKarin((s) => s.subDivisors)
+  // Same global unit system as the main page — changing it here re-expresses the
+  // sidebar and detail views too, exactly like the sidebar's own toggle.
+  const unitMode = useKarin((s) => s.unitMode)
+  const setUnitMode = useKarin((s) => s.setUnitMode)
+  const tokenRef = useKarin((s) => s.tokenRef)
+  const setTokenRef = useKarin((s) => s.setTokenRef)
+  const tokenMult = useKarin((s) => s.tokenMult)
   const currency = useKarin((s) => s.currency)
+  const setCurrency = useKarin((s) => s.setCurrency)
+
+  // Value of a usage blob in the ACTIVE unit (tokens / token units / money).
+  const unitValue = useCallback(
+    (usage: TokenUsage | null | undefined, rates: TokenRates | null): number =>
+      usageUnitTotal(usage, rates, unitMode, tokenRef, tokenMult),
+    [unitMode, tokenRef, tokenMult],
+  )
+
+  const fmtVal = useCallback(
+    (v: number): string => {
+      if (unitMode !== 'money') return `${fmtCompact(v)} ${unitMode === 'tokens' ? 'tok' : 'tu'}`
+      const eur = currency === 'eur' || currency === 'eur_cents'
+      const x = eur ? v * EUR_PER_USD : v
+      const sym = eur ? '€' : '$'
+      if (x >= 100) return `${sym}${Math.round(x)}`
+      if (x >= 1) return `${sym}${x.toFixed(2)}`
+      return `${sym}${x.toFixed(3)}`
+    },
+    [unitMode, currency],
+  )
 
   const tracks = useMemo(() => {
     const out: SessionTrack[] = []
@@ -237,7 +255,40 @@ export default function TimelinePage() {
   }, [sessions, sourceFilter])
 
   const placed = useMemo(() => packLanes(tracks), [tracks])
-  const laneCount = placed.reduce((m, p) => Math.max(m, p.lane + 1), 0)
+
+  // Per-session totals in the active unit + the ONE global scale all heights share.
+  const valued = useMemo(() => {
+    return placed.map((p) => {
+      const rates = effectiveRates(ratesForUnified(p.session), priceBasis, subDivisors[p.session.source])
+      const segVals = p.segs.map((seg) => unitValue(seg.usage, rates))
+      const total = segVals.reduce((a, b) => a + b, 0)
+      return { ...p, rates, segVals, total }
+    })
+  }, [placed, priceBasis, subDivisors, unitValue])
+
+  const globalMax = useMemo(() => Math.max(1e-9, ...valued.map((v) => v.total)), [valued])
+  const pillHeight = useCallback(
+    (total: number) => MIN_PILL + (total / globalMax) * (MAX_PILL - MIN_PILL),
+    [globalMax],
+  )
+
+  // Variable-height lanes: each lane is as tall as its tallest pill; pills sit on
+  // the lane's BOTTOM so heights compare against a shared baseline.
+  const laneTops = useMemo(() => {
+    const heights: number[] = []
+    for (const v of valued) {
+      const h = pillHeight(v.total)
+      heights[v.lane] = Math.max(heights[v.lane] ?? MIN_PILL, h)
+    }
+    const tops: number[] = []
+    let y = LANE_GAP
+    for (let i = 0; i < heights.length; i++) {
+      tops[i] = y
+      y += (heights[i] ?? MIN_PILL) + LANE_GAP
+    }
+    return { tops, heights, totalH: y }
+  }, [valued, pillHeight])
+
   const dataMin = tracks.length ? Math.min(...tracks.map((t) => t.start)) : Date.now() - 6 * HOUR
   const dataMax = tracks.length ? Math.max(...tracks.map((t) => t.end)) : Date.now()
 
@@ -274,7 +325,6 @@ export default function TimelinePage() {
         e = c + MAX_SPAN / 2
         sp = MAX_SPAN
       }
-      // Keep the data reachable: never pan more than one full span away from it.
       const lo = dataMin - sp
       const hi = dataMax + sp
       if (s < lo) {
@@ -320,18 +370,22 @@ export default function TimelinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clampView])
 
-  // Drag to pan. A drag beyond 4px suppresses the click that would open a session.
-  const drag = useRef<{ x: number; start: number; end: number; moved: boolean } | null>(null)
+  // Drag to pan. Pointer capture is only taken once movement crosses the threshold —
+  // capturing on pointer-down would retarget the click to the canvas and swallow
+  // pill/cycle clicks (that was a real bug).
+  const drag = useRef<{ id: number; x: number; start: number; end: number; moved: boolean } | null>(null)
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
-    drag.current = { x: e.clientX, start: view.start, end: view.end, moved: false }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    drag.current = { id: e.pointerId, x: e.clientX, start: view.start, end: view.end, moved: false }
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
     const dx = e.clientX - d.x
-    if (Math.abs(dx) > 4) d.moved = true
+    if (!d.moved && Math.abs(dx) > 4) {
+      d.moved = true
+      ;(e.currentTarget as HTMLElement).setPointerCapture(d.id)
+    }
     if (!d.moved) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -339,13 +393,11 @@ export default function TimelinePage() {
     setViewState(clampView(d.start + dt, d.end + dt))
   }
   const onPointerUp = () => {
-    // Keep `moved` readable by the click handler that fires right after pointerup.
     const d = drag.current
     if (d) setTimeout(() => (drag.current = null), 0)
   }
   const clickAllowed = () => !drag.current?.moved
 
-  // Zoom presets, all anchored sensibly.
   const fit = (preset: 'hour' | 'day' | 'week' | 'all') => {
     const now = Date.now()
     if (preset === 'all') {
@@ -395,7 +447,7 @@ export default function TimelinePage() {
 
   const { step, ticks } = buildTicks(view.start, view.end, widthPx)
   const now = Date.now()
-  const visible = placed.filter((p) => p.end >= view.start && p.start <= view.end)
+  const visible = valued.filter((p) => p.end >= view.start && p.start <= view.end)
 
   return (
     <div className="flex h-dvh flex-col bg-neutral-100 text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -412,6 +464,36 @@ export default function TimelinePage() {
         <span className="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">
           {fmtDayTime(view.start)} — {fmtDayTime(view.end)}
         </span>
+        {/* Units — the SAME global toggle as the sidebar (tokens / token units / money) */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setUnitMode(unitModes[(unitModes.indexOf(unitMode) + 1) % unitModes.length])}
+            title="Cycle usage unit: tokens → token units → money (heights rescale)"
+            className="h-7 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-[0.7rem] font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+          >
+            {UNIT_MODE_LABELS[unitMode]}
+          </button>
+          {unitMode === 'token_units' && (
+            <button
+              type="button"
+              onClick={() => setTokenRef(tokenUnitRefs[(tokenUnitRefs.indexOf(tokenRef) + 1) % tokenUnitRefs.length])}
+              title="Reference token type"
+              className="h-7 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-[0.7rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {TOKEN_UNIT_REF_LABELS[tokenRef]}
+            </button>
+          )}
+          {unitMode === 'money' && (
+            <button
+              type="button"
+              onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
+              className="h-7 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-[0.7rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {CURRENCY_LABELS[currency]}
+            </button>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-1.5">
           {(['hour', 'day', 'week', 'all'] as const).map((p) => (
             <button
@@ -440,7 +522,7 @@ export default function TimelinePage() {
           <span>
             <span className="mr-3 inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-sky-500" /> Codex</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-orange-500" /> Claude</span>
-            <span className="ml-3">darker blocks = cycles (work) · light pill = idle · gray area = tokens piling up</span>
+            <span className="ml-3">pill height = total {unitMode === 'money' ? 'cost' : 'usage'} (one scale for all) · blocks = cycles · line climbs only while working</span>
           </span>
           <span className="hidden md:inline">scroll = zoom · drag / shift-scroll = pan · ± ←→</span>
         </div>
@@ -477,45 +559,51 @@ export default function TimelinePage() {
         )}
 
         {/* Session pills */}
-        <div className="absolute top-8 right-0 left-0 bottom-0 overflow-y-auto">
-          <div style={{ height: `${Math.max(laneCount * LANE_H + 8, 100)}px` }} className="relative">
+        <div className="absolute top-8 right-0 bottom-0 left-0 overflow-y-auto">
+          <div style={{ height: `${Math.max(laneTops.totalH, 100)}px` }} className="relative">
             {visible.map((p) => {
               const left = pct(p.start)
               const width = Math.max(pct(p.end) - left, 0.15)
               const wPx = (width / 100) * widthPx
               const label = p.session.title || p.session.id
-              const rates = effectiveRates(ratesForUnified(p.session), priceBasis, subDivisors[p.session.source])
-              const totalCost = usageCost(splitUsage(p.session.latest_total_usage), rates)
-              const costLabel = fmtCost(totalCost, currency)
               const accent = ACCENT[p.session.source]
               const sessSpan = p.end - p.start
               const relPct = (t: number) => ((t - p.start) / sessSpan) * 100
-              // Sparkline path: cumulative tokens, normalized to the session's own total.
-              const maxCum = p.totalTokens || 1
-              const linePts = [
-                { x: 0, y: 100 },
-                ...p.points.map((pt) => ({ x: relPct(pt.t), y: 100 - (pt.cum / maxCum) * 92 })),
+              const pillH = pillHeight(p.total)
+              const laneH = laneTops.heights[p.lane] ?? MIN_PILL
+              const top = (laneTops.tops[p.lane] ?? 0) + (laneH - pillH) // bottom-aligned
+
+              // Step profile: the line climbs only across a cycle's span and holds
+              // flat through idle gaps — two points per segment (start@before, end@after).
+              const maxCum = p.total || 1
+              let cum = 0
+              const stepPts: Array<{ x: number; y: number }> = [{ x: 0, y: 100 }]
+              p.segs.forEach((seg, i) => {
+                stepPts.push({ x: relPct(seg.start), y: 100 - (cum / maxCum) * 94 })
+                cum += p.segVals[i]
+                stepPts.push({ x: relPct(seg.end), y: 100 - (cum / maxCum) * 94 })
+              })
+              stepPts.push({ x: 100, y: stepPts[stepPts.length - 1].y })
+              const polyline = stepPts.map((pt) => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(' ')
+              const area = `0,100 ${polyline} 100,100`
+              const totalLabel = fmtVal(p.total)
+              const sessTipLines = [
+                `${fmtDayTime(p.start)} – ${fmtClock(p.end)} · ${fmtDur(p.end - p.start)}`,
+                `${p.segs.length} cycles · ${totalLabel}`,
               ]
-              const polyline = linePts.map((pt) => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(' ')
-              const area = `0,100 ${polyline} 100,${linePts[linePts.length - 1].y.toFixed(2)} 100,100`
 
               return (
                 <div
                   key={p.session.uid}
-                  style={{ left: `${left}%`, width: `${width}%`, top: `${p.lane * LANE_H + 6}px`, height: `${PILL_H}px` }}
+                  style={{ left: `${left}%`, width: `${width}%`, top: `${top}px`, height: `${pillH}px` }}
                   className="absolute cursor-pointer overflow-hidden rounded-md border border-neutral-300/70 bg-neutral-200/40 shadow-sm transition-colors hover:border-neutral-400/80 dark:border-neutral-700/70 dark:bg-neutral-800/30 dark:hover:border-neutral-500/80"
                   onClick={() => openSession(p.session.uid)}
-                  onMouseEnter={(e) =>
-                    showTip(e, label, [
-                      `${fmtDayTime(p.start)} – ${fmtClock(p.end)} · ${fmtDur(p.end - p.start)}`,
-                      `${p.segs.length} cycles · ${fmtTokens(p.totalTokens)} tok${costLabel ? ` · ${costLabel}` : ''}`,
-                    ])
-                  }
+                  onMouseEnter={(e) => showTip(e, label, sessTipLines)}
                   onMouseMove={moveTip}
                   onMouseLeave={() => setTip(null)}
                 >
-                  {/* Cumulative token area — the cost story, in-pill */}
-                  {p.points.length > 0 && wPx > 24 && (
+                  {/* Cumulative usage step-line — flat while idle, climbing while working */}
+                  {p.segs.length > 0 && wPx > 24 && (
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
                       <polygon points={area} className="fill-neutral-400/35 dark:fill-neutral-500/25" />
                       <polyline
@@ -527,22 +615,25 @@ export default function TimelinePage() {
                       />
                     </svg>
                   )}
-                  {/* Cycle segments — the actual work; light pill background between = idle */}
+                  {/* Cycle segments — click one to open the session */}
                   {wPx > 12 &&
                     p.segs.map((seg, i) => {
                       const segLeft = relPct(seg.start)
                       const segW = Math.max(relPct(seg.end) - segLeft, 0.4)
-                      const segCost = fmtCost(usageCost(splitUsage(seg.usage), rates), currency)
                       return (
                         <div
                           key={i}
                           style={{ left: `${segLeft}%`, width: `${segW}%` }}
                           className={cn('absolute top-0 bottom-0 rounded-[3px] transition-colors', accent.seg)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openSession(p.session.uid)
+                          }}
                           onMouseEnter={(e) => {
                             e.stopPropagation()
                             showTip(e, seg.prompt, [
                               `${fmtClock(seg.start)} – ${fmtClock(seg.end)} · ${fmtDur(seg.end - seg.start)}`,
-                              `${fmtTokens(seg.tokens)} tok${segCost ? ` · ${segCost}` : ''}`,
+                              fmtVal(p.segVals[i]),
                             ])
                           }}
                           onMouseMove={(e) => {
@@ -551,25 +642,22 @@ export default function TimelinePage() {
                           }}
                           onMouseLeave={(e) => {
                             e.stopPropagation()
-                            showTip(e, label, [
-                              `${fmtDayTime(p.start)} – ${fmtClock(p.end)} · ${fmtDur(p.end - p.start)}`,
-                              `${p.segs.length} cycles · ${fmtTokens(p.totalTokens)} tok${costLabel ? ` · ${costLabel}` : ''}`,
-                            ])
+                            showTip(e, label, sessTipLines)
                           }}
                         />
                       )
                     })}
                   {/* Source accent */}
                   <div className={cn('absolute top-0 bottom-0 left-0 w-[3px]', accent.bar)} />
-                  {/* Title + cost overlay */}
-                  {wPx > 56 && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-between gap-2 px-2">
+                  {/* Title + total overlay (skipped on very thin pills — tooltip covers them) */}
+                  {wPx > 56 && pillH >= 26 && (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-2 px-2 pt-0.5">
                       <span className="truncate text-[0.7rem] font-medium text-neutral-800 [text-shadow:0_0_4px_rgba(255,255,255,0.5)] dark:text-neutral-100 dark:[text-shadow:0_0_4px_rgba(0,0,0,0.6)]">
                         {label}
                       </span>
                       {wPx > 170 && (
                         <span className="shrink-0 text-[0.65rem] tabular-nums text-neutral-600 dark:text-neutral-300">
-                          {fmtTokens(p.totalTokens)}{costLabel ? ` · ${costLabel}` : ''}
+                          {totalLabel}
                         </span>
                       )}
                     </div>
