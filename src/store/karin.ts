@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
-import type { UsageUnitMode, CurrencyMode } from '../lib/pricing'
+import type { UsageUnitMode, CurrencyMode, TokenUnitRef } from '../lib/pricing'
 import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
 import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
@@ -24,7 +24,13 @@ function initialSourceFilter(): SourceFilter {
 // session detail, cycles) so switching it re-expresses all instances at once.
 function initialUnitMode(): UsageUnitMode {
   const saved = localStorage.getItem('karin-unit')
-  return saved === 'tokens' || saved === 'token_units' ? saved : 'token_units'
+  return saved === 'tokens' || saved === 'token_units' || saved === 'money' ? saved : 'token_units'
+}
+
+// Which token type token_units mode normalizes against (independent of currency).
+function initialTokenRef(): TokenUnitRef {
+  const saved = localStorage.getItem('karin-tokenref')
+  return saved === 'input' || saved === 'cached' || saved === 'output' ? saved : 'output'
 }
 
 function initialCurrency(): CurrencyMode {
@@ -47,6 +53,7 @@ interface KarinStore {
   search: string
   sourceFilter: SourceFilter
   unitMode: UsageUnitMode
+  tokenRef: TokenUnitRef
   currency: CurrencyMode
   theme: Theme
   error: string | null
@@ -60,6 +67,7 @@ interface KarinStore {
   setSearch: (q: string) => void
   setSourceFilter: (f: SourceFilter) => void
   setUnitMode: (m: UsageUnitMode) => void
+  setTokenRef: (r: TokenUnitRef) => void
   setCurrency: (c: CurrencyMode) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
@@ -96,6 +104,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   search: '',
   sourceFilter: initialSourceFilter(),
   unitMode: initialUnitMode(),
+  tokenRef: initialTokenRef(),
   currency: initialCurrency(),
   theme: initialTheme(),
   error: null,
@@ -160,6 +169,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setUnitMode: (m) => {
     localStorage.setItem('karin-unit', m)
     set({ unitMode: m })
+  },
+  setTokenRef: (r) => {
+    localStorage.setItem('karin-tokenref', r)
+    set({ tokenRef: r })
   },
   setCurrency: (c) => {
     localStorage.setItem('karin-currency', c)

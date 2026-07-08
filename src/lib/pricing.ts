@@ -1,8 +1,17 @@
 import type { Session, TokenUsage, UnifiedSession } from '../types'
 
-// How bar segments are weighted: raw token counts, or price-weighted so each segment's
-// length reflects its share of cost ("match tokens by price").
-export type UsageUnitMode = 'tokens' | 'token_units'
+// How usage is expressed:
+//  - tokens      → raw token counts
+//  - token_units → each token type normalized by its price RELATIVE to a reference token
+//                  type, so a cached token counts as a fraction of an output token. The
+//                  result is a token COUNT ("equivalent output tokens"), NOT money — it
+//                  measures how wastefully a model spends tokens, independent of price.
+//  - money       → the actual USD cost.
+export type UsageUnitMode = 'tokens' | 'token_units' | 'money'
+
+// Which token type is the "1.0" reference for token_units mode. Every segment is
+// re-expressed as the equivalent number of tokens of this type at their relative rates.
+export type TokenUnitRef = 'input' | 'cached' | 'output'
 
 // How monetary amounts are displayed. Cents variants multiply by 100.
 export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
@@ -60,6 +69,17 @@ export const CLAUDE_RATES: Record<string, { input: number; cached: number; cache
 export const UNIT_MODE_LABELS: Record<UsageUnitMode, string> = {
   tokens: 'tokens',
   token_units: 'token units',
+  money: 'money',
+}
+
+export const unitModes: UsageUnitMode[] = ['tokens', 'token_units', 'money']
+
+// The reference-token sub-toggle for token_units mode. "-eq" = equivalent tokens.
+export const tokenUnitRefs: TokenUnitRef[] = ['input', 'cached', 'output']
+export const TOKEN_UNIT_REF_LABELS: Record<TokenUnitRef, string> = {
+  input: 'input-eq',
+  cached: 'cached-eq',
+  output: 'output-eq',
 }
 
 // EUR per USD, as of the pricing snapshot date. Adjust when the FX rate moves.
@@ -164,23 +184,49 @@ export function ratesForUnified(s: UnifiedSession): TokenRates | null {
   return s.source === 'codex' ? ratesForSession(s.raw as Session) : ratesForClaudeModel(s.model)
 }
 
-// Bar-segment weight. 'tokens' → raw count; 'token_units' → the segment's USD cost, so
-// segment lengths become proportional to what each token type actually costs.
-// Falls back to raw tokens when the model has no known pricing.
-export function usageUnitValue(value: number, kind: keyof Omit<UsageParts, 'total'>, rates: TokenRates | null, mode: UsageUnitMode): number {
-  if (mode === 'tokens' || !rates) return value
-  return (value * rateForKind(kind, rates)) / 1_000_000
+// $/1M-token rate of the reference token type used as the "1.0" unit in token_units mode.
+function refRate(rates: TokenRates, ref: TokenUnitRef): number {
+  if (ref === 'input') return rates.input
+  if (ref === 'cached') return rates.cached ?? rates.input
+  return rates.output
 }
 
-// Sum of a usage's four segments expressed in the active unit — the value each bar is
+// Bar-segment weight in the active unit:
+//  - 'tokens'      → raw count
+//  - 'money'       → the segment's USD cost
+//  - 'token_units' → the segment re-expressed as the equivalent number of reference tokens
+//                    (e.g. a cached token is worth ~1/50th of an output token), so segment
+//                    lengths reflect token *weight*, not raw count or absolute price.
+// Falls back to raw tokens when the model has no known pricing.
+export function usageUnitValue(
+  value: number,
+  kind: keyof Omit<UsageParts, 'total'>,
+  rates: TokenRates | null,
+  mode: UsageUnitMode,
+  ref: TokenUnitRef = 'output',
+): number {
+  if (mode === 'tokens' || !rates) return value
+  const weighted = value * rateForKind(kind, rates) // value · ($/Mtok)
+  if (mode === 'money') return weighted / 1_000_000 // actual USD
+  const denom = refRate(rates, ref)
+  if (!denom) return value
+  return weighted / denom // equivalent count of reference tokens
+}
+
+// Sum of a usage's segments expressed in the active unit — the value each bar is
 // scaled against so sessions/cycles stay proportional to one another.
-export function usageUnitTotal(usage: TokenUsage | null | undefined, rates: TokenRates | null, mode: UsageUnitMode): number {
+export function usageUnitTotal(
+  usage: TokenUsage | null | undefined,
+  rates: TokenRates | null,
+  mode: UsageUnitMode,
+  ref: TokenUnitRef = 'output',
+): number {
   const p = splitUsage(usage)
   return (
-    usageUnitValue(p.freshInput, 'freshInput', rates, mode) +
-    usageUnitValue(p.cachedInput, 'cachedInput', rates, mode) +
-    usageUnitValue(p.cacheCreate, 'cacheCreate', rates, mode) +
-    usageUnitValue(p.output, 'output', rates, mode) +
-    usageUnitValue(p.reasoning, 'reasoning', rates, mode)
+    usageUnitValue(p.freshInput, 'freshInput', rates, mode, ref) +
+    usageUnitValue(p.cachedInput, 'cachedInput', rates, mode, ref) +
+    usageUnitValue(p.cacheCreate, 'cacheCreate', rates, mode, ref) +
+    usageUnitValue(p.output, 'output', rates, mode, ref) +
+    usageUnitValue(p.reasoning, 'reasoning', rates, mode, ref)
   )
 }

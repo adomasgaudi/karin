@@ -3,7 +3,7 @@ import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
 import { attributeCycleUsage, cycleCounts, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import { fmtClock, fmtCompact, fmtCurrency, fmtDuration } from '../lib/format'
-import type { CurrencyMode, TokenRates, UsageUnitMode } from '../lib/pricing'
+import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageCost, usageUnitTotal } from '../lib/pricing'
 import EventEntry, { SessionMetaGroup, isSessionMeta } from './EventEntry'
 import UsageBar from './UsageBar'
@@ -16,6 +16,13 @@ const ORIGIN_TAG: Record<'prompt' | 'interjection' | 'answer', { label: string; 
   answer: { label: 'answer', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' },
 }
 
+// A turn whose content was only thinking + tool calls flattens to empty text (see
+// karin_claude.py message_text) — its substance already shows as the adjacent thinking /
+// tool rows, so the blank "assistant:" line is dropped rather than rendered empty.
+function isEmptyMessage(entry: UnifiedEntry): boolean {
+  return entry.kind === 'message' && !(entry.item as { text?: string }).text?.trim()
+}
+
 export default function Cycle({
   cycle,
   index,
@@ -23,6 +30,7 @@ export default function Cycle({
   rates,
   unitMode,
   currency,
+  tokenRef,
   scaleMax,
   model,
   effort,
@@ -33,6 +41,7 @@ export default function Cycle({
   rates: TokenRates | null
   unitMode: UsageUnitMode
   currency: CurrencyMode
+  tokenRef: TokenUnitRef
   scaleMax?: number
   model?: string | null
   effort?: string | null
@@ -50,7 +59,7 @@ export default function Cycle({
   const steps = useMemo(() => stepDurations(cycle), [cycle])
   const hasWait = timing.waitMs != null && timing.waitMs > 1000
   // Each card's bar scales against the cycle total, so a card's fill = its fraction of the cycle.
-  const cardScaleMax = usageUnitTotal(usage, rates, unitMode)
+  const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef)
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
@@ -78,6 +87,7 @@ export default function Cycle({
           rates={rates}
           unitMode={unitMode}
           currency={currency}
+          tokenRef={tokenRef}
           scaleMax={cardScaleMax}
         />,
       )
@@ -93,6 +103,7 @@ export default function Cycle({
       return
     }
     flushMeta()
+    if (isEmptyMessage(entry)) return
     eventNodes.push(
       <EventEntry
         key={i}
@@ -103,6 +114,7 @@ export default function Cycle({
         rates={rates}
         unitMode={unitMode}
         currency={currency}
+        tokenRef={tokenRef}
         scaleMax={cardScaleMax}
       />,
     )
@@ -151,7 +163,7 @@ export default function Cycle({
           )}
         </div>
         {hasUsage && (
-          <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} compact showLegend={false} scaleMax={scaleMax} />
+          <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact showLegend={false} scaleMax={scaleMax} />
         )}
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-2 dark:border-neutral-800/80 dark:bg-neutral-950/30">
@@ -185,7 +197,7 @@ export default function Cycle({
             and every card bar below is proportional to it via the same cardScaleMax. */}
         {hasUsage && (
           <div className="mb-2 rounded-md bg-neutral-50 px-2 py-2 dark:bg-neutral-950/60">
-            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} compact inlineLabels scaleMax={cardScaleMax} />
+            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact inlineLabels scaleMax={cardScaleMax} />
           </div>
         )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
