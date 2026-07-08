@@ -2,13 +2,15 @@ import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Search, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
-import { fmtCompact, sessionMatches, tokensLabel } from '../lib/format'
+import { sessionMatchesUnified, tokensLabelUnified } from '../lib/format'
 import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
-import { UNIT_MODE_LABELS, ratesForSession, usageUnitTotal, type UsageUnitMode } from '../lib/pricing'
+import { UNIT_MODE_LABELS, ratesForUnified, usageUnitTotal, type UsageUnitMode } from '../lib/pricing'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import DateStamp from './DateStamp'
 import UsageBar from './UsageBar'
+import SourceFilter from './SourceFilter'
+import SourceBadge from './SourceBadge'
 
 interface SidebarProps {
   className?: string
@@ -16,28 +18,40 @@ interface SidebarProps {
 
 const unitModes: UsageUnitMode[] = ['tokens', 'token_units']
 
+// Last path segment of a Claude session's project cwd (fallback: the slug) — shown inline
+// so Claude rows carry their project without a separate grouping column.
+function projectLabel(cwd: string | null, slug: string | null): string | null {
+  if (cwd) {
+    const parts = cwd.split(/[\\/]/).filter(Boolean)
+    if (parts.length) return parts[parts.length - 1]
+  }
+  return slug
+}
+
 export default function Sidebar({ className }: SidebarProps) {
-  const data = useKarin((s) => s.data)
-  const selectedId = useKarin((s) => s.selectedId)
+  const sessions = useKarin((s) => s.sessions)
+  const generatedAt = useKarin((s) => s.generatedAt)
+  const selectedUid = useKarin((s) => s.selectedUid)
   const search = useKarin((s) => s.search)
   const setSearch = useKarin((s) => s.setSearch)
+  const sourceFilter = useKarin((s) => s.sourceFilter)
   const theme = useKarin((s) => s.theme)
   const toggleTheme = useKarin((s) => s.toggleTheme)
   const now = useLiveNow()
-  const [unitMode, setUnitMode] = useState<UsageUnitMode>('tokens')
+  const [unitMode, setUnitMode] = useState<UsageUnitMode>('token_units')
 
-  if (!data) return null
-
-  const list = data.sessions.filter((s) => sessionMatches(s, search))
-  // Each session's bar is drawn against the largest session's total (in the active unit),
-  // so every session's input/cached/output bar is proportional to all the others.
+  const list = sessions.filter(
+    (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
+  )
+  // Each session's bar is drawn against the largest visible session's total (in the active
+  // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
-    const rates = ratesForSession(s)
+    const rates = ratesForUnified(s)
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
-  // Newest prompt across all sessions — "minutes since last prompt" for the header.
-  const latestPrompt = data.sessions.reduce<string | null>(
+  // Newest prompt across ALL sessions (both sources) — "minutes since last prompt".
+  const latestPrompt = sessions.reduce<string | null>(
     (max, s) => (s.updated_at && (!max || s.updated_at > max) ? s.updated_at : max),
     null,
   )
@@ -53,12 +67,27 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="flex items-center justify-between gap-2">
           <div>
             <div className="flex items-baseline gap-2">
+              <svg viewBox="0 0 40 18" className="h-5 shrink-0" aria-hidden="true">
+                {/* frame arms */}
+                <line x1="0" y1="9" x2="3" y2="9" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
+                <line x1="37" y1="9" x2="40" y2="9" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
+                {/* left lens */}
+                <circle cx="10" cy="9" r="7" fill="none" stroke="#dc2626" strokeWidth="1.6" />
+                {/* left eye - fully red, no pupil, shaped for focused expression */}
+                <path d="M5 6.5 C5 6.5 10 5.5 15 6.5 C15 6.5 13 12.5 10 12.5 C7 12.5 5 6.5 5 6.5Z" fill="#dc2626" />
+                {/* right lens */}
+                <circle cx="30" cy="9" r="7" fill="none" stroke="#dc2626" strokeWidth="1.6" />
+                {/* right eye */}
+                <path d="M25 6.5 C25 6.5 30 5.5 35 6.5 C35 6.5 33 12.5 30 12.5 C27 12.5 25 6.5 25 6.5Z" fill="#dc2626" />
+                {/* bridge */}
+                <path d="M17 9 Q20 6 23 9" fill="none" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
               <span className="text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">Karin</span>
               <span className="text-xs font-medium text-neutral-400 dark:text-neutral-500">{APP_VERSION}</span>
             </div>
             <AgeIndicator value={latestPrompt} now={now} className="mt-0.5 text-base" />
             <p className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
-              {data.session_count} sessions / generated <DateStamp value={data.generated_at} />
+              {sessions.length} sessions / generated <DateStamp value={generatedAt} />
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -82,6 +111,7 @@ export default function Sidebar({ className }: SidebarProps) {
               </Switch.Root>
               <Moon className="h-3.5 w-3.5 text-neutral-400" />
             </div>
+            <SourceFilter />
           </div>
         </div>
 
@@ -124,12 +154,13 @@ export default function Sidebar({ className }: SidebarProps) {
         ) : (
           <ul className="flex flex-col gap-1">
             {rows.map(({ session: s, rates }) => {
-              const selected = s.id === selectedId
+              const selected = s.uid === selectedUid
+              const project = s.source === 'claude' ? projectLabel(s.projectCwd, s.projectSlug) : null
               return (
-                <li key={s.id}>
+                <li key={s.uid}>
                   <button
                     type="button"
-                    onClick={() => useKarin.getState().select(s.id)}
+                    onClick={() => useKarin.getState().select(s.uid)}
                     className={cn(
                       'grid w-full gap-1 rounded-md border px-3 py-2 text-left transition-colors',
                       selected
@@ -137,16 +168,16 @@ export default function Sidebar({ className }: SidebarProps) {
                         : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
                     )}
                   >
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <div className="min-w-0 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <SourceBadge source={s.source} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
                         {s.title || s.id}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                      <span className="truncate">
-                        <DateStamp value={s.updated_at} /> / {tokensLabel(s)}
                       </span>
-                      <span>{fmtCompact(s.latest_total_usage?.cached_input_tokens)} cached</span>
+                    </div>
+                    {/* Date + cached tokens live in the session detail now; the list row
+                        stays lean with just total tokens + project. */}
+                    <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
+                      {tokensLabelUnified(s)}{project ? ` / ${project}` : ''}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-neutral-500 dark:text-neutral-500">
                       <span>{s.counts.user} user</span>

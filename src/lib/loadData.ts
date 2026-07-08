@@ -2,6 +2,7 @@
 //   - plain JSON ( {"sessions":[...]} )
 //   - the indexer's JS wrapper ( window.KARIN_DATA = {...}; )
 import type { KarinData, KarinStatus } from '../types'
+import { isClaudeRawData, type ClaudeRawData } from './claudeRaw'
 
 export function parseKarinText(text: string): KarinData {
   let src = text.trim()
@@ -41,6 +42,29 @@ export async function fetchLocalData(): Promise<KarinData | null> {
     }
   }
   return null
+}
+
+// Claude raw feed (data/claude-raw.json, produced by bin/karin_claude.py). Same
+// defensive HTML-404 guard as the Codex feed; returns null when the file is absent.
+export async function fetchClaudeRaw(): Promise<ClaudeRawData | null> {
+  const base = import.meta.env.BASE_URL || '/'
+  try {
+    const res = await fetch(base + 'data/claude-raw.json', { cache: 'no-store' })
+    if (!res.ok) return null
+    const text = await res.text()
+    if (/^\s*<(!doctype|html)/i.test(text)) return null
+    const parsed = JSON.parse(text) as unknown
+    return isClaudeRawData(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+// Parse a dropped Claude dataset file (throws with a clear message on the wrong shape).
+export async function parseClaudeFile(file: File): Promise<ClaudeRawData> {
+  const parsed = JSON.parse(await file.text()) as unknown
+  if (!isClaudeRawData(parsed)) throw new Error('Not a Claude dataset: missing "projects" array.')
+  return parsed
 }
 
 export async function fetchLocalStatus(): Promise<KarinStatus | null> {

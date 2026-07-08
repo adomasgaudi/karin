@@ -83,23 +83,43 @@ export function fmtClock(ms: number | null | undefined): string {
   return fmtTime(new Date(ms))
 }
 
-// Two significant figures, never in exponent form: 0.042 → "0.042", 3.7 → "3.7",
-// 12.3 → "12". Keeps fast sub-cycle steps (often < 0.1s) legible instead of
-// collapsing to "0.0s". Returns null for non-finite input.
-function twoSigFigs(n: number): string | null {
-  if (!Number.isFinite(n)) return null
-  if (n === 0) return '0'
-  const p = n.toPrecision(2)
-  return p.includes('e') ? n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : p
+// --- Significant-figure policy (site-wide) ---------------------------------
+// Every displayed *measured* value (tokens, cost, durations) uses 2 significant
+// figures below 10 and 3 at or above 10 — never fewer than 2, never more than 3.
+// Exact counts of discrete things (records, events, m/s time breakdowns) are
+// exempt and rendered as-is. These helpers are the single source for that rule.
+
+function sigFigsFor(n: number): number {
+  return Math.abs(n) < 10 ? 2 : 3
 }
 
-// Human elapsed duration: "0.042s", "3.7s", "12s", "2m 14s", "1h 3m". Anything
-// under a minute is shown to 2 significant figures so sub-second steps keep their
-// accuracy; longer spans use m/h. "n/a" when the duration is unavailable.
+// Decimal places needed to render `figs` significant figures at n's magnitude.
+function decimalsFor(n: number, figs: number): number {
+  if (n === 0) return figs - 1
+  const intDigits = Math.floor(Math.log10(Math.abs(n))) + 1
+  return Math.max(0, figs - intDigits)
+}
+
+// Grouped sig-fig string: 7.3, "45,200", 0.071, 0.0040. "n/a" when unavailable.
+export function sigFig(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return 'n/a'
+  if (n === 0) return '0'
+  const figs = sigFigsFor(n)
+  const rounded = Number(n.toPrecision(figs))
+  const decimals = decimalsFor(rounded, figs)
+  return rounded.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
+// Human elapsed duration: "0.042s", "3.7s", "12.0s", "2m 14s", "1h 3m". Anything
+// under a minute follows the sig-fig policy so sub-second steps keep their
+// accuracy; longer spans break into exact m/s. "n/a" when unavailable.
 export function fmtDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return 'n/a'
   const s = ms / 1000
-  if (s < 60) return `${twoSigFigs(s) ?? 'n/a'}s`
+  if (s < 60) return `${sigFig(s)}s`
   const m = Math.floor(s / 60)
   const rem = Math.round(s % 60)
   if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`
@@ -109,31 +129,39 @@ export function fmtDuration(ms: number | null | undefined): string {
 }
 
 export function fmtNum(n: number | null | undefined): string {
-  return typeof n === 'number' ? n.toLocaleString() : 'n/a'
+  return typeof n === 'number' ? sigFig(n) : 'n/a'
 }
 
 export function fmtCompact(n: number | null | undefined): string {
-  if (typeof n !== 'number') return 'n/a'
-  return Intl.NumberFormat(undefined, { maximumFractionDigits: n < 10 ? 2 : 1, notation: 'compact' }).format(n)
+  if (typeof n !== 'number' || !Number.isFinite(n)) return 'n/a'
+  if (n === 0) return '0'
+  const figs = sigFigsFor(n)
+  return Intl.NumberFormat(undefined, {
+    notation: 'compact',
+    minimumSignificantDigits: figs,
+    maximumSignificantDigits: figs,
+  }).format(n)
 }
 
 // Format a USD amount in the chosen currency/denomination. Cents variants append ¢.
+// Amounts follow the same 2-/3-sig-fig policy as every other measured number.
 export function fmtCurrency(usd: number | null | undefined, currency: CurrencyMode = 'usd'): string {
-  if (typeof usd !== 'number') return 'n/a'
+  if (typeof usd !== 'number' || !Number.isFinite(usd)) return 'n/a'
   if (currency === 'usd' || currency === 'eur') {
-    const value = currency === 'usd' ? usd : usd * EUR_PER_USD
-    const small = Math.abs(value) < 1
+    const raw = currency === 'usd' ? usd : usd * EUR_PER_USD
+    const value = raw === 0 ? 0 : Number(raw.toPrecision(sigFigsFor(raw)))
+    const decimals = raw === 0 ? 2 : decimalsFor(value, sigFigsFor(raw))
     return Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currency === 'usd' ? 'USD' : 'EUR',
-      minimumFractionDigits: small ? 4 : 2,
-      maximumFractionDigits: small ? 4 : 2,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
     }).format(value)
   }
-  const cents = (currency === 'usd_cents' ? usd : usd * EUR_PER_USD) * 100
+  const raw = (currency === 'usd_cents' ? usd : usd * EUR_PER_USD) * 100
+  const cents = raw === 0 ? 0 : Number(raw.toPrecision(sigFigsFor(raw)))
   const symbol = currency === 'usd_cents' ? '¢' : '€¢'
-  const abs = Math.abs(cents)
-  const digits = abs < 1 ? 3 : abs < 100 ? 2 : 1
+  const digits = raw === 0 ? 0 : decimalsFor(cents, sigFigsFor(raw))
   return `${cents.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}${symbol}`
 }
 

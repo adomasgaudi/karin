@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { cn } from '../lib/cn'
 import { shortAge } from '../lib/format'
 
-// Shared live clock — re-renders every 30s so the ages tick without a reload.
-export function useLiveNow(intervalMs = 30000): Date {
+// Shared live clock — re-renders every second so ages tick by the second (a real
+// wall clock), independent of how often the data is actually re-checked.
+export function useLiveNow(intervalMs = 1000): Date {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), intervalMs)

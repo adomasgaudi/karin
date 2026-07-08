@@ -1,9 +1,12 @@
 import { create } from 'zustand'
-import type { KarinData, KarinStatus } from '../types'
-import { saveData, loadSavedData, clearSavedData } from '../lib/persist'
-import { fetchLocalData, fetchLocalStatus } from '../lib/loadData'
+import type { KarinData, KarinStatus, UnifiedSession } from '../types'
+import type { ClaudeRawData } from '../lib/claudeRaw'
+import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
+import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
+import { mergeSessions } from '../lib/adapt'
 
 type Theme = 'light' | 'dark'
+export type SourceFilter = 'all' | 'codex' | 'claude'
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem('karin-theme')
@@ -11,76 +14,130 @@ function initialTheme(): Theme {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function initialSourceFilter(): SourceFilter {
+  const saved = localStorage.getItem('karin-source')
+  return saved === 'codex' || saved === 'claude' ? saved : 'all'
+}
+
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 
 interface KarinStore {
-  data: KarinData | null
+  codex: KarinData | null
+  claude: ClaudeRawData | null
+  sessions: UnifiedSession[] // merged, most-recent first
+  generatedAt: string | null
   status: KarinStatus | null
   booting: boolean
-  selectedId: string | null
+  selectedUid: string | null
   search: string
+  sourceFilter: SourceFilter
   theme: Theme
   error: string | null
 
   boot: () => Promise<void>
-  setData: (data: KarinData) => void
+  setCodexData: (data: KarinData) => void
+  setClaudeData: (data: ClaudeRawData) => void
   refreshLocalData: () => Promise<void>
   reset: () => Promise<void>
-  select: (id: string | null) => void
+  select: (uid: string | null) => void
   setSearch: (q: string) => void
+  setSourceFilter: (f: SourceFilter) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
 }
 
+// Freshest of the two generated-at stamps — the "generated" time shown in the header.
+function freshestGeneratedAt(codex: KarinData | null, claude: ClaudeRawData | null): string | null {
+  const stamps = [codex?.generated_at, claude?.generated_at].filter(Boolean) as string[]
+  if (stamps.length === 0) return null
+  return stamps.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b))
+}
+
+// Recompute the merged list + derived fields from whatever codex/claude are set.
+function derive(codex: KarinData | null, claude: ClaudeRawData | null, selectedUid: string | null) {
+  const sessions = mergeSessions(codex, claude)
+  const stillSelected = selectedUid && sessions.some((s) => s.uid === selectedUid) ? selectedUid : null
+  return { sessions, generatedAt: freshestGeneratedAt(codex, claude), selectedUid: stillSelected }
+}
+
+function isNewer(candidate: { generated_at: string } | null, current: { generated_at: string } | null): boolean {
+  if (!candidate) return false
+  if (!current) return true
+  return Date.parse(candidate.generated_at) > Date.parse(current.generated_at)
+}
+
 export const useKarin = create<KarinStore>((set, get) => ({
-  data: null,
+  codex: null,
+  claude: null,
+  sessions: [],
+  generatedAt: null,
   status: null,
   booting: true,
-  selectedId: null,
+  selectedUid: null,
   search: '',
+  sourceFilter: initialSourceFilter(),
   theme: initialTheme(),
   error: null,
 
-  // Startup: prefer the freshest local data, then keep checking while the app is open.
+  // Startup: prefer the freshest of saved vs local for EACH source, then keep polling.
   boot: async () => {
     applyTheme(get().theme)
-    const [saved, local, status] = await Promise.all([loadSavedData(), fetchLocalData(), fetchLocalStatus()])
-    const data = freshestData(saved, local)
-    if (data) {
-      await saveData(data)
-      set({ data, status: freshestStatus(data, status), selectedId: null, booting: false })
-      startLocalRefreshLoop()
-      return
-    }
-    set({ status, booting: false })
+    const [saved, localCodex, localClaude, status] = await Promise.all([
+      loadSaved(),
+      fetchLocalData(),
+      fetchClaudeRaw(),
+      fetchLocalStatus(),
+    ])
+    const codex = isNewer(localCodex, saved.codex) ? localCodex : saved.codex
+    const claude = isNewer(localClaude, saved.claude) ? localClaude : saved.claude
+    if (codex) void saveCodex(codex)
+    if (claude) void saveClaude(claude)
+    set({ codex, claude, status, ...derive(codex, claude, null), booting: false })
     startLocalRefreshLoop()
   },
 
-  setData: (data) => {
-    void saveData(data)
-    set({ data, status: statusFromData(data), selectedId: null, error: null, search: '' })
+  setCodexData: (data) => {
+    void saveCodex(data)
+    set((st) => ({ codex: data, error: null, search: '', ...derive(data, st.claude, st.selectedUid) }))
+  },
+
+  setClaudeData: (data) => {
+    void saveClaude(data)
+    set((st) => ({ claude: data, error: null, search: '', ...derive(st.codex, data, st.selectedUid) }))
   },
 
   refreshLocalData: async () => {
-    const current = get().data
-    const [local, status] = await Promise.all([fetchLocalData(), fetchLocalStatus()])
+    const { codex: curCodex, claude: curClaude } = get()
+    const [localCodex, localClaude, status] = await Promise.all([
+      fetchLocalData(),
+      fetchClaudeRaw(),
+      fetchLocalStatus(),
+    ])
     if (status) set({ status })
-    if (!local || !isNewerData(local, current)) return
-    await saveData(local)
-    const selectedId = local.sessions.some((s) => s.id === get().selectedId) ? get().selectedId : null
-    set({ data: local, status: freshestStatus(local, status), selectedId, error: null })
+    const codexNew = isNewer(localCodex, curCodex)
+    const claudeNew = isNewer(localClaude, curClaude)
+    if (!codexNew && !claudeNew) return
+    const codex = codexNew ? localCodex : curCodex
+    const claude = claudeNew ? localClaude : curClaude
+    if (codexNew && localCodex) void saveCodex(localCodex)
+    if (claudeNew && localClaude) void saveClaude(localClaude)
+    set((st) => ({ codex, claude, error: null, ...derive(codex, claude, st.selectedUid) }))
   },
 
   reset: async () => {
     stopLocalRefreshLoop()
-    await clearSavedData()
-    set({ data: null, status: null, selectedId: null, search: '', error: null })
+    await clearSaved()
+    set({ codex: null, claude: null, sessions: [], generatedAt: null, status: null, selectedUid: null, search: '', error: null })
   },
 
-  select: (id) => set({ selectedId: id }),
+  select: (uid) => set({ selectedUid: uid }),
   setSearch: (q) => set({ search: q }),
+  setSourceFilter: (f) => {
+    localStorage.setItem('karin-source', f)
+    set({ sourceFilter: f })
+  },
   setError: (msg) => set({ error: msg }),
 
   toggleTheme: () => {
@@ -104,33 +161,4 @@ function stopLocalRefreshLoop() {
   if (refreshTimer === null) return
   window.clearInterval(refreshTimer)
   refreshTimer = null
-}
-
-function freshestData(saved: KarinData | null, local: KarinData | null): KarinData | null {
-  if (isNewerData(local, saved)) return local
-  return saved
-}
-
-function isNewerData(candidate: KarinData | null, current: KarinData | null): candidate is KarinData {
-  if (!candidate) return false
-  if (!current) return true
-  return Date.parse(candidate.generated_at) > Date.parse(current.generated_at)
-}
-
-function statusFromData(data: KarinData): KarinStatus {
-  return {
-    last_checked_at: data.last_checked_at ?? data.generated_at,
-    last_entry_at: data.last_entry_at ?? data.sessions[0]?.updated_at ?? null,
-    session_file_count: data.session_file_count ?? data.session_count,
-  }
-}
-
-function freshestStatus(data: KarinData, status: KarinStatus | null): KarinStatus {
-  const fallback = statusFromData(data)
-  if (!status) return fallback
-  return {
-    last_checked_at: status.last_checked_at ?? fallback.last_checked_at,
-    last_entry_at: status.last_entry_at ?? fallback.last_entry_at,
-    session_file_count: status.session_file_count ?? fallback.session_file_count,
-  }
 }
