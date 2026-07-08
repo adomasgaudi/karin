@@ -1,7 +1,7 @@
 {
   "name": "karin",
   "version": "0.1.0",
-  "displayVersion": "v.13",
+"displayVersion": "v.41",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
@@ -16,7 +16,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "index": "python bin/karin.py",
-    "index:watch": "python bin/karin.py --watch"
+    "index:watch": "python bin/karin.py --watch",
+    "index:claude": "python bin/karin_claude.py",
+    "index:claude:watch": "python bin/karin_claude.py --watch"
   },
   "dependencies": {
     "@radix-ui/react-switch": "^1.1.3",
