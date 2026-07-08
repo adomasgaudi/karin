@@ -37,6 +37,8 @@ export interface BandDisplay {
   tokenRef: TokenUnitRef
   tokenMult?: number
   scaleMax: number
+  // Session has a single model → assistant rows drop the redundant "assistant" + model label.
+  singleModel?: boolean
   entryUsage: Map<UnifiedEntry, EntryUsage>
   steps: Map<UnifiedEntry, StepDuration>
   numFor: Map<UnifiedEntry, number>
@@ -62,6 +64,7 @@ function actionRow(entry: UnifiedEntry, usage: EntryUsage | undefined, d: BandDi
       tokenRef={d.tokenRef}
       tokenMult={d.tokenMult}
       scaleMax={d.scaleMax}
+      singleModel={d.singleModel}
     />
   )
 }

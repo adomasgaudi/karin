@@ -29,6 +29,7 @@ export default function Cycle({
   scaleMax,
   model,
   effort,
+  singleModel,
 }: {
   cycle: CycleData
   index: number
@@ -41,6 +42,7 @@ export default function Cycle({
   scaleMax?: number
   model?: string | null
   effort?: string | null
+  singleModel?: boolean
 }) {
   const usage = cycleUsage(cycle)
   const parts = splitUsage(usage)
@@ -74,7 +76,7 @@ export default function Cycle({
     cycle.items.forEach((e) => m.set(e, e.line))
     return m
   }, [cycle])
-  const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, entryUsage, steps, numFor }
+  const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, singleModel, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
   let hooksBuf: UnifiedEntry[] = []
   let claudeBuf: UnifiedEntry[] = []

@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.63',
+    title: 'Readable action rows',
+    summary:
+      'Tool/edit rows now show a “tool” tag + name (no slash) with the actual command/file/pattern instead of the call id, and assistant rows drop the label/model to show up to 3 lines of the reply itself.',
+    detail:
+      'Tool and edit rows replace the "tool / Name" title with a small "tool"/"edit" tag next to the name, and the lighter meta text now summarises the call — the command a Bash ran, the file a Read/Edit touched, the pattern a Grep searched — instead of the opaque toolu_… id. Assistant rows, in a single-model session, drop the redundant "assistant:" label and model chip entirely and instead show the reply text, wrapping up to 3 lines before truncating (the model chip returns only when a session actually mixes models). Everything still expands to the full content.',
+  },
+  {
     version: 'v.62',
     title: 'Token bar hugs the title',
     summary:
