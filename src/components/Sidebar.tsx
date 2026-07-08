@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Search, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
@@ -13,7 +14,6 @@ import {
   effectiveRates,
   priceBasisModes,
   ratesForUnified,
-  stepSubDivisor,
   stepTokenMult,
   tokenUnitRefs,
   unitModes,
@@ -21,6 +21,7 @@ import {
 } from '../lib/pricing'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import DateStamp from './DateStamp'
+import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
 import SourceFilter from './SourceFilter'
 import SourceBadge from './SourceBadge'
@@ -62,8 +63,9 @@ export default function Sidebar({ className }: SidebarProps) {
   const setCurrency = useKarin((s) => s.setCurrency)
   const priceBasis = useKarin((s) => s.priceBasis)
   const setPriceBasis = useKarin((s) => s.setPriceBasis)
-  const subDivisor = useKarin((s) => s.subDivisor)
+  const subDivisors = useKarin((s) => s.subDivisors)
   const setSubDivisor = useKarin((s) => s.setSubDivisor)
+  const [priceInfoOpen, setPriceInfoOpen] = useState(false)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -72,8 +74,9 @@ export default function Sidebar({ className }: SidebarProps) {
   // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
     // Apply the active price basis (÷divisor for the plan estimate) at the rates level so
-    // row totals and bars reflect the chosen basis just like the detail pane.
-    const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisor)
+    // row totals and bars reflect the chosen basis. Divisor is per source — each row's
+    // own plan (Codex vs Claude).
+    const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisors[s.source])
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
@@ -216,25 +219,27 @@ export default function Sidebar({ className }: SidebarProps) {
               {PRICE_BASIS_LABELS[priceBasis]}
             </button>
           )}
-          {unitMode === 'money' && priceBasis === 'sub' && (
-            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-medium text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+          {/* money → "?" opens the pricing model: basis explainer + per-plan divisors. */}
+          {unitMode === 'money' && (
+            <div className="relative shrink-0">
               <button
                 type="button"
-                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, -1))}
-                title="Smaller divisor → higher estimated cost"
-                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                onClick={() => setPriceInfoOpen((o) => !o)}
+                aria-label="How this price is computed"
+                title="How this price is computed — per-plan divisors, source"
+                className="inline-flex h-[1.35rem] w-[1.35rem] items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
               >
-                −
+                ?
               </button>
-              <span className="min-w-[2.25rem] px-0.5 text-center tabular-nums" title="API list price ÷ this = plan estimate">÷{subDivisor}</span>
-              <button
-                type="button"
-                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, 1))}
-                title="Larger divisor → lower estimated cost"
-                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                +
-              </button>
+              {priceInfoOpen && (
+                <PriceModelPanel
+                  basis={priceBasis}
+                  subDivisors={subDivisors}
+                  onSetDivisor={setSubDivisor}
+                  currency={currency}
+                  onClose={() => setPriceInfoOpen(false)}
+                />
+              )}
             </div>
           )}
         </div>

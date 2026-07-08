@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.58',
+    title: 'Per-plan estimates, in an info dropdown',
+    summary:
+      'The plan-estimate divisor is now separate for Codex vs Claude (they’re different plans), and the ÷N tuning + explanation moved into a “?” info dropdown instead of a toolbar stepper.',
+    detail:
+      'A single shared ÷20 was wrong: a ChatGPT/Codex plan and a Claude/Max plan have different prices, allowances and model mixes, so their subscription-vs-API ratios differ. Each source now has its own divisor — Codex defaults to ÷20 (anchored to the owner’s own usage), Claude to ÷25 (the cited “$200 Max ≈ $5,000 API value” gap) — each independently tunable and remembered. The inline toolbar ÷N stepper is gone; both panes now show a compact “?” button that opens a dropdown explaining what the price means (API list vs plan estimate, with formula and caveats), letting you tune each plan’s divisor with the active session’s plan highlighted, and — in the detail pane — showing the verbatim API rate table with its source so any figure is traceable.',
+  },
+  {
     version: 'v.57',
     title: 'Honest money: API vs plan',
     summary:

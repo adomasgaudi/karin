@@ -1,30 +1,73 @@
+import type { SessionSource } from '../types'
 import {
   CURRENCY_LABELS,
   EUR_PER_USD,
   PRICE_BASIS_NOTES,
+  SUB_DIVISOR_SOURCE_NOTES,
+  stepSubDivisor,
   type CurrencyMode,
   type PriceBasis,
   type TokenRates,
 } from '../lib/pricing'
 
-// Traceable pricing-model panel for money mode. Lays out, in order: the active basis (what
-// the number means + its formula + caveats), the plan-estimate divisor when relevant, and
-// the verbatim API list rate table the figures are built from — so any wrong-looking cost
-// can be traced back to a rate, a source, or the divisor. apiRates are the UNSCALED list
-// rates (the divisor is shown separately, not folded in) so the source of truth stays legible.
+const SOURCE_LABELS: Record<SessionSource, string> = { codex: 'Codex', claude: 'Claude' }
+
+// One ÷N tuner row for a source's plan-estimate divisor.
+function DivisorRow({
+  source,
+  value,
+  onStep,
+  active,
+}: {
+  source: SessionSource
+  value: number
+  onStep: (dir: 1 | -1) => void
+  active: boolean
+}) {
+  return (
+    <div className={`rounded border px-2 py-1.5 ${active ? 'border-sky-300 bg-sky-50/60 dark:border-sky-800 dark:bg-sky-950/30' : 'border-neutral-200 dark:border-neutral-800'}`}>
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-neutral-700 dark:text-neutral-200">
+          {SOURCE_LABELS[source]} plan
+          {active && <span className="ml-1 text-[0.62rem] font-normal text-sky-600 dark:text-sky-400">(this session)</span>}
+        </span>
+        <div className="inline-flex items-center rounded-md border border-neutral-300 bg-neutral-100 text-[0.68rem] font-medium text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+          <button type="button" onClick={() => onStep(-1)} title="Smaller divisor → higher estimate" className="px-1.5 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-700">
+            −
+          </button>
+          <span className="min-w-[2.5rem] px-1 text-center tabular-nums">÷{value}</span>
+          <button type="button" onClick={() => onStep(1)} title="Larger divisor → lower estimate" className="px-1.5 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-700">
+            +
+          </button>
+        </div>
+      </div>
+      <p className="mt-0.5 text-[0.64rem] leading-relaxed text-neutral-500 dark:text-neutral-400">{SUB_DIVISOR_SOURCE_NOTES[source]}</p>
+    </div>
+  )
+}
+
+// Traceable pricing-model dropdown for money mode. Explains what the active price MEANS
+// (api list vs plan estimate + formula + caveats), lets the owner tune the plan-estimate
+// divisor SEPARATELY per source (Codex vs Claude plans differ), and — when a single session
+// is in view — shows the verbatim API list rate table + source so any wrong-looking figure
+// can be traced. apiRates are the UNSCALED list rates; the divisor is shown separately.
 export default function PriceModelPanel({
   basis,
-  subDivisor,
+  subDivisors,
+  onSetDivisor,
+  activeSource,
   apiRates,
   currency,
   model,
   onClose,
 }: {
   basis: PriceBasis
-  subDivisor: number
-  apiRates: TokenRates | null
+  subDivisors: Record<SessionSource, number>
+  onSetDivisor: (source: SessionSource, n: number) => void
+  activeSource?: SessionSource
+  apiRates?: TokenRates | null
   currency: CurrencyMode
-  model: string | null | undefined
+  model?: string | null
   onClose: () => void
 }) {
   const note = PRICE_BASIS_NOTES[basis]
@@ -41,7 +84,7 @@ export default function PriceModelPanel({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 z-50 mt-1 w-80 rounded-md border border-neutral-200 bg-white p-3 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="absolute right-0 z-50 mt-1 max-h-[70vh] w-80 overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mb-1 flex items-center justify-between">
           <span className="font-semibold text-neutral-700 dark:text-neutral-200">How this price is computed</span>
           <button type="button" onClick={onClose} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200">
@@ -55,15 +98,22 @@ export default function PriceModelPanel({
         </div>
         <p className="mb-2 leading-relaxed text-neutral-500 dark:text-neutral-400">{note.detail}</p>
 
-        {basis === 'sub' && (
-          <div className="mb-2 rounded border border-amber-200/70 bg-amber-50/60 px-2 py-1 text-[0.68rem] leading-relaxed text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-            Divisor <span className="font-semibold tabular-nums">÷{subDivisor}</span> — calibrated estimate, tune it with the ± stepper.
-            A ~$200/mo plan reportedly returns ~10-25× its fee in API-equivalent compute, so ÷10 to ÷25 is the sane range.
+        <div className="border-t border-neutral-100 pt-2 dark:border-neutral-800">
+          <div className="mb-1.5 font-medium text-neutral-600 dark:text-neutral-300">
+            Plan-estimate divisors <span className="font-normal text-neutral-400 dark:text-neutral-500">— set per plan</span>
           </div>
-        )}
+          <div className="grid gap-1.5">
+            <DivisorRow source="codex" value={subDivisors.codex} active={activeSource === 'codex'} onStep={(d) => onSetDivisor('codex', stepSubDivisor(subDivisors.codex, d))} />
+            <DivisorRow source="claude" value={subDivisors.claude} active={activeSource === 'claude'} onStep={(d) => onSetDivisor('claude', stepSubDivisor(subDivisors.claude, d))} />
+          </div>
+          <p className="mt-1.5 text-[0.64rem] leading-relaxed text-neutral-400 dark:text-neutral-500">
+            They differ because the plans differ (price, allowance, model mix). Neither vendor publishes exact token
+            allowances, so these are calibrated estimates — tune each until a known period matches your real plan.
+          </p>
+        </div>
 
-        {rateRows.length > 0 ? (
-          <div className="border-t border-neutral-100 pt-2 dark:border-neutral-800">
+        {rateRows.length > 0 && (
+          <div className="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
             <div className="mb-1 flex items-baseline justify-between">
               <span className="font-medium text-neutral-600 dark:text-neutral-300">API list rate table</span>
               <span className="font-mono text-[0.64rem] text-neutral-400 dark:text-neutral-500">{model || 'model n/a'}</span>
@@ -83,10 +133,6 @@ export default function PriceModelPanel({
               {apiRates?.context === 'long' ? 'long-context' : 'standard-context'} rates · {apiRates?.source}
               {currency.startsWith('eur') ? ` · shown in ${CURRENCY_LABELS[currency]} at €${EUR_PER_USD}/$` : ''}
             </div>
-          </div>
-        ) : (
-          <div className="border-t border-neutral-100 pt-2 text-[0.68rem] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-            No rate table for “{model || 'this model'}” — cost falls back to raw tokens.
           </div>
         )}
       </div>
