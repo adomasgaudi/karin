@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.72',
+    title: 'Docs: local-only',
+    summary:
+      'README now documents that Karin runs locally only — the public GitHub Pages build is gone.',
+    detail:
+      'The README still described a public GitHub Pages deploy that was deliberately removed on 2026-07-08. It now states the two reasons Karin is local-only — session transcripts are sensitive and cannot be published, and the dataset is too large for a static host — and documents the Cloudflare tunnel (./karin.ps1 -Tunnel) as the way to reach the local instance from another device.',
+  },
+  {
     version: 'v.71',
     title: 'AI-handoff export',
     summary:
