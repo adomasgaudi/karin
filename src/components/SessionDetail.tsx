@@ -16,7 +16,6 @@ import {
   unitModes,
   usageUnitTotal,
 } from '../lib/pricing'
-import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import Cycle from './Cycle'
@@ -213,24 +212,15 @@ export default function SessionDetail() {
           <div className="min-w-0 flex-1">
             <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} scaleMax={scaleMax} inlineLabels />
           </div>
-          {/* Mode pill group: tokens / token units / money. */}
-          <div className="inline-flex shrink-0 rounded-md border border-neutral-300 bg-neutral-100 p-0.5 dark:border-neutral-700 dark:bg-neutral-800">
-            {unitModes.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setUnitMode(m)}
-                className={cn(
-                  'rounded-sm px-2 py-0.5 text-xs font-medium',
-                  unitMode === m
-                    ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-950 dark:text-neutral-50'
-                    : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-neutral-100',
-                )}
-              >
-                {UNIT_MODE_LABELS[m]}
-              </button>
-            ))}
-          </div>
+          {/* One pill cycling tokens → token units → money. */}
+          <button
+            type="button"
+            onClick={() => setUnitMode(unitModes[(unitModes.indexOf(unitMode) + 1) % unitModes.length])}
+            title="Cycle usage unit: tokens → token units → money"
+            className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
+          >
+            {UNIT_MODE_LABELS[unitMode]}
+          </button>
           {/* token units → pick the reference token type; money → pick the currency. */}
           {unitMode === 'token_units' && (
             <button
