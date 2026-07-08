@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.47',
+    title: 'One global unit toggle',
+    summary:
+      'The tokens / token-units switch is now global and labels the sidebar bars inline, so every token figure — including each session total — changes with one click.',
+    detail:
+      'Previously the sidebar and the session detail each had their own toggle, and the sidebar\'s "5.8M tokens" line never followed it — only the bar segments re-weighted. The toggle (plus the currency selector) now lives in the store, shared across both panes and remembered across reloads, so switching to token units re-expresses the session-row totals as cost too. The sidebar bars also print each segment\'s value inside them (input / cached / output …), matching the session-detail bar, instead of showing an unlabelled strip.',
+  },
+  {
     version: 'v.46',
     title: 'Removed active-session dots',
     summary:

@@ -12,8 +12,6 @@ import {
   currencyModes,
   ratesForUnified,
   usageUnitTotal,
-  type CurrencyMode,
-  type UsageUnitMode,
 } from '../lib/pricing'
 import { APP_VERSION } from '../lib/appVersion'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
@@ -78,8 +76,12 @@ export default function SessionDetail() {
   const selectedUid = useKarin((st) => st.selectedUid)
   const now = useLiveNow()
   const bodyRef = useRef<HTMLDivElement>(null)
-  const [unitMode, setUnitMode] = useState<UsageUnitMode>('token_units')
-  const [currency, setCurrency] = useState<CurrencyMode>('usd')
+  // Shared global toggle (see the sidebar) so switching units re-expresses every
+  // token display across both panes at once.
+  const unitMode = useKarin((st) => st.unitMode)
+  const setUnitMode = useKarin((st) => st.setUnitMode)
+  const currency = useKarin((st) => st.currency)
+  const setCurrency = useKarin((st) => st.setCurrency)
   const [metaOpen, setMetaOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [rawModeByUid, setRawModeByUid] = useState<Record<string, DetailMode>>({})

@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Search, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
-import { sessionMatchesUnified, tokensLabelUnified } from '../lib/format'
+import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
 import { UNIT_MODE_LABELS, ratesForUnified, usageUnitTotal, type UsageUnitMode } from '../lib/pricing'
@@ -38,7 +37,11 @@ export default function Sidebar({ className }: SidebarProps) {
   const theme = useKarin((s) => s.theme)
   const toggleTheme = useKarin((s) => s.toggleTheme)
   const now = useLiveNow()
-  const [unitMode, setUnitMode] = useState<UsageUnitMode>('token_units')
+  // Global usage-unit toggle (shared with the session detail) so it re-expresses
+  // every token display at once, not just this pane's bars.
+  const unitMode = useKarin((s) => s.unitMode)
+  const setUnitMode = useKarin((s) => s.setUnitMode)
+  const currency = useKarin((s) => s.currency)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -127,7 +130,7 @@ export default function Sidebar({ className }: SidebarProps) {
         </label>
 
         <div className="mt-2 flex items-center gap-2">
-          <span className="shrink-0 text-[0.68rem] text-neutral-400 dark:text-neutral-500">bars</span>
+          <span className="shrink-0 text-[0.68rem] text-neutral-400 dark:text-neutral-500">units</span>
           <div className="inline-flex max-w-full overflow-x-auto rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
             {unitModes.map((mode) => (
               <button
@@ -177,7 +180,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     {/* Date + cached tokens live in the session detail now; the list row
                         stays lean with just total tokens + project. */}
                     <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                      {tokensLabelUnified(s)}{project ? ` / ${project}` : ''}
+                      {sessionTotalLabel(s, rates, unitMode, currency)}{project ? ` / ${project}` : ''}
                     </div>
                     <div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-neutral-500 dark:text-neutral-500">
                       <span>{s.counts.user} user</span>
@@ -189,7 +192,9 @@ export default function Sidebar({ className }: SidebarProps) {
                       usage={s.latest_total_usage || {}}
                       rates={rates}
                       mode={unitMode}
+                      currency={currency}
                       compact
+                      inlineLabels
                       showLegend={false}
                       scaleMax={scaleMax}
                     />

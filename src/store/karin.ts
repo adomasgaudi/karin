@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
+import type { UsageUnitMode, CurrencyMode } from '../lib/pricing'
 import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
 import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
@@ -19,6 +20,18 @@ function initialSourceFilter(): SourceFilter {
   return saved === 'codex' || saved === 'claude' ? saved : 'all'
 }
 
+// One global usage-unit toggle drives EVERY token display (sidebar totals + bars,
+// session detail, cycles) so switching it re-expresses all instances at once.
+function initialUnitMode(): UsageUnitMode {
+  const saved = localStorage.getItem('karin-unit')
+  return saved === 'tokens' || saved === 'token_units' ? saved : 'token_units'
+}
+
+function initialCurrency(): CurrencyMode {
+  const saved = localStorage.getItem('karin-currency')
+  return saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents' ? saved : 'usd'
+}
+
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
@@ -33,6 +46,8 @@ interface KarinStore {
   selectedUid: string | null
   search: string
   sourceFilter: SourceFilter
+  unitMode: UsageUnitMode
+  currency: CurrencyMode
   theme: Theme
   error: string | null
 
@@ -44,6 +59,8 @@ interface KarinStore {
   select: (uid: string | null) => void
   setSearch: (q: string) => void
   setSourceFilter: (f: SourceFilter) => void
+  setUnitMode: (m: UsageUnitMode) => void
+  setCurrency: (c: CurrencyMode) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
 }
@@ -78,6 +95,8 @@ export const useKarin = create<KarinStore>((set, get) => ({
   selectedUid: null,
   search: '',
   sourceFilter: initialSourceFilter(),
+  unitMode: initialUnitMode(),
+  currency: initialCurrency(),
   theme: initialTheme(),
   error: null,
 
@@ -137,6 +156,14 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setSourceFilter: (f) => {
     localStorage.setItem('karin-source', f)
     set({ sourceFilter: f })
+  },
+  setUnitMode: (m) => {
+    localStorage.setItem('karin-unit', m)
+    set({ unitMode: m })
+  },
+  setCurrency: (c) => {
+    localStorage.setItem('karin-currency', c)
+    set({ currency: c })
   },
   setError: (msg) => set({ error: msg }),
 
