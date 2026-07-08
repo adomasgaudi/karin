@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.48',
+    title: 'Compact borderless events',
+    summary:
+      'Event rows lose their cards and the stray disclosure arrow — one tight inline line each, with message previews in the title and grouped session-state blocks.',
+    detail:
+      'Each event in a cycle is now a borderless row (a thin left accent + hairline divider) instead of a padded card, and the disclosure triangle moved onto the title line as an inline chevron that rotates when open — no more arrow on its own row. Message rows read "user: <preview>" / "assistant: <preview>" with the full text under the dropdown. Context rows show just the payload subtype (e.g. deferred_tools_delta) instead of "context / attachment/…". The repetitive Claude session-state records (last-prompt, mode, permission-mode, ai-title) collapse into a single "session state" dropdown.',
+  },
+  {
     version: 'v.47',
     title: 'One global unit toggle',
     summary:
