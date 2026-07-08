@@ -8,15 +8,21 @@ import { buildCycles, cycleUsage, cycleModelEffort } from '../lib/unifiedCycles'
 import { fmtNum, shortAge } from '../lib/format'
 import {
   CURRENCY_LABELS,
+  PRICE_BASIS_LABELS,
+  PRICE_BASIS_NOTES,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
   currencyModes,
+  effectiveRates,
+  priceBasisModes,
   ratesForUnified,
+  stepSubDivisor,
   stepTokenMult,
   tokenUnitRefs,
   unitModes,
   usageUnitTotal,
 } from '../lib/pricing'
+import PriceModelPanel from './PriceModelPanel'
 import { APP_VERSION } from '../lib/appVersion'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import Cycle from './Cycle'
@@ -90,14 +96,23 @@ export default function SessionDetail() {
   const setTokenMult = useKarin((st) => st.setTokenMult)
   const currency = useKarin((st) => st.currency)
   const setCurrency = useKarin((st) => st.setCurrency)
+  const priceBasis = useKarin((st) => st.priceBasis)
+  const setPriceBasis = useKarin((st) => st.setPriceBasis)
+  const subDivisor = useKarin((st) => st.subDivisor)
+  const setSubDivisor = useKarin((st) => st.setSubDivisor)
   const [metaOpen, setMetaOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [priceInfoOpen, setPriceInfoOpen] = useState(false)
   const [rawModeByUid, setRawModeByUid] = useState<Record<string, DetailMode>>({})
   const [typeFilter, setTypeFilter] = useState('all')
 
   const s = sessions.find((x) => x.uid === selectedUid)
   const cycles = useMemo(() => (s ? buildCycles(s) : []), [s])
-  const rates = s ? ratesForUnified(s) : null
+  // apiRates = published API list rates (shown verbatim in the pricing panel for tracing);
+  // rates = those rates after the active price basis (÷divisor for the plan estimate), used
+  // for every bar/label so money figures reflect the chosen basis.
+  const apiRates = s ? ratesForUnified(s) : null
+  const rates = effectiveRates(apiRates, priceBasis, subDivisor)
   const u: TokenUsage = s?.latest_total_usage || {}
   // One shared ruler for the top session-total bar AND every cycle bar.
   const scaleMax = Math.max(
@@ -266,6 +281,63 @@ export default function SessionDetail() {
               {CURRENCY_LABELS[currency]}
             </button>
           )}
+          {/* money → which price: theoretical API list vs the subscription plan estimate. */}
+          {unitMode === 'money' && (
+            <button
+              type="button"
+              onClick={() => setPriceBasis(priceBasisModes[(priceBasisModes.indexOf(priceBasis) + 1) % priceBasisModes.length])}
+              title="Which price: API list (theoretical pay-as-you-go) vs plan estimate (subscription). Tap ? for the pricing model."
+              className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
+            >
+              {PRICE_BASIS_LABELS[priceBasis]}
+            </button>
+          )}
+          {/* plan estimate → ÷N divisor stepper to calibrate against your real plan. */}
+          {unitMode === 'money' && priceBasis === 'sub' && (
+            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-300 bg-neutral-100 text-xs font-medium text-neutral-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+              <button
+                type="button"
+                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, -1))}
+                title="Smaller divisor → higher estimated cost"
+                className="px-1.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              >
+                −
+              </button>
+              <span className="min-w-[2.5rem] px-1 text-center tabular-nums" title="API list price is divided by this to estimate the subscription cost">÷{subDivisor}</span>
+              <button
+                type="button"
+                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, 1))}
+                title="Larger divisor → lower estimated cost"
+                className="px-1.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              >
+                +
+              </button>
+            </div>
+          )}
+          {/* money → "?" opens the full pricing model for traceability. */}
+          {unitMode === 'money' && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setPriceInfoOpen((o) => !o)}
+                aria-label="How this price is computed"
+                title="How this price is computed — pricing model, rate table, source"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-300 bg-neutral-100 text-xs font-semibold text-neutral-600 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              >
+                ?
+              </button>
+              {priceInfoOpen && (
+                <PriceModelPanel
+                  basis={priceBasis}
+                  subDivisor={subDivisor}
+                  apiRates={apiRates}
+                  currency={currency}
+                  model={s.model}
+                  onClose={() => setPriceInfoOpen(false)}
+                />
+              )}
+            </div>
+          )}
           <div className="relative shrink-0">
             <button
               type="button"
@@ -305,6 +377,24 @@ export default function SessionDetail() {
             )}
           </div>
         </div>
+        {/* Persistent basis caption so money figures are never ambiguous — states which
+            price this is and points to the traceable pricing model. */}
+        {unitMode === 'money' && (
+          <p className="mt-1.5 text-[0.68rem] leading-snug text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">{PRICE_BASIS_NOTES[priceBasis].title}</span>
+            {priceBasis === 'sub'
+              ? ` — API list price ÷${subDivisor}, an estimate (not a billed amount). Cycle the “${PRICE_BASIS_LABELS.api}” pill for the theoretical API cost.`
+              : ` — theoretical pay-as-you-go cost, ~10-25× the real subscription cost. Cycle to “${PRICE_BASIS_LABELS.sub}” for the plan estimate.`}{' '}
+            <button
+              type="button"
+              onClick={() => setPriceInfoOpen(true)}
+              className="font-medium text-sky-600 underline-offset-2 hover:underline dark:text-sky-400"
+            >
+              see the pricing model
+            </button>
+            .
+          </p>
+        )}
       </div>
 
       <div ref={bodyRef} className="flex-1 overflow-y-auto p-3 md:p-4">

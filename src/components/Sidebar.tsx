@@ -6,10 +6,14 @@ import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
 import {
   CURRENCY_LABELS,
+  PRICE_BASIS_LABELS,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
   currencyModes,
+  effectiveRates,
+  priceBasisModes,
   ratesForUnified,
+  stepSubDivisor,
   stepTokenMult,
   tokenUnitRefs,
   unitModes,
@@ -56,6 +60,10 @@ export default function Sidebar({ className }: SidebarProps) {
   const setTokenMult = useKarin((s) => s.setTokenMult)
   const currency = useKarin((s) => s.currency)
   const setCurrency = useKarin((s) => s.setCurrency)
+  const priceBasis = useKarin((s) => s.priceBasis)
+  const setPriceBasis = useKarin((s) => s.setPriceBasis)
+  const subDivisor = useKarin((s) => s.subDivisor)
+  const setSubDivisor = useKarin((s) => s.setSubDivisor)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -63,7 +71,9 @@ export default function Sidebar({ className }: SidebarProps) {
   // Each session's bar is drawn against the largest visible session's total (in the active
   // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
-    const rates = ratesForUnified(s)
+    // Apply the active price basis (÷divisor for the plan estimate) at the rates level so
+    // row totals and bars reflect the chosen basis just like the detail pane.
+    const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisor)
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
@@ -194,6 +204,38 @@ export default function Sidebar({ className }: SidebarProps) {
             >
               {CURRENCY_LABELS[currency]}
             </button>
+          )}
+          {/* money → API list price vs subscription plan estimate (see the detail pane's ? panel). */}
+          {unitMode === 'money' && (
+            <button
+              type="button"
+              onClick={() => setPriceBasis(priceBasisModes[(priceBasisModes.indexOf(priceBasis) + 1) % priceBasisModes.length])}
+              title="Which price: API list (theoretical) vs plan estimate (subscription)"
+              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            >
+              {PRICE_BASIS_LABELS[priceBasis]}
+            </button>
+          )}
+          {unitMode === 'money' && priceBasis === 'sub' && (
+            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-medium text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+              <button
+                type="button"
+                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, -1))}
+                title="Smaller divisor → higher estimated cost"
+                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                −
+              </button>
+              <span className="min-w-[2.25rem] px-0.5 text-center tabular-nums" title="API list price ÷ this = plan estimate">÷{subDivisor}</span>
+              <button
+                type="button"
+                onClick={() => setSubDivisor(stepSubDivisor(subDivisor, 1))}
+                title="Larger divisor → lower estimated cost"
+                className="px-1.5 py-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                +
+              </button>
+            </div>
           )}
         </div>
       </div>

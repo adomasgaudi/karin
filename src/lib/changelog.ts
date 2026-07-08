@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.57',
+    title: 'Honest money: API vs plan',
+    summary:
+      'Money mode gets a price-basis pill — theoretical API list price vs a subscription plan estimate (default ÷20) — plus a traceable pricing-model panel so no cost is a mystery.',
+    detail:
+      'The old money figure was the theoretical pay-as-you-go API list price, which overstates real subscription cost ~10-25× for a heavy ~$200/mo plan — that is why totals looked absurd (e.g. €93 for usage worth ~€4.5 of your allowance). A new “API list / plan est.” pill (both panes) switches the meaning: the plan estimate divides the API list price by a tunable ÷N divisor (default 20, matching the documented subscription-vs-API value gap; OpenAI/Anthropic don’t publish exact token allowances, so it is a calibrated estimate you tune with ±). A persistent caption states which price you are seeing, and a “?” panel shows the formula, the divisor, and the verbatim API rate table with its source date so any wrong-looking number can be traced. Defaults to the plan estimate.',
+  },
+  {
     version: 'v.56',
     title: 'Smarter titles, calmer list',
     summary:
