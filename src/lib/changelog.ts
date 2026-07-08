@@ -19,6 +19,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.52',
+    title: 'Neutral context band',
+    summary:
+      'The injected-entries band is now just labelled "context" with a count — dropped the "not chosen by the AI" description, since it can hold more than hooks.',
+  },
+  {
     version: 'v.51',
     title: 'Authorship bands per cycle',
     summary:
