@@ -21,6 +21,7 @@ export default function UsageBar({
   compact = false,
   showLegend = true,
   inlineLabels = false,
+  thin = false,
   scaleMax,
   estimated = false,
 }: {
@@ -34,6 +35,8 @@ export default function UsageBar({
   tokenMult?: number
   compact?: boolean
   showLegend?: boolean
+  // A minimal ~4px bar with no labels/legend — the always-visible collapsed indicator.
+  thin?: boolean
   // Draw each segment's label + value inside the bar itself (no dot legend below).
   inlineLabels?: boolean
   // When set, segment widths are drawn relative to this value (the session-total bar)
@@ -64,7 +67,7 @@ export default function UsageBar({
     isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value)
   // Inline-label bars need enough height to hold text; compact ones sit a touch
   // shorter than the top session bar (h-6) but still readable.
-  const barHeight = inlineLabels ? (compact ? 'h-5' : 'h-6') : compact ? 'h-2' : 'h-3'
+  const barHeight = thin ? 'h-1' : inlineLabels ? (compact ? 'h-5' : 'h-6') : compact ? 'h-2' : 'h-3'
   // Diagonal hatch overlaid on each segment's colour so estimated bars read as "not real".
   const hatch = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.45) 0, rgba(255,255,255,0.45) 2px, transparent 2px, transparent 5px)'
 

@@ -139,6 +139,7 @@ function Row({
   tint,
   step,
   bar,
+  thin,
   dim,
   dashed,
   children,
@@ -150,6 +151,9 @@ function Row({
   tint: string
   step?: StepDuration
   bar?: ReactNode
+  // A thin (~4px) always-visible usage bar in the collapsed summary; the full labelled bar
+  // lives in the body (expanded). Lets a step show its token weight without a header row.
+  thin?: ReactNode
   dim?: boolean
   dashed?: boolean
   children: ReactNode
@@ -164,6 +168,7 @@ function Row({
         {meta != null && meta !== '' && (
           <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
         )}
+        {thin && <span className="w-24 shrink-0">{thin}</span>}
         <StepDur step={step} />
       </summary>
       <div className={bodyClass}>
@@ -262,6 +267,11 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
 export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
   const tint = tintFor(entry)
   const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
+  // Thin collapsed indicator: the same usage as a ~4px unlabelled bar, shown in the summary.
+  const thin =
+    usage && splitUsage(usage.usage).total > 0 ? (
+      <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} estimated={usage.estimated} thin compact showLegend={false} />
+    ) : undefined
 
   switch (entry.kind) {
     case 'message': {
@@ -276,7 +286,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           badge={tag ? <Pill>{tag}</Pill> : undefined}
           tint={tint}
           step={step}
-          bar={bar}
+          bar={bar} thin={thin}
         >
           <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
         </Row>
@@ -300,7 +310,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
             }
             tint="border-l-neutral-300 dark:border-l-neutral-700"
             step={step}
-            bar={bar}
+            bar={bar} thin={thin}
             dim
             dashed
           >
@@ -319,7 +329,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           badge={signature ? <Pill>signed</Pill> : undefined}
           tint={tint}
           step={step}
-          bar={bar}
+          bar={bar} thin={thin}
         >
           <div className="whitespace-pre-wrap break-words leading-relaxed text-neutral-700 dark:text-neutral-300">
             {item.text}
@@ -346,7 +356,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
             }
             tint={tint}
             step={step}
-            bar={bar}
+            bar={bar} thin={thin}
           >
             <ToolResult tool={item} />
           </Row>
@@ -354,7 +364,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       }
       const item = entry.item as Tool
       return (
-        <Row num={num} title={`tool / ${item.name}`} meta={item.call_id || undefined} tint={tint} step={step} bar={bar}>
+        <Row num={num} title={`tool / ${item.name}`} meta={item.call_id || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
           <pre className={preClass}>{item.arguments}</pre>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
@@ -368,7 +378,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       if (entry.source === 'claude') {
         const item = entry.item as ClaudeEdit
         return (
-          <Row num={num} title={`edit / ${item.name}`} meta={item.file_path || undefined} tint={tint} step={step} bar={bar}>
+          <Row num={num} title={`edit / ${item.name}`} meta={item.file_path || undefined} tint={tint} step={step} bar={bar} thin={thin}>
             <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Diff</div>
             <DiffView structured={item.structured_patch} patch={item.patch} />
           </Row>
@@ -377,7 +387,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as CodeEdit
       const failed = item.result?.success === false ? 'failed' : undefined
       return (
-        <Row num={num} title={`edit / ${item.name}`} meta={failed} tint={tint} step={step} bar={bar}>
+        <Row num={num} title={`edit / ${item.name}`} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Patch</div>
           <pre className={preClass}>{item.patch}</pre>
           {item.result && (
@@ -397,14 +407,14 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         const parts = splitUsage(item.last)
         const meta = `in ${fmtCompact(parts.freshInput + parts.cachedInput + parts.cacheCreate)} / out ${fmtCompact(parts.output + parts.reasoning)}`
         return (
-          <Row num={num} title="usage" meta={meta} tint={tint} step={step} bar={bar}>
+          <Row num={num} title="usage" meta={meta} tint={tint} step={step} bar={bar} thin={thin}>
             <pre className={preClass}>{JSON.stringify(item.usage_raw, null, 2)}</pre>
           </Row>
         )
       }
       const item = entry.item as TokenEvent
       return (
-        <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} tint={tint} step={step} bar={bar}>
+        <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} tint={tint} step={step} bar={bar} thin={thin}>
           <pre className={preClass}>{JSON.stringify(item, null, 2)}</pre>
         </Row>
       )
@@ -422,7 +432,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           ? `${item.chars} chars`
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
-        <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} dim>
+        <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} thin={thin} dim>
           <pre className={preClass}>{item.text}</pre>
         </Row>
       )
@@ -430,7 +440,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
     case 'runtime': {
       const item = entry.item as RuntimeEvent
       return (
-        <Row num={num} title={`runtime / ${item.type}`} tint={tint} step={step} bar={bar}>
+        <Row num={num} title={`runtime / ${item.type}`} tint={tint} step={step} bar={bar} thin={thin}>
           <pre className={preClass}>{item.text}</pre>
         </Row>
       )
@@ -439,7 +449,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as ClaudeSubagent
       const messages = item.session?.messages || []
       return (
-        <Row num={num} title={`agent / ${item.agent_type}`} meta={item.description || undefined} tint={tint} step={step} bar={bar}>
+        <Row num={num} title={`agent / ${item.agent_type}`} meta={item.description || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
             {messages.length} message{messages.length === 1 ? '' : 's'}
           </div>

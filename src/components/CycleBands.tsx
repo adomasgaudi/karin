@@ -16,7 +16,6 @@ import {
 } from '../lib/pricing'
 import { fmtCompact, fmtCurrency } from '../lib/format'
 import EventEntry, { SessionMetaGroup, isSessionMeta as entryIsSessionMeta } from './EventEntry'
-import UsageBar from './UsageBar'
 
 // Local style tokens mirror EventEntry's compact row look (kept here so the two files
 // don't have to cross-import private constants while both are under active edit).
@@ -44,12 +43,18 @@ export interface BandDisplay {
 }
 
 function leafRow(entry: UnifiedEntry, d: BandDisplay) {
+  return actionRow(entry, d.entryUsage.get(entry), d)
+}
+
+// Render one action row, overriding its usage (claude actions carry their group's frame
+// usage, attributed here rather than via the cycle-wide attribution map).
+function actionRow(entry: UnifiedEntry, usage: EntryUsage | undefined, d: BandDisplay) {
   return (
     <EventEntry
-      key={d.numFor.get(entry)}
+      key={d.numFor.get(entry) ?? entry.line}
       entry={entry}
-      num={d.numFor.get(entry) ?? 0}
-      usage={d.entryUsage.get(entry)}
+      num={d.numFor.get(entry) ?? entry.line}
+      usage={usage}
       step={d.steps.get(entry)}
       rates={d.rates}
       unitMode={d.unitMode}
@@ -131,6 +136,15 @@ export function ClaudeBlock({
   const total = groups.reduce<TokenUsage>((s, g) => addUsage(s, g.usage ?? {}), {})
   const totalFig = figure(total, d)
 
+  // No more "step N" header rows. Each usage frame's tokens attach to its group's last
+  // action (the one that triggered the frame), rendered as that action's own thin bar.
+  const actionUsage = new Map<UnifiedEntry, EntryUsage>()
+  for (const g of groups) {
+    const rep = g.actions[g.actions.length - 1]
+    if (rep && g.usage) actionUsage.set(rep, { usage: g.usage, estimated: !g.measured })
+  }
+  const actions = groups.flatMap((g) => g.actions)
+
   return (
     <details open className={`${rowBase} border-l-emerald-400`}>
       <summary className={summaryClass}>
@@ -147,31 +161,7 @@ export function ClaudeBlock({
           </span>
         )}
       </summary>
-      <div className="pb-1 pl-2">
-        {groups.map((g, gi) => {
-          const fig = figure(g.usage, d)
-          const has = splitUsage(g.usage).total > 0
-          return (
-            <div key={gi} className="border-l border-neutral-200/70 pl-1 dark:border-neutral-800/70">
-              {/* Group token header — the usage frame that closed this group, no longer a row of its own. */}
-              <div className="flex items-center gap-2 py-1 pl-6 pr-2">
-                <span className="shrink-0 text-[0.55rem] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                  step {gi + 1}
-                </span>
-                {has && (
-                  <div className="min-w-0 flex-1">
-                    <UsageBar usage={g.usage!} rates={d.rates} mode={d.unitMode} currency={d.currency} tokenRef={d.tokenRef} tokenMult={d.tokenMult} compact inlineLabels scaleMax={d.scaleMax} />
-                  </div>
-                )}
-                <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-[0.6rem] text-neutral-500 dark:text-neutral-400">
-                  {fig || (g.measured ? '0 tok' : 'no frame')}
-                </span>
-              </div>
-              {g.actions.map((a) => leafRow(a, d))}
-            </div>
-          )
-        })}
-      </div>
+      <div className="pb-1 pl-2">{actions.map((a) => actionRow(a, actionUsage.get(a), d))}</div>
     </details>
   )
 }

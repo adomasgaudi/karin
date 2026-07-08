@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.59',
+    title: 'Leaner steps, traceable rows',
+    summary:
+      'Dropped the "step N" header rows — each action carries its own thin token bar (bigger when expanded); empty thinking is merged away; and every structured row is now numbered by its raw line so it traces back to the Raw pane.',
+    detail:
+      'The claude block used to put a "STEP N" row with a full bar above every single action, doubling the row count. Now each action (thinking / assistant / tool …) shows a ~4px token bar inline in its collapsed row, expanding to the full labelled bar — no separate step rows. Empty thinking blocks (no text) merge forward into the next real action like empty messages already did, instead of showing as blank rows. And each structured row’s number badge is now its raw JSONL line number — the same ordinal the Raw pane shows — so any part of the structured view can be cross-referenced back to the exact raw record.',
+  },
+  {
     version: 'v.58',
     title: 'Per-plan estimates, in an info dropdown',
     summary:
