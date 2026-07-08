@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
-import { Moon, Search, Sun, Upload } from 'lucide-react'
+import { CalendarClock, Moon, Search, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -121,6 +121,15 @@ export default function Sidebar({ className }: SidebarProps) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => useKarin.getState().setView('timeline')}
+              title="Day timeline — sessions as bars across the day"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+              Timeline
+            </button>
             <button
               type="button"
               onClick={() => useKarin.getState().reset()}

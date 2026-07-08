@@ -19,6 +19,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.64',
+    title: 'Day timeline page',
+    summary:
+      'New Timeline view: every Codex and Claude session drawn as a bar across the day, with lanes for overlaps and labeled idle gaps.',
+    detail:
+      'A "Timeline" button in the sidebar header opens a full-page day view. Each session becomes a colored bar (blue Codex, orange Claude) from its start to its last activity, positioned on an hour axis. Simultaneous sessions stack into separate lanes; a lane is reused as soon as it frees up. Idle stretches of 5+ minutes between activity blocks are marked in a dashed gap strip with their duration. Arrows page between days with activity; clicking a bar (or its row in the start/end list below) jumps to that session. Sessions spanning midnight appear on both days, clipped.',
+  },
+  {
     version: 'v.63',
     title: 'Readable action rows',
     summary:

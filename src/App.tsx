@@ -4,12 +4,14 @@ import { cn } from './lib/cn'
 import Dropzone from './components/Dropzone'
 import Sidebar from './components/Sidebar'
 import SessionDetail from './components/SessionDetail'
+import TimelinePage from './components/TimelinePage'
 import ChangelogButton from './components/ChangelogButton'
 
 export default function App() {
   const booting = useKarin((s) => s.booting)
   const hasData = useKarin((s) => s.codex != null || s.claude != null)
   const selectedUid = useKarin((s) => s.selectedUid)
+  const view = useKarin((s) => s.view)
   const boot = useKarin((s) => s.boot)
 
   useEffect(() => {
@@ -28,6 +30,14 @@ export default function App() {
     return (
       <>
         <Dropzone />
+        <ChangelogButton />
+      </>
+    )
+
+  if (view === 'timeline')
+    return (
+      <>
+        <TimelinePage />
         <ChangelogButton />
       </>
     )
