@@ -138,6 +138,16 @@ export const PRICE_BASIS_LABELS: Record<PriceBasis, string> = {
 // to the flat fee (e.g. €93 API list → ~€4.65 estimated).
 export const SUB_DIVISOR_STEPS = [5, 8, 10, 12, 15, 20, 25, 30, 40, 50]
 export const DEFAULT_SUB_DIVISOR = 20
+// Per-source defaults differ on purpose — the plans differ. Codex 20 is anchored to the
+// owner's own data (~€93 API list ≈ 10% of a €180/mo plan's week → ~20×). Claude 25 follows
+// the widely-cited "Max 20x $200 ≈ $5,000 API value = 25×" figure. Both are calibrated
+// starting points, tunable per source.
+export const SUB_DIVISOR_DEFAULTS: Record<'codex' | 'claude', number> = { codex: 20, claude: 25 }
+// Short per-source rationale surfaced in the plan-estimate info dropdown.
+export const SUB_DIVISOR_SOURCE_NOTES: Record<'codex' | 'claude', string> = {
+  codex: 'ChatGPT/Codex plan. Default ÷20 — anchored to your own usage (API list price ran ~20× a week of your plan).',
+  claude: 'Claude (Max) plan. Default ÷25 — the widely-cited "$200 Max ≈ $5,000 of API compute" value gap.',
+}
 
 // Human-readable provenance shown in the money-mode "how is this computed?" panel so
 // every figure is traceable and mistakes are catchable. Keep in sync with the math above.

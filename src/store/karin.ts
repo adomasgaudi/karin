@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { KarinData, KarinStatus, UnifiedSession } from '../types'
+import type { KarinData, KarinStatus, UnifiedSession, SessionSource } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
 import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis } from '../lib/pricing'
-import { DEFAULT_TOKEN_MULT, DEFAULT_SUB_DIVISOR } from '../lib/pricing'
+import { DEFAULT_TOKEN_MULT, SUB_DIVISOR_DEFAULTS } from '../lib/pricing'
 import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
 import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
@@ -52,10 +52,14 @@ function initialPriceBasis(): PriceBasis {
   return saved === 'api' || saved === 'sub' ? saved : 'sub'
 }
 
-// Divisor applied to API list price for the 'sub' plan estimate (see pricing.ts).
-function initialSubDivisor(): number {
-  const saved = Number(localStorage.getItem('karin-subdiv'))
-  return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_SUB_DIVISOR
+// Divisor applied to API list price for the 'sub' plan estimate — SEPARATE per source,
+// because a Codex (ChatGPT) plan and a Claude (Max) plan have different prices, allowances
+// and model mixes, so their subscription-vs-API ratios differ. Migrates the old shared key.
+function initialSubDivisor(key: string, fallback: number): number {
+  const saved = Number(localStorage.getItem(key))
+  if (Number.isFinite(saved) && saved > 0) return saved
+  const legacy = Number(localStorage.getItem('karin-subdiv'))
+  return Number.isFinite(legacy) && legacy > 0 ? legacy : fallback
 }
 
 function applyTheme(theme: Theme) {
@@ -77,7 +81,7 @@ interface KarinStore {
   tokenMult: number
   currency: CurrencyMode
   priceBasis: PriceBasis
-  subDivisor: number
+  subDivisors: Record<SessionSource, number>
   theme: Theme
   error: string | null
 
@@ -94,7 +98,7 @@ interface KarinStore {
   setTokenMult: (n: number) => void
   setCurrency: (c: CurrencyMode) => void
   setPriceBasis: (b: PriceBasis) => void
-  setSubDivisor: (n: number) => void
+  setSubDivisor: (source: SessionSource, n: number) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
 }
@@ -152,7 +156,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   tokenMult: initialTokenMult(),
   currency: initialCurrency(),
   priceBasis: initialPriceBasis(),
-  subDivisor: initialSubDivisor(),
+  subDivisors: {
+    codex: initialSubDivisor('karin-subdiv-codex', SUB_DIVISOR_DEFAULTS.codex),
+    claude: initialSubDivisor('karin-subdiv-claude', SUB_DIVISOR_DEFAULTS.claude),
+  },
   theme: initialTheme(),
   error: null,
 
@@ -233,9 +240,9 @@ export const useKarin = create<KarinStore>((set, get) => ({
     localStorage.setItem('karin-pricebasis', b)
     set({ priceBasis: b })
   },
-  setSubDivisor: (n) => {
-    localStorage.setItem('karin-subdiv', String(n))
-    set({ subDivisor: n })
+  setSubDivisor: (source, n) => {
+    localStorage.setItem(`karin-subdiv-${source}`, String(n))
+    set((st) => ({ subDivisors: { ...st.subDivisors, [source]: n } }))
   },
   setError: (msg) => set({ error: msg }),
 
