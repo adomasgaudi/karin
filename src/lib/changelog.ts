@@ -19,6 +19,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.68',
+    title: 'Halved pills, 2-axis pan',
+    summary:
+      'Max pill height halved (150→75px) and dragging now pans vertically through lanes as well as through time.',
+  },
+  {
     version: 'v.67',
     title: 'Cost-proportional timeline pills',
     summary:

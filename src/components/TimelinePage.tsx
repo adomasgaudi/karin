@@ -49,8 +49,8 @@ interface Placed extends SessionTrack {
 
 const MIN_SPAN = 60_000 // fully zoomed in: 1 minute across the screen
 const MAX_SPAN = 120 * 86_400_000 // fully zoomed out: ~4 months
-const MIN_PILL = 18 // even near-free sessions stay hoverable
-const MAX_PILL = 150 // the most expensive session gets this much height
+const MIN_PILL = 16 // even near-free sessions stay hoverable
+const MAX_PILL = 75 // the most expensive session gets this much height
 const LANE_GAP = 8
 
 // Build (and cache) the cycle segments for one session. Cycle building flattens the
@@ -370,19 +370,30 @@ export default function TimelinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clampView])
 
-  // Drag to pan. Pointer capture is only taken once movement crosses the threshold —
+  // Drag to pan — horizontally through time AND vertically through lanes.
+  // Pointer capture is only taken once movement crosses the threshold —
   // capturing on pointer-down would retarget the click to the canvas and swallow
   // pill/cycle clicks (that was a real bug).
-  const drag = useRef<{ id: number; x: number; start: number; end: number; moved: boolean } | null>(null)
+  const lanesRef = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ id: number; x: number; y: number; start: number; end: number; scrollTop: number; moved: boolean } | null>(null)
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
-    drag.current = { id: e.pointerId, x: e.clientX, start: view.start, end: view.end, moved: false }
+    drag.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      start: view.start,
+      end: view.end,
+      scrollTop: lanesRef.current?.scrollTop ?? 0,
+      moved: false,
+    }
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
     const dx = e.clientX - d.x
-    if (!d.moved && Math.abs(dx) > 4) {
+    const dy = e.clientY - d.y
+    if (!d.moved && Math.hypot(dx, dy) > 4) {
       d.moved = true
       ;(e.currentTarget as HTMLElement).setPointerCapture(d.id)
     }
@@ -391,6 +402,7 @@ export default function TimelinePage() {
     if (!rect) return
     const dt = -dx * ((d.end - d.start) / rect.width)
     setViewState(clampView(d.start + dt, d.end + dt))
+    if (lanesRef.current) lanesRef.current.scrollTop = d.scrollTop - dy
   }
   const onPointerUp = () => {
     const d = drag.current
@@ -524,7 +536,7 @@ export default function TimelinePage() {
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-orange-500" /> Claude</span>
             <span className="ml-3">pill height = total {unitMode === 'money' ? 'cost' : 'usage'} (one scale for all) · blocks = cycles · line climbs only while working</span>
           </span>
-          <span className="hidden md:inline">scroll = zoom · drag / shift-scroll = pan · ± ←→</span>
+          <span className="hidden md:inline">scroll = zoom · drag = pan (any direction) · ± ←→</span>
         </div>
       </header>
 
@@ -559,7 +571,7 @@ export default function TimelinePage() {
         )}
 
         {/* Session pills */}
-        <div className="absolute top-8 right-0 bottom-0 left-0 overflow-y-auto">
+        <div ref={lanesRef} className="absolute top-8 right-0 bottom-0 left-0 overflow-y-auto">
           <div style={{ height: `${Math.max(laneTops.totalH, 100)}px` }} className="relative">
             {visible.map((p) => {
               const left = pct(p.start)
