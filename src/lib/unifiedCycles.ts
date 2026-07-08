@@ -211,6 +211,17 @@ export function isEmptyMessage(entry: UnifiedEntry): boolean {
   return entry.kind === 'message' && !(entry.item as { text?: string }).text?.trim()
 }
 
+// An empty (or content-less) thinking block — nothing to show. Like an empty message it
+// merges forward into the next real action's group rather than taking a row of its own.
+export function isEmptyThinking(entry: UnifiedEntry): boolean {
+  return entry.kind === 'thinking' && !(entry.item as { text?: string }).text?.trim()
+}
+
+// Actions that carry no information to render and should merge forward, not anchor a group.
+function isEmptyAction(entry: UnifiedEntry): boolean {
+  return isEmptyMessage(entry) || isEmptyThinking(entry)
+}
+
 // --- Claude action grouping ------------------------------------------------
 // Usage is not an action — every usage frame instead CLOSES a group of the actions
 // it measured, and its `last` total becomes that group's token label. Empty assistant
@@ -243,7 +254,7 @@ export function groupClaudeActions(entries: UnifiedEntry[]): ActionGroup[] {
       close()
       continue
     }
-    if (isEmptyMessage(e)) continue
+    if (isEmptyAction(e)) continue
     actions.push(e)
   }
   if (actions.length > 0) groups.push({ actions, usage: sawUsage ? usage : null, measured: sawUsage })

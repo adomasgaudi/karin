@@ -67,9 +67,11 @@ export default function Cycle({
   // injected context it did not choose folds into a hooks band, and everything the AI
   // chose folds into a claude block (grouped by usage frame). Order within a segment is
   // human → hooks → claude, per the owner's layout.
+  // Badge each structured item with its raw JSONL line number (== the ordinal shown in the
+  // Raw pane), so every part of the structured view can be traced back to the raw record.
   const numFor = useMemo(() => {
     const m = new Map<UnifiedEntry, number>()
-    cycle.items.forEach((e, i) => m.set(e, i + 1))
+    cycle.items.forEach((e) => m.set(e, e.line))
     return m
   }, [cycle])
   const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, entryUsage, steps, numFor }
