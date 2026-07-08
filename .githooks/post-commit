@@ -1,0 +1,20 @@
+#!/bin/sh
+# Keep the local deploy live automatically.
+#
+# The owner views the BUILT bundle at http://localhost:4173/, served from dist/ on
+# disk by `pnpm preview`. A commit alone NEVER updates dist/, so source changes stay
+# invisible there until a rebuild — the recurring "I still see the old version" bug.
+# This hook rebuilds dist/ after every commit so a browser refresh shows the change.
+# (Enforces the all-AIs "live-deploy rule". The :5173 dev server hot-reloads and does
+# not need this.)
+root="$(git rev-parse --show-toplevel)" || exit 0
+cd "$root" || exit 0
+command -v pnpm >/dev/null 2>&1 || exit 0
+
+echo "[karin] post-commit: rebuilding local-deploy bundle for :4173…"
+if pnpm exec vite build --mode offline >/dev/null 2>&1; then
+  echo "[karin] post-commit: dist rebuilt — refresh http://localhost:4173/ to see it live."
+else
+  echo "[karin] post-commit: build FAILED — run 'pnpm build:local' manually to update :4173."
+fi
+exit 0
