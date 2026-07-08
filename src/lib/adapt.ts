@@ -6,6 +6,7 @@
 import type { KarinData, Session, UnifiedSession, UnifiedMetaRow } from '../types'
 import type { ClaudeProject, ClaudeRawData, ClaudeSession } from './claudeRaw'
 import type { ClaudeDetailSession } from './claudeModel'
+import { claudeTurnState, codexTurnState } from './turnState'
 
 function metaRow(label: string, value: string | number | null | undefined): UnifiedMetaRow {
   return { label, value: value === null || value === undefined || value === '' ? null : String(value) }
@@ -49,6 +50,7 @@ export function adaptCodexSession(s: Session): UnifiedSession {
       contexts: s.counts.contexts,
     },
     latest_total_usage: s.latest_total_usage,
+    turnState: codexTurnState(s),
     projectSlug: null,
     projectCwd: null,
     haystack: codexHaystack(s),
@@ -113,6 +115,7 @@ export function adaptClaudeSession(session: ClaudeSession, project: ClaudeProjec
       subagents: c?.subagents,
     },
     latest_total_usage: s.latest_total_usage ?? session.latest_total_usage ?? null,
+    turnState: claudeTurnState(s),
     projectSlug: project.slug,
     projectCwd: project.cwd,
     haystack: claudeHaystack(s),

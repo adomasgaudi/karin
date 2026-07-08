@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
 import type { UsageUnitMode, CurrencyMode, TokenUnitRef } from '../lib/pricing'
+import { DEFAULT_TOKEN_MULT } from '../lib/pricing'
 import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
 import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
@@ -30,7 +31,13 @@ function initialUnitMode(): UsageUnitMode {
 // Which token type token_units mode normalizes against (independent of currency).
 function initialTokenRef(): TokenUnitRef {
   const saved = localStorage.getItem('karin-tokenref')
-  return saved === 'input' || saved === 'cached' || saved === 'output' ? saved : 'output'
+  return saved === 'input' || saved === 'cached' || saved === 'output' || saved === 'scaled' ? saved : 'output'
+}
+
+// Multiplier for the 'scaled' reference (see pricing.ts).
+function initialTokenMult(): number {
+  const saved = Number(localStorage.getItem('karin-tokenmult'))
+  return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_TOKEN_MULT
 }
 
 function initialCurrency(): CurrencyMode {
@@ -54,6 +61,7 @@ interface KarinStore {
   sourceFilter: SourceFilter
   unitMode: UsageUnitMode
   tokenRef: TokenUnitRef
+  tokenMult: number
   currency: CurrencyMode
   theme: Theme
   error: string | null
@@ -68,6 +76,7 @@ interface KarinStore {
   setSourceFilter: (f: SourceFilter) => void
   setUnitMode: (m: UsageUnitMode) => void
   setTokenRef: (r: TokenUnitRef) => void
+  setTokenMult: (n: number) => void
   setCurrency: (c: CurrencyMode) => void
   setError: (msg: string | null) => void
   toggleTheme: () => void
@@ -105,6 +114,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   sourceFilter: initialSourceFilter(),
   unitMode: initialUnitMode(),
   tokenRef: initialTokenRef(),
+  tokenMult: initialTokenMult(),
   currency: initialCurrency(),
   theme: initialTheme(),
   error: null,
@@ -173,6 +183,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setTokenRef: (r) => {
     localStorage.setItem('karin-tokenref', r)
     set({ tokenRef: r })
+  },
+  setTokenMult: (n) => {
+    localStorage.setItem('karin-tokenmult', String(n))
+    set({ tokenMult: n })
   },
   setCurrency: (c) => {
     localStorage.setItem('karin-currency', c)

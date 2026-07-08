@@ -19,6 +19,7 @@ import DateStamp from './DateStamp'
 import UsageBar from './UsageBar'
 import SourceFilter from './SourceFilter'
 import SourceBadge from './SourceBadge'
+import TurnDot from './TurnDot'
 
 interface SidebarProps {
   className?: string
@@ -193,6 +194,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2">
+                      <TurnDot state={s.turnState} />
                       <SourceBadge source={s.source} />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
                         {s.title || s.id}

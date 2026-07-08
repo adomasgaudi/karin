@@ -31,6 +31,7 @@ interface UsageProps {
   unitMode: UsageUnitMode
   currency: CurrencyMode
   tokenRef: TokenUnitRef
+  tokenMult?: number
   // Cycle total in the active unit, so each card's bar is its true fraction of the cycle.
   scaleMax?: number
 }
@@ -177,11 +178,11 @@ function Row({
 // an ESTIMATED (hatched, "≈ … est") bar, Codex token frames + every Claude usage frame get
 // a MEASURED (solid, "… measured") bar, and cards with no entry in the map get none — which
 // is exactly Claude's content-card behavior (no per-card bar).
-function UsageMini({ usage, rates, unitMode, currency, tokenRef, scaleMax }: UsageProps) {
+function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax }: UsageProps) {
   if (!usage) return null
   const total = splitUsage(usage.usage).total
   if (total <= 0) return null
-  const unitTotal = usageUnitTotal(usage.usage, rates, unitMode, tokenRef)
+  const unitTotal = usageUnitTotal(usage.usage, rates, unitMode, tokenRef, tokenMult)
   const shown =
     unitMode === 'money' && rates != null
       ? fmtCurrency(unitTotal, currency)
@@ -258,9 +259,9 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
   )
 }
 
-export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
+export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step }: { entry: Entry; num: number; step?: StepDuration } & UsageProps) {
   const tint = tintFor(entry)
-  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} scaleMax={scaleMax} />
+  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
 
   switch (entry.kind) {
     case 'message': {

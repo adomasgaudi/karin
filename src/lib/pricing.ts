@@ -11,7 +11,9 @@ export type UsageUnitMode = 'tokens' | 'token_units' | 'money'
 
 // Which token type is the "1.0" reference for token_units mode. Every segment is
 // re-expressed as the equivalent number of tokens of this type at their relative rates.
-export type TokenUnitRef = 'input' | 'cached' | 'output'
+// 'scaled' is output-equivalent multiplied by a tunable factor so the total lands near
+// the raw token count (input/cached/output land far above or below it).
+export type TokenUnitRef = 'input' | 'cached' | 'output' | 'scaled'
 
 // How monetary amounts are displayed. Cents variants multiply by 100.
 export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
@@ -75,11 +77,28 @@ export const UNIT_MODE_LABELS: Record<UsageUnitMode, string> = {
 export const unitModes: UsageUnitMode[] = ['tokens', 'token_units', 'money']
 
 // The reference-token sub-toggle for token_units mode. "-eq" = equivalent tokens.
-export const tokenUnitRefs: TokenUnitRef[] = ['input', 'cached', 'output']
+export const tokenUnitRefs: TokenUnitRef[] = ['input', 'cached', 'output', 'scaled']
 export const TOKEN_UNIT_REF_LABELS: Record<TokenUnitRef, string> = {
   input: 'input-eq',
   cached: 'cached-eq',
   output: 'output-eq',
+  scaled: 'scaled',
+}
+
+// The 'scaled' reference multiplies output-equivalent tokens by this factor so the total
+// sits near the raw token count. A ladder of "nice" multipliers the ±stepper walks; the
+// default is tuned so a typical mixed session lands close to its raw total.
+export const TOKEN_MULT_STEPS = [1, 2, 3, 5, 8, 12, 20, 30, 50, 75, 100]
+export const DEFAULT_TOKEN_MULT = 12
+
+// Step the multiplier one notch along the ladder (dir +1 up, -1 down), clamped to the ends.
+export function stepTokenMult(current: number, dir: 1 | -1): number {
+  const nearest = TOKEN_MULT_STEPS.reduce(
+    (best, v, i) => (Math.abs(v - current) < Math.abs(TOKEN_MULT_STEPS[best] - current) ? i : best),
+    0,
+  )
+  const idx = Math.min(Math.max(nearest + dir, 0), TOKEN_MULT_STEPS.length - 1)
+  return TOKEN_MULT_STEPS[idx]
 }
 
 // EUR per USD, as of the pricing snapshot date. Adjust when the FX rate moves.
@@ -185,9 +204,12 @@ export function ratesForUnified(s: UnifiedSession): TokenRates | null {
 }
 
 // $/1M-token rate of the reference token type used as the "1.0" unit in token_units mode.
-function refRate(rates: TokenRates, ref: TokenUnitRef): number {
+// 'scaled' divides the output rate by the multiplier, so a segment's scaled value equals
+// its output-equivalent times `mult` (larger mult → total closer to / above raw tokens).
+function refRate(rates: TokenRates, ref: TokenUnitRef, mult: number): number {
   if (ref === 'input') return rates.input
   if (ref === 'cached') return rates.cached ?? rates.input
+  if (ref === 'scaled') return rates.output / (mult || 1)
   return rates.output
 }
 
@@ -204,11 +226,12 @@ export function usageUnitValue(
   rates: TokenRates | null,
   mode: UsageUnitMode,
   ref: TokenUnitRef = 'output',
+  mult: number = DEFAULT_TOKEN_MULT,
 ): number {
   if (mode === 'tokens' || !rates) return value
   const weighted = value * rateForKind(kind, rates) // value · ($/Mtok)
   if (mode === 'money') return weighted / 1_000_000 // actual USD
-  const denom = refRate(rates, ref)
+  const denom = refRate(rates, ref, mult)
   if (!denom) return value
   return weighted / denom // equivalent count of reference tokens
 }
@@ -220,13 +243,14 @@ export function usageUnitTotal(
   rates: TokenRates | null,
   mode: UsageUnitMode,
   ref: TokenUnitRef = 'output',
+  mult: number = DEFAULT_TOKEN_MULT,
 ): number {
   const p = splitUsage(usage)
   return (
-    usageUnitValue(p.freshInput, 'freshInput', rates, mode, ref) +
-    usageUnitValue(p.cachedInput, 'cachedInput', rates, mode, ref) +
-    usageUnitValue(p.cacheCreate, 'cacheCreate', rates, mode, ref) +
-    usageUnitValue(p.output, 'output', rates, mode, ref) +
-    usageUnitValue(p.reasoning, 'reasoning', rates, mode, ref)
+    usageUnitValue(p.freshInput, 'freshInput', rates, mode, ref, mult) +
+    usageUnitValue(p.cachedInput, 'cachedInput', rates, mode, ref, mult) +
+    usageUnitValue(p.cacheCreate, 'cacheCreate', rates, mode, ref, mult) +
+    usageUnitValue(p.output, 'output', rates, mode, ref, mult) +
+    usageUnitValue(p.reasoning, 'reasoning', rates, mode, ref, mult)
   )
 }

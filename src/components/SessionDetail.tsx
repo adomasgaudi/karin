@@ -85,6 +85,8 @@ export default function SessionDetail() {
   const setUnitMode = useKarin((st) => st.setUnitMode)
   const tokenRef = useKarin((st) => st.tokenRef)
   const setTokenRef = useKarin((st) => st.setTokenRef)
+  const tokenMult = useKarin((st) => st.tokenMult)
+  const setTokenMult = useKarin((st) => st.setTokenMult)
   const currency = useKarin((st) => st.currency)
   const setCurrency = useKarin((st) => st.setCurrency)
   const [metaOpen, setMetaOpen] = useState(false)
@@ -98,8 +100,8 @@ export default function SessionDetail() {
   const u: TokenUsage = s?.latest_total_usage || {}
   // One shared ruler for the top session-total bar AND every cycle bar.
   const scaleMax = Math.max(
-    usageUnitTotal(u, rates, unitMode, tokenRef),
-    ...cycles.map((c) => usageUnitTotal(cycleUsage(c), rates, unitMode, tokenRef)),
+    usageUnitTotal(u, rates, unitMode, tokenRef, tokenMult),
+    ...cycles.map((c) => usageUnitTotal(cycleUsage(c), rates, unitMode, tokenRef, tokenMult)),
   )
 
   // Reset the raw-mode type filter whenever the selected session changes.
