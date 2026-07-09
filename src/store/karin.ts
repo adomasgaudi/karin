@@ -1,14 +1,15 @@
 import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession, SessionSource } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
+import type { WarpRawData } from '../lib/warpRaw'
 import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis } from '../lib/pricing'
 import { DEFAULT_TOKEN_MULT, SUB_DIVISOR_DEFAULTS } from '../lib/pricing'
-import { saveCodex, saveClaude, loadSaved, clearSaved } from '../lib/persist'
-import { fetchLocalData, fetchClaudeRaw, fetchLocalStatus } from '../lib/loadData'
+import { saveCodex, saveClaude, saveWarp, loadSaved, clearSaved } from '../lib/persist'
+import { fetchLocalData, fetchClaudeRaw, fetchWarpRaw, fetchLocalStatus } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
 
 type Theme = 'light' | 'dark'
-export type SourceFilter = 'all' | 'codex' | 'claude'
+export type SourceFilter = 'all' | 'codex' | 'claude' | 'warp'
 export type View = 'sessions' | 'timeline' | 'summary'
 
 function initialTheme(): Theme {
@@ -19,7 +20,7 @@ function initialTheme(): Theme {
 
 function initialSourceFilter(): SourceFilter {
   const saved = localStorage.getItem('karin-source')
-  return saved === 'codex' || saved === 'claude' ? saved : 'all'
+  return saved === 'codex' || saved === 'claude' || saved === 'warp' ? saved : 'all'
 }
 
 // One global usage-unit toggle drives EVERY token display (sidebar totals + bars,
@@ -70,6 +71,7 @@ function applyTheme(theme: Theme) {
 interface KarinStore {
   codex: KarinData | null
   claude: ClaudeRawData | null
+  warp: WarpRawData | null
   sessions: UnifiedSession[] // merged, most-recent first
   generatedAt: string | null
   status: KarinStatus | null
@@ -90,6 +92,7 @@ interface KarinStore {
   boot: () => Promise<void>
   setCodexData: (data: KarinData) => void
   setClaudeData: (data: ClaudeRawData) => void
+  setWarpData: (data: WarpRawData) => void
   refreshLocalData: () => Promise<void>
   reset: () => Promise<void>
   select: (uid: string | null) => void
@@ -106,9 +109,13 @@ interface KarinStore {
   toggleTheme: () => void
 }
 
-// Freshest of the two generated-at stamps — the "generated" time shown in the header.
-function freshestGeneratedAt(codex: KarinData | null, claude: ClaudeRawData | null): string | null {
-  const stamps = [codex?.generated_at, claude?.generated_at].filter(Boolean) as string[]
+// Freshest generated-at stamp across sources — the "generated" time shown in the header.
+function freshestGeneratedAt(
+  codex: KarinData | null,
+  claude: ClaudeRawData | null,
+  warp: WarpRawData | null,
+): string | null {
+  const stamps = [codex?.generated_at, claude?.generated_at, warp?.generated_at].filter(Boolean) as string[]
   if (stamps.length === 0) return null
   return stamps.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b))
 }
@@ -131,11 +138,16 @@ function frozenOrder(sorted: UnifiedSession[]): UnifiedSession[] {
   return [...fresh, ...known]
 }
 
-// Recompute the merged list + derived fields from whatever codex/claude are set.
-function derive(codex: KarinData | null, claude: ClaudeRawData | null, selectedUid: string | null) {
-  const sessions = frozenOrder(mergeSessions(codex, claude))
+// Recompute the merged list + derived fields from whatever codex/claude/warp are set.
+function derive(
+  codex: KarinData | null,
+  claude: ClaudeRawData | null,
+  warp: WarpRawData | null,
+  selectedUid: string | null,
+) {
+  const sessions = frozenOrder(mergeSessions(codex, claude, warp))
   const stillSelected = selectedUid && sessions.some((s) => s.uid === selectedUid) ? selectedUid : null
-  return { sessions, generatedAt: freshestGeneratedAt(codex, claude), selectedUid: stillSelected }
+  return { sessions, generatedAt: freshestGeneratedAt(codex, claude, warp), selectedUid: stillSelected }
 }
 
 function isNewer(candidate: { generated_at: string } | null, current: { generated_at: string } | null): boolean {
@@ -147,6 +159,7 @@ function isNewer(candidate: { generated_at: string } | null, current: { generate
 export const useKarin = create<KarinStore>((set, get) => ({
   codex: null,
   claude: null,
+  warp: null,
   sessions: [],
   generatedAt: null,
   status: null,
@@ -162,6 +175,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   subDivisors: {
     codex: initialSubDivisor('karin-subdiv-codex', SUB_DIVISOR_DEFAULTS.codex),
     claude: initialSubDivisor('karin-subdiv-claude', SUB_DIVISOR_DEFAULTS.claude),
+    warp: initialSubDivisor('karin-subdiv-warp', SUB_DIVISOR_DEFAULTS.warp),
   },
   theme: initialTheme(),
   view: 'sessions',
@@ -170,52 +184,64 @@ export const useKarin = create<KarinStore>((set, get) => ({
   // Startup: prefer the freshest of saved vs local for EACH source, then keep polling.
   boot: async () => {
     applyTheme(get().theme)
-    const [saved, localCodex, localClaude, status] = await Promise.all([
+    const [saved, localCodex, localClaude, localWarp, status] = await Promise.all([
       loadSaved(),
       fetchLocalData(),
       fetchClaudeRaw(),
+      fetchWarpRaw(),
       fetchLocalStatus(),
     ])
     const codex = isNewer(localCodex, saved.codex) ? localCodex : saved.codex
     const claude = isNewer(localClaude, saved.claude) ? localClaude : saved.claude
+    const warp = isNewer(localWarp, saved.warp) ? localWarp : saved.warp
     if (codex) void saveCodex(codex)
     if (claude) void saveClaude(claude)
-    set({ codex, claude, status, ...derive(codex, claude, null), booting: false })
+    if (warp) void saveWarp(warp)
+    set({ codex, claude, warp, status, ...derive(codex, claude, warp, null), booting: false })
     startLocalRefreshLoop()
   },
 
   setCodexData: (data) => {
     void saveCodex(data)
-    set((st) => ({ codex: data, error: null, search: '', ...derive(data, st.claude, st.selectedUid) }))
+    set((st) => ({ codex: data, error: null, search: '', ...derive(data, st.claude, st.warp, st.selectedUid) }))
   },
 
   setClaudeData: (data) => {
     void saveClaude(data)
-    set((st) => ({ claude: data, error: null, search: '', ...derive(st.codex, data, st.selectedUid) }))
+    set((st) => ({ claude: data, error: null, search: '', ...derive(st.codex, data, st.warp, st.selectedUid) }))
+  },
+
+  setWarpData: (data) => {
+    void saveWarp(data)
+    set((st) => ({ warp: data, error: null, search: '', ...derive(st.codex, st.claude, data, st.selectedUid) }))
   },
 
   refreshLocalData: async () => {
-    const { codex: curCodex, claude: curClaude } = get()
-    const [localCodex, localClaude, status] = await Promise.all([
+    const { codex: curCodex, claude: curClaude, warp: curWarp } = get()
+    const [localCodex, localClaude, localWarp, status] = await Promise.all([
       fetchLocalData(),
       fetchClaudeRaw(),
+      fetchWarpRaw(),
       fetchLocalStatus(),
     ])
     if (status) set({ status })
     const codexNew = isNewer(localCodex, curCodex)
     const claudeNew = isNewer(localClaude, curClaude)
-    if (!codexNew && !claudeNew) return
+    const warpNew = isNewer(localWarp, curWarp)
+    if (!codexNew && !claudeNew && !warpNew) return
     const codex = codexNew ? localCodex : curCodex
     const claude = claudeNew ? localClaude : curClaude
+    const warp = warpNew ? localWarp : curWarp
     if (codexNew && localCodex) void saveCodex(localCodex)
     if (claudeNew && localClaude) void saveClaude(localClaude)
-    set((st) => ({ codex, claude, error: null, ...derive(codex, claude, st.selectedUid) }))
+    if (warpNew && localWarp) void saveWarp(localWarp)
+    set((st) => ({ codex, claude, warp, error: null, ...derive(codex, claude, warp, st.selectedUid) }))
   },
 
   reset: async () => {
     stopLocalRefreshLoop()
     await clearSaved()
-    set({ codex: null, claude: null, sessions: [], generatedAt: null, status: null, selectedUid: null, search: '', error: null })
+    set({ codex: null, claude: null, warp: null, sessions: [], generatedAt: null, status: null, selectedUid: null, search: '', error: null })
   },
 
   select: (uid) => set({ selectedUid: uid }),

@@ -38,19 +38,24 @@ if (-not $KarinHome) {
     $KarinHome = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 
-# Step 1 - regenerate data/ from your local Codex sessions AND Claude Code sessions.
-# Codex feeds the "Codex" view (karin-data.json); the Claude indexer feeds the
-# "Claude" raw-explorer view (claude-raw.json). Both land in data/ (and dist/data/).
+# Step 1 - regenerate data/ from your local Codex, Claude Code AND Warp sessions.
+# Codex feeds karin-data.json; Claude feeds claude-raw.json; Warp reads its local
+# SQLite (agent conversations run against your DeepSeek endpoint and Warp's built-in
+# models) into warp-raw.json. All land in data/ (and dist/data/).
 $Indexer = Join-Path $KarinHome "bin\karin.py"
 $ClaudeIndexer = Join-Path $KarinHome "bin\karin_claude.py"
+$WarpIndexer = Join-Path $KarinHome "bin\karin_warp.py"
 $indexArgs = @($Indexer)
 $claudeIndexArgs = @($ClaudeIndexer)
+$warpIndexArgs = @($WarpIndexer)
 if ($Limit -gt 0) {
     $indexArgs += @("--limit", "$Limit")
     $claudeIndexArgs += @("--limit", "$Limit")
+    $warpIndexArgs += @("--limit", "$Limit")
 }
 python @indexArgs
 python @claudeIndexArgs
+python @warpIndexArgs
 
 function Start-KarinWatcher {
     $logDir = Join-Path $KarinHome "data"
@@ -63,9 +68,13 @@ function Start-KarinWatcher {
     $limitArg = if ($Limit -gt 0) { " --limit $Limit" } else { "" }
     $watchArgs = "`"$Indexer`" --watch$limitArg"
     $claudeWatchArgs = "`"$ClaudeIndexer`" --watch$limitArg"
+    $warpWatchArgs = "`"$WarpIndexer`" --watch$limitArg"
     $codex = Start-Process -FilePath "python" -ArgumentList $watchArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "karin-watch.log") -RedirectStandardError (Join-Path $logDir "karin-watch.err.log") -PassThru
     $claude = Start-Process -FilePath "python" -ArgumentList $claudeWatchArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "claude-watch.log") -RedirectStandardError (Join-Path $logDir "claude-watch.err.log") -PassThru
-    return @($codex, $claude)
+    # Warp watcher polls warp.sqlite's mtime; a rewrite of data/warp-raw.json is what makes
+    # a running DeepSeek agent show up live in the browser (the app re-fetches every 5s).
+    $warp = Start-Process -FilePath "python" -ArgumentList $warpWatchArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "warp-watch.log") -RedirectStandardError (Join-Path $logDir "warp-watch.err.log") -PassThru
+    return @($codex, $claude, $warp)
 }
 
 function Stop-KarinWatcher($Processes) {

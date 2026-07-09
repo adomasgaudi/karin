@@ -6,7 +6,17 @@ import { dirname, join } from 'node:path'
 import { existsSync, createReadStream, mkdirSync, copyFileSync } from 'node:fs'
 
 const root = dirname(fileURLToPath(import.meta.url))
-const DATA_FILES = ['karin-data.json', 'karin-data.js', 'karin-status.json', 'claude-raw.json', 'claude-status.json']
+// Every feed the app fetches. A file missing here never reaches dist/data/, so the
+// local deploy at :4173 would silently serve a bundle without that source.
+const DATA_FILES = [
+  'karin-data.json',
+  'karin-data.js',
+  'karin-status.json',
+  'claude-raw.json',
+  'claude-status.json',
+  'warp-raw.json',
+  'warp-status.json',
+]
 
 // Dev only: serve the locally-generated data/ files (e.g. karin-data.json) so the
 // app auto-loads real Codex data during `pnpm dev`. NOT part of the build, so a plain

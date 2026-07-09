@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.75',
+    title: 'Warp + DeepSeek sessions',
+    summary: 'Third source: Warp terminal agents, including v4-flash and v4-pro runs on your own API keys.',
+    detail:
+      'A new indexer reads Warp’s local SQLite and decodes its undocumented protobuf task blobs into prompts, reasoning, assistant replies, tool calls and file diffs — so DeepSeek runs appear beside Codex and Claude, filterable and searchable, with a Raw tab preserving every field. Warp mixes models per conversation, so each session is labelled by its primary agent and the ⋮ popover lists every model’s token share. Warp logs one cumulative token scalar per model with no input/output split, so these sessions show tokens but no money — a cost figure would be a guess.',
+  },
+  {
     version: 'v.74',
     title: 'Summary page',
     summary:

@@ -1,11 +1,14 @@
-// AI-handoff export: turns every loaded session (both sources) into ONE markdown file
+// AI-handoff export: turns every loaded session (every source) into ONE markdown file
 // meant to be fed to another AI, which can then summarize what was done across all the
 // sessions. The file leads with instructions for that AI, then lists sessions
 // chronologically as prompt → work → result digests. Transcript text is clipped hard —
 // this is a digest for summarization, not a lossless archive (the JSON feeds are that).
 
-import type { UnifiedSession, Message, Tool, CodeEdit, TokenUsage } from '../types'
+import type { UnifiedSession, Message, Tool, CodeEdit, SessionSource, TokenUsage } from '../types'
 import type { ClaudeMessage, ClaudeTool, ClaudeEdit } from './claudeModel'
+
+// Two-letter source tag used in the compact per-session lines.
+const SOURCE_ABBR: Record<SessionSource, string> = { codex: 'cx', claude: 'cl', warp: 'wp' }
 import { buildCycles, cyclePrompt, cycleOrigin, type Cycle, type UnifiedEntry } from './unifiedCycles'
 
 const PROMPT_MAX = 400
@@ -146,6 +149,7 @@ export function buildAiExport(sessions: UnifiedSession[]): string {
   )
   const codex = ordered.filter((s) => s.source === 'codex').length
   const claude = ordered.filter((s) => s.source === 'claude').length
+  const warp = ordered.filter((s) => s.source === 'warp').length
   const totalTokens = ordered.reduce((sum, s) => sum + (s.latest_total_usage?.total_tokens || 0), 0)
   const span =
     ordered.length > 0
@@ -155,7 +159,7 @@ export function buildAiExport(sessions: UnifiedSession[]): string {
   const out: string[] = [
     '# Karin session export — AI handoff',
     '',
-    `Generated ${new Date().toISOString()} · ${ordered.length} sessions (${codex} codex, ${claude} claude) · ${fmtTokens(totalTokens)} tokens · span ${span}`,
+    `Generated ${new Date().toISOString()} · ${ordered.length} sessions (${codex} codex, ${claude} claude, ${warp} warp) · ${fmtTokens(totalTokens)} tokens · span ${span}`,
     '',
     '## Instructions for the reading AI',
     '',
@@ -227,7 +231,7 @@ function gistSessionLine(s: UnifiedSession): string {
   const project = baseName(s.projectCwd || s.cwd || '') || null
   const day = fmtDay(s.started_at || s.updated_at)
   const time = fmtTime(s.started_at || s.updated_at)
-  const src = s.source === 'codex' ? 'cx' : 'cl'
+  const src = SOURCE_ABBR[s.source]
   const usage = s.latest_total_usage || {}
 
   const bits: string[] = [

@@ -150,8 +150,11 @@ export default function SessionDetail() {
   }
 
   const isClaude = s.source === 'claude'
-  const mode: DetailMode = isClaude ? rawModeByUid[s.uid] || 'structured' : 'structured'
-  const records: ClaudeRecord[] = isClaude ? (s.rawRecords as ClaudeRecord[]) ?? [] : []
+  // The Raw tab belongs to any source that ships records — Claude's JSONL lines and
+  // Warp's decoded protobuf events both qualify. Codex ships none.
+  const hasRaw = Array.isArray(s.rawRecords)
+  const mode: DetailMode = hasRaw ? rawModeByUid[s.uid] || 'structured' : 'structured'
+  const records: ClaudeRecord[] = hasRaw ? (s.rawRecords as unknown as ClaudeRecord[]) : []
   const typeCounts = s.recordTypeCounts ?? {}
   const typeKeys = Object.keys(typeCounts)
   const shownRecords = typeFilter === 'all' ? records : records.filter((r) => r._type === typeFilter)
@@ -185,7 +188,7 @@ export default function SessionDetail() {
           <span className="shrink-0 text-[0.68rem] font-medium text-neutral-400 dark:text-neutral-500">Karin {APP_VERSION}</span>
           <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
 
-          {isClaude && (
+          {hasRaw && (
             <div className="ml-auto inline-flex shrink-0 rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
               {DETAIL_MODES.map((m) => (
                 <button
@@ -203,7 +206,7 @@ export default function SessionDetail() {
               ))}
             </div>
           )}
-          {isClaude && mode === 'raw' && (
+          {hasRaw && mode === 'raw' && (
             <select className={`${selectClass} shrink-0`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="all">All types ({records.length})</option>
               {typeKeys.map((k) => (
@@ -375,7 +378,13 @@ export default function SessionDetail() {
         </div>
         {/* Persistent basis caption so money figures are never ambiguous — states which
             price this is and points to the traceable pricing model. */}
-        {unitMode === 'money' && (
+        {unitMode === 'money' && s.source === 'warp' && (
+          <p className="mt-1.5 text-[0.68rem] leading-snug text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-600 dark:text-neutral-300">Not priced</span>
+            {` — Warp records one cumulative token total per model, with no input/output split, and the two bill at very different rates. Any cost here would be a guess, so Karin shows tokens only.`}
+          </p>
+        )}
+        {unitMode === 'money' && s.source !== 'warp' && (
           <p className="mt-1.5 text-[0.68rem] leading-snug text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">{PRICE_BASIS_NOTES[priceBasis].title}</span>
             {priceBasis === 'sub'

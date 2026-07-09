@@ -1,13 +1,15 @@
-// Tiny IndexedDB wrapper: remembers the last-loaded datasets (Codex + Claude) so a
+// Tiny IndexedDB wrapper: remembers the last-loaded datasets (Codex + Claude + Warp) so a
 // refresh re-opens them without re-picking files. Data stays in the browser, never
 // uploaded. The `kv` object store is schemaless, so new keys need no DB version bump.
 import type { KarinData } from '../types'
 import type { ClaudeRawData } from './claudeRaw'
+import type { WarpRawData } from './warpRaw'
 
 const DB_NAME = 'karin'
 const STORE = 'kv'
 const CODEX_KEY = 'codex-data'
 const CLAUDE_KEY = 'claude-data'
+const WARP_KEY = 'warp-data'
 const LEGACY_KEY = 'last-data' // pre-merge bare Codex payload — migrated to CODEX_KEY
 
 function openDb(): Promise<IDBDatabase> {
@@ -75,16 +77,25 @@ export function saveClaude(data: ClaudeRawData): Promise<void> {
   return put(CLAUDE_KEY, data)
 }
 
-// Load both remembered datasets. A legacy bare Codex payload is migrated forward.
-export async function loadSaved(): Promise<{ codex: KarinData | null; claude: ClaudeRawData | null }> {
-  const [codex, legacy, claude] = await Promise.all([
+export function saveWarp(data: WarpRawData): Promise<void> {
+  return put(WARP_KEY, data)
+}
+
+// Load every remembered dataset. A legacy bare Codex payload is migrated forward.
+export async function loadSaved(): Promise<{
+  codex: KarinData | null
+  claude: ClaudeRawData | null
+  warp: WarpRawData | null
+}> {
+  const [codex, legacy, claude, warp] = await Promise.all([
     getKey<KarinData>(CODEX_KEY),
     getKey<KarinData>(LEGACY_KEY),
     getKey<ClaudeRawData>(CLAUDE_KEY),
+    getKey<WarpRawData>(WARP_KEY),
   ])
-  return { codex: codex ?? legacy, claude }
+  return { codex: codex ?? legacy, claude, warp }
 }
 
 export async function clearSaved(): Promise<void> {
-  await Promise.all([del(CODEX_KEY), del(CLAUDE_KEY), del(LEGACY_KEY)])
+  await Promise.all([del(CODEX_KEY), del(CLAUDE_KEY), del(WARP_KEY), del(LEGACY_KEY)])
 }

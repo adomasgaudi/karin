@@ -10,7 +10,7 @@ import ChangelogButton from './components/ChangelogButton'
 
 export default function App() {
   const booting = useKarin((s) => s.booting)
-  const hasData = useKarin((s) => s.codex != null || s.claude != null)
+  const hasData = useKarin((s) => s.codex != null || s.claude != null || s.warp != null)
   const selectedUid = useKarin((s) => s.selectedUid)
   const view = useKarin((s) => s.view)
   const boot = useKarin((s) => s.boot)

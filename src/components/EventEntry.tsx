@@ -330,8 +330,11 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
   switch (entry.kind) {
     case 'message': {
       const item = entry.item as Message | ClaudeMessage
-      // Codex carries a phase (commentary/final); Claude carries the model.
-      const tag = entry.source === 'codex' ? (item as Message).phase || undefined : (item as ClaudeMessage).model || undefined
+      // Codex and Warp carry a phase (commentary/final); Claude carries the model.
+      const tag =
+        entry.source === 'claude'
+          ? (item as ClaudeMessage).model || undefined
+          : (item as Message).phase || undefined
       // Assistant replies: when the session has a single model there's no "assistant" /
       // model to disambiguate, so drop both and just show the reply text (up to 3 lines).
       if (item.role === 'assistant') {
