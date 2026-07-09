@@ -32,6 +32,7 @@ import type {
   ClaudeSubagent,
   ClaudeTurnCtx,
 } from './claudeModel'
+import type { WarpSession } from './warpRaw'
 import { addUsage, splitUsage } from './pricing'
 
 // A single transcript event, tagged by unified kind + source, used to build cycles.
@@ -94,8 +95,28 @@ function claudeEntries(s: ClaudeDetailSession): UnifiedEntry[] {
   return entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
 }
 
+// Warp's indexer emits Codex-shaped arrays (Message/Tool/Reasoning/CodeEdit) precisely so
+// this flattener can be reused; only the source tag and the subagent list differ.
+function warpEntries(s: WarpSession): UnifiedEntry[] {
+  const src: SessionSource = 'warp'
+  const entries: UnifiedEntry[] = [
+    ...(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
+    ...(s.reasoning || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
+    ...(s.tools || []).map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
+    ...(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
+  ]
+  return entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+}
+
 export function buildEntries(s: UnifiedSession): UnifiedEntry[] {
-  return s.source === 'codex' ? codexEntries(s.raw as Session) : claudeEntries(s.raw as ClaudeDetailSession)
+  switch (s.source) {
+    case 'codex':
+      return codexEntries(s.raw as Session)
+    case 'claude':
+      return claudeEntries(s.raw as ClaudeDetailSession)
+    case 'warp':
+      return warpEntries(s.raw as WarpSession)
+  }
 }
 
 // --- Cycle splitting --------------------------------------------------------
@@ -120,7 +141,9 @@ function isHumanPrompt(entry: UnifiedEntry): boolean {
   if (entry.kind !== 'message') return false
   const m = entry.item as Message | ClaudeMessage
   if (m.role !== 'user') return false
-  if (entry.source === 'codex') return true
+  // Warp's user messages come from `ai_queries` — the box the owner typed into — so every
+  // one of them is human, same as Codex.
+  if (entry.source === 'codex' || entry.source === 'warp') return true
   const cm = m as ClaudeMessage
   return cm.origin_kind === 'human' && (cm.prompt_source === 'typed' || cm.prompt_source === 'queued')
 }
@@ -347,6 +370,13 @@ function attributeFrame(frame: TokenUsage | null | undefined, cards: UnifiedEntr
 
 export function attributeCycleUsage(cycle: Cycle, source: SessionSource): Map<UnifiedEntry, EntryUsage> {
   const result = new Map<UnifiedEntry, EntryUsage>()
+
+  if (source === 'warp') {
+    // Warp reports one cumulative token total per model per CONVERSATION — no per-turn
+    // frames, and no input/output split. There is nothing to attribute to a cycle, and
+    // estimating a split would invent numbers, so Warp cycles carry no usage bars.
+    return result
+  }
 
   if (source === 'claude') {
     // Claude: only usage frames carry a (measured) bar; content cards carry none.

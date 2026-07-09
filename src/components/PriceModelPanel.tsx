@@ -11,7 +11,7 @@ import {
   type TokenRates,
 } from '../lib/pricing'
 
-const SOURCE_LABELS: Record<SessionSource, string> = { codex: 'Codex', claude: 'Claude' }
+const SOURCE_LABELS: Record<SessionSource, string> = { codex: 'Codex', claude: 'Claude', warp: 'Warp' }
 
 // One ÷N tuner row for a source's plan-estimate divisor.
 function DivisorRow({

@@ -3,6 +3,7 @@ import { Upload, Sun, Moon } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { parseKarinText } from '../lib/loadData'
 import { isClaudeRawData } from '../lib/claudeRaw'
+import { isWarpRawData } from '../lib/warpRaw'
 import { cn } from '../lib/cn'
 import { APP_VERSION } from '../lib/appVersion'
 
@@ -28,6 +29,8 @@ export default function Dropzone() {
       }
       if (isClaudeRawData(parsed)) {
         useKarin.getState().setClaudeData(parsed)
+      } else if (isWarpRawData(parsed)) {
+        useKarin.getState().setWarpData(parsed)
       } else {
         useKarin.getState().setCodexData(parseKarinText(text))
       }

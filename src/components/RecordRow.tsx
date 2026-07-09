@@ -39,6 +39,10 @@ function recordPreview(rec: ClaudeRecord): string {
   if (typeof rec.content === 'string') return rec.content
   const t = firstText(rec.content)
   if (t) return t
+  // Warp events carry a flat `text` (assistant prose, reasoning, or a tool payload).
+  if (typeof rec.text === 'string' && rec.text.trim()) {
+    return typeof rec.tool === 'string' ? `→ ${rec.tool} ${rec.text}` : rec.text
+  }
   // Fall back to a compact key list so the row is never blank.
   const keys = Object.keys(rec).filter((k) => k !== '_line' && k !== '_type')
   return keys.length ? `{ ${keys.slice(0, 6).join(', ')}${keys.length > 6 ? ', …' : ''} }` : '(empty)'

@@ -160,7 +160,7 @@ export interface KarinStatus {
 // underlying enriched session is carried verbatim on `raw` for the cycle builder, which
 // is the only place that dispatches on `source` to read source-specific arrays.
 
-export type SessionSource = 'codex' | 'claude'
+export type SessionSource = 'codex' | 'claude' | 'warp'
 
 // Superset counts for a session summary row (Claude-only tallies optional).
 export interface UnifiedCounts {
@@ -205,9 +205,10 @@ export interface UnifiedSession {
   meta: UnifiedMetaRow[] // ⋮ popover rows, source-specific
   // The enriched source session, read only by the cycle builder (dispatched on source).
   raw: unknown
-  // Claude-only extras (undefined for Codex).
-  rawRecords?: unknown[] // ClaudeRecord[] — raw JSONL lines for the Raw toggle
+  // Raw-tab extras. Claude fills these from its JSONL lines, Warp from its decoded
+  // protobuf events; undefined for Codex, which has no raw view.
+  rawRecords?: unknown[] // ClaudeRecord[] | WarpRecord[] — rows for the Raw toggle
   recordTypeCounts?: Record<string, number>
   recordCount?: number
-  titleOps?: unknown[] // ClaudeSession[] — folded auto-title label sessions
+  titleOps?: unknown[] // ClaudeSession[] — folded auto-title label sessions (Claude only)
 }

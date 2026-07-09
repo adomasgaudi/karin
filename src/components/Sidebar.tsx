@@ -295,7 +295,10 @@ export default function Sidebar({ className }: SidebarProps) {
           <ul className="flex flex-col gap-1">
             {rows.map(({ session: s, rates }) => {
               const selected = s.uid === selectedUid
-              const project = s.source === 'claude' ? projectLabel(s.projectCwd, s.projectSlug) : null
+              // Claude groups by project; Warp has only a working directory — both read
+              // as the same trailing folder name. Codex is flat.
+              const project =
+                s.source === 'claude' || s.source === 'warp' ? projectLabel(s.projectCwd, s.projectSlug) : null
               return (
                 <li key={s.uid}>
                   <button

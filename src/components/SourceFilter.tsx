@@ -5,11 +5,12 @@ const options: { id: SourceFilterValue; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'codex', label: 'Codex' },
   { id: 'claude', label: 'Claude' },
+  { id: 'warp', label: 'Warp' },
 ]
 
-// Segmented All / Codex / Claude filter for the combined session list — same pill
+// Segmented All / Codex / Claude / Warp filter for the combined session list — same pill
 // vocabulary as the old Codex|Claude page switch, but now it narrows one shared list
-// instead of swapping between two separate pages.
+// instead of swapping between separate pages.
 export default function SourceFilter({ className }: { className?: string }) {
   const sourceFilter = useKarin((s) => s.sourceFilter)
   const setSourceFilter = useKarin((s) => s.setSourceFilter)

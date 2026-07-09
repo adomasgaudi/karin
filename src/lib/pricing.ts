@@ -1,4 +1,4 @@
-import type { Session, TokenUsage, UnifiedSession } from '../types'
+import type { Session, SessionSource, TokenUsage, UnifiedSession } from '../types'
 
 // How usage is expressed:
 //  - tokens      → raw token counts
@@ -202,11 +202,12 @@ export const DEFAULT_SUB_DIVISOR = 20
 // owner's own data (~€93 API list ≈ 10% of a €180/mo plan's week → ~20×). Claude 25 follows
 // the widely-cited "Max 20x $200 ≈ $5,000 API value = 25×" figure. Both are calibrated
 // starting points, tunable per source.
-export const SUB_DIVISOR_DEFAULTS: Record<'codex' | 'claude', number> = { codex: 20, claude: 25 }
+export const SUB_DIVISOR_DEFAULTS: Record<SessionSource, number> = { codex: 20, claude: 25, warp: 1 }
 // Short per-source rationale surfaced in the plan-estimate info dropdown.
-export const SUB_DIVISOR_SOURCE_NOTES: Record<'codex' | 'claude', string> = {
+export const SUB_DIVISOR_SOURCE_NOTES: Record<SessionSource, string> = {
   codex: 'ChatGPT/Codex plan. Default ÷20 — anchored to your own usage (API list price ran ~20× a week of your plan).',
   claude: 'Claude (Max) plan. Default ÷25 — the widely-cited "$200 Max ≈ $5,000 of API compute" value gap.',
+  warp: 'Warp custom endpoints bill your own API key directly, so there is no plan to divide by (÷1). Karin does not price Warp sessions — see below.',
 }
 
 // Human-readable provenance shown in the money-mode "how is this computed?" panel so
@@ -344,8 +345,20 @@ export function ratesForClaudeModel(model: string | null | undefined): TokenRate
 // Pricing for a unified session — dispatches on source to the per-source rate table.
 // Codex needs the full session (its rates depend on the max context window seen); Claude
 // keys purely off the model name.
+//
+// Warp returns null ON PURPOSE. It records a single cumulative token scalar per model,
+// with no input/output split, and input and output bill at very different rates — so any
+// cost figure would be a guess dressed up as a measurement. Callers already treat null as
+// "not priceable" and fall back to showing raw token counts.
 export function ratesForUnified(s: UnifiedSession): TokenRates | null {
-  return s.source === 'codex' ? ratesForSession(s.raw as Session) : ratesForClaudeModel(s.model)
+  switch (s.source) {
+    case 'codex':
+      return ratesForSession(s.raw as Session)
+    case 'claude':
+      return ratesForClaudeModel(s.model)
+    case 'warp':
+      return null
+  }
 }
 
 // $/1M-token rate of the reference token type used as the "1.0" unit in token_units mode.

@@ -1,12 +1,13 @@
-// Adapters: Codex `Session` and Claude `ClaudeSession` → the shared `UnifiedSession`.
-// The sidebar reads the flat summary produced here; the detail/cycle builder reads the
-// enriched source session carried verbatim on `raw`. This is the ONE seam where the two
-// data pipelines meet — everything downstream sees one shape.
+// Adapters: Codex `Session`, Claude `ClaudeSession` and Warp `WarpSession` → the shared
+// `UnifiedSession`. The sidebar reads the flat summary produced here; the detail/cycle
+// builder reads the enriched source session carried verbatim on `raw`. This is the ONE
+// seam where the data pipelines meet — everything downstream sees one shape.
 
 import type { KarinData, Session, UnifiedSession, UnifiedMetaRow } from '../types'
 import type { ClaudeProject, ClaudeRawData, ClaudeSession } from './claudeRaw'
 import type { ClaudeDetailSession } from './claudeModel'
-import { claudeTurnState, codexTurnState } from './turnState'
+import type { WarpRawData, WarpSession } from './warpRaw'
+import { claudeTurnState, codexTurnState, warpTurnState } from './turnState'
 
 function metaRow(label: string, value: string | number | null | undefined): UnifiedMetaRow {
   return { label, value: value === null || value === undefined || value === '' ? null : String(value) }
@@ -192,11 +193,89 @@ export function adaptClaudeData(d: ClaudeRawData | null): UnifiedSession[] {
   return (d?.projects ?? []).flatMap((p) => (p.sessions ?? []).map((s) => adaptClaudeSession(s, p)))
 }
 
+// --- Warp ------------------------------------------------------------------
+
+function warpHaystack(s: WarpSession): string {
+  return [
+    s.title,
+    s.id,
+    s.cwd,
+    s.agent_name,
+    ...(s.models || []),
+    ...(s.messages || []).map((m) => m.text),
+    ...(s.reasoning || []).map((r) => r.text),
+    ...(s.tools || []).map((t) => `${t.name} ${t.arguments} ${t.output}`),
+    ...(s.code_edits || []).map((e) => `${e.name} ${e.patch}`),
+  ]
+    .join('\n')
+    .toLowerCase()
+}
+
+// Warp mixes models inside one conversation, so `model` is the primary agent (the one
+// billed under `primary_agent` — the owner's DeepSeek endpoint) and the ⋮ popover lists
+// every model that spent tokens, with its own share.
+export function adaptWarpSession(s: WarpSession): UnifiedSession {
+  const c = s.counts
+  const spend = (s.model_usage || [])
+    .filter((row) => row.model)
+    .map((row) => `${row.model} ${row.total.toLocaleString()}`)
+    .join(', ')
+  return {
+    uid: `warp:${s.id}`,
+    source: 'warp',
+    id: s.id,
+    title: s.title,
+    subtitle: s.first_prompt || null,
+    cwd: s.cwd,
+    model: s.model,
+    models: s.models ?? (s.model ? [s.model] : []),
+    started_at: s.started_at,
+    updated_at: s.updated_at,
+    counts: {
+      user: c?.user ?? 0,
+      assistant: c?.assistant ?? 0,
+      tool_calls: c?.tool_calls ?? 0,
+      code_edits: c?.code_edits ?? 0,
+      thinking: c?.reasoning,
+      contexts: c?.contexts,
+      subagents: c?.subagents,
+    },
+    latest_total_usage: s.latest_total_usage ?? null,
+    turnState: warpTurnState(s),
+    // Warp conversations are flat — grouped by working directory, not a project index.
+    projectSlug: null,
+    projectCwd: s.cwd,
+    haystack: warpHaystack(s),
+    meta: [
+      metaRow('agent', s.agent_name),
+      metaRow('model', s.model),
+      metaRow('spend', spend),
+      metaRow('branch', s.gitBranch),
+      metaRow('repo', s.repo),
+      metaRow('shell', s.shell),
+      metaRow('context', s.context_window_usage != null ? `${Math.round(s.context_window_usage * 100)}%` : null),
+      metaRow('cwd', s.cwd),
+    ],
+    raw: s,
+    rawRecords: s.records,
+    recordTypeCounts: s.type_counts,
+    recordCount: s.record_count,
+  }
+}
+
+export function adaptWarpData(d: WarpRawData | null): UnifiedSession[] {
+  return (d?.conversations ?? []).map((s) => adaptWarpSession(s))
+}
+
 // --- Merge -----------------------------------------------------------------
 
-// Both sources, most-recent first — the combined list backing the unified sidebar.
-export function mergeSessions(codex: KarinData | null, claude: ClaudeRawData | null): UnifiedSession[] {
-  return [...adaptCodexData(codex), ...adaptClaudeData(claude)].sort(
+// Every source, most-recent first — the combined list backing the unified sidebar.
+export function mergeSessions(
+  codex: KarinData | null,
+  claude: ClaudeRawData | null,
+  warp: WarpRawData | null,
+): UnifiedSession[] {
+  return [...adaptCodexData(codex), ...adaptClaudeData(claude), ...adaptWarpData(warp)].sort(
     (a, b) => Date.parse(b.updated_at ?? '') - Date.parse(a.updated_at ?? ''),
   )
 }

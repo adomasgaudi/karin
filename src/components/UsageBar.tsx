@@ -63,6 +63,9 @@ export default function UsageBar({
   // token count (raw, or reference-equivalent). refSuffix labels the token-units unit.
   const isMoney = mode === 'money' && rates != null
   const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
+  // A source may report a total without the per-type split that `parts` sums (Warp gives
+  // one cumulative scalar per model). Fall back to that total so the bar's label isn't 0.
+  const tokenTotal = parts.total || usage?.total_tokens || 0
   const fmtSeg = (segment: { raw: number; value: number }) =>
     isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value)
   // Inline-label bars need enough height to hold text; compact ones sit a touch
@@ -109,7 +112,7 @@ export default function UsageBar({
               ? `total ${fmtCurrency(total, currency)}`
               : mode === 'token_units' && rates != null
               ? `total ${fmtCompact(total)}${refSuffix}`
-              : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
+              : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
           </div>
         )
       ) : (
@@ -126,7 +129,7 @@ export default function UsageBar({
                 ? `total ${fmtCurrency(total, currency)}`
                 : mode === 'token_units' && rates != null
                 ? `total ${fmtCompact(total)}${refSuffix}`
-                : `total ${fmtCompact(parts.total)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
+                : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
             </span>
           </div>
         )

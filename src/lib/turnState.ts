@@ -5,6 +5,7 @@
 
 import type { Session } from '../types'
 import type { ClaudeDetailSession } from './claudeModel'
+import type { WarpSession } from './warpRaw'
 
 export type TurnState = 'working' | 'waiting' | 'interrupted' | 'unknown'
 
@@ -51,4 +52,20 @@ export function codexTurnState(s: Session): TurnState {
   if (lastFinalLine < 0) return 'working' // messages/tools exist but no assistant answer yet
   const lastEventLine = Math.max(maxLine(msgs), maxLine(tools))
   return lastEventLine > lastFinalLine ? 'working' : 'waiting'
+}
+
+// Warp: no `stop_reason` and no `phase` — the strongest honest signal is which kind of
+// event closed the conversation. An assistant message means it yielded the floor; a
+// prompt, a thought or a tool call left mid-flight means it was still working. Warp does
+// record an exchange status, so a failed last exchange reads as 'interrupted'.
+// Weaker than the Claude/Codex signals, and derived from the last INDEX, not liveness.
+const WARP_MEANINGFUL = new Set(['message', 'assistant', 'thinking', 'tool_call', 'tool_result'])
+
+export function warpTurnState(s: WarpSession): TurnState {
+  const events = (s.records || []).filter((r) => WARP_MEANINGFUL.has(r._type))
+  if (!events.length) return 'unknown'
+  const last = events[events.length - 1]
+  const statuses = s.prompt_statuses || []
+  if (last._type === 'message' && statuses[statuses.length - 1] === 'Failed') return 'interrupted'
+  return last._type === 'assistant' ? 'waiting' : 'working'
 }

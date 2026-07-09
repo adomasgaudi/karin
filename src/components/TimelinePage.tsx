@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Crosshair } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { cn } from '../lib/cn'
-import type { Session, UnifiedSession, TokenUsage } from '../types'
+import type { Session, SessionSource, UnifiedSession, TokenUsage } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
 import { buildCycles, cycleModelEffort, cycleTiming, cyclePrompt, cycleUsage } from '../lib/unifiedCycles'
 import {
@@ -202,10 +202,11 @@ function tickLabel(t: number, step: number): string {
 
 // --- Source accents (accents only — the pill itself stays neutral) ------------
 
-const ACCENT = {
+const ACCENT: Record<SessionSource, { bar: string; seg: string }> = {
   codex: { bar: 'bg-sky-500', seg: 'bg-sky-500/30 hover:bg-sky-500/55 dark:bg-sky-400/25 dark:hover:bg-sky-400/50' },
   claude: { bar: 'bg-orange-500', seg: 'bg-orange-500/30 hover:bg-orange-500/55 dark:bg-orange-400/25 dark:hover:bg-orange-400/50' },
-} as const
+  warp: { bar: 'bg-violet-500', seg: 'bg-violet-500/30 hover:bg-violet-500/55 dark:bg-violet-400/25 dark:hover:bg-violet-400/50' },
+}
 
 interface Tip {
   x: number

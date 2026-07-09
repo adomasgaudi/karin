@@ -12,9 +12,19 @@ device, use the Cloudflare tunnel (`./karin.ps1 -Tunnel`), not a hosted build.
 
 ## What Karin is
 
-A local Codex session viewer. **React 19 + Vite 6 + TypeScript + Tailwind v4**, state in
-Zustand. It loads token-usage / prompt / tool data for Codex sessions and renders them as
-sessions → cycles → events with usage bars. Transcripts stay on the machine.
+A local AI-session viewer. **React 19 + Vite 6 + TypeScript + Tailwind v4**, state in
+Zustand. It loads token-usage / prompt / tool data and renders it as sessions → cycles →
+events with usage bars. Transcripts stay on the machine.
+
+**Three sources, one framework** (`SessionSource = 'codex' | 'claude' | 'warp'`). Never
+build a per-AI UI: each source has its own indexer that emits a JSON feed, an adapter into
+the shared `UnifiedSession`, and then flows through one cycle builder and one renderer.
+
+| Source | Indexer | Feed | Reads |
+| --- | --- | --- | --- |
+| Codex | `bin/karin.py` | `data/karin-data.json` | `~/.codex/sessions/**.jsonl` |
+| Claude | `bin/karin_claude.py` | `data/claude-raw.json` | `~/.claude/projects/**.jsonl` |
+| Warp | `bin/karin_warp.py` | `data/warp-raw.json` | `%LOCALAPPDATA%/warp/Warp/data/warp.sqlite` |
 
 Its own git repo (`origin → github.com/adomasgaudi/karin.git`), separate from the
 `Meta apps` repo. Commit style here is plain descriptive subjects (see `git log`), NOT the
@@ -69,10 +79,47 @@ verify `curl -s -o /dev/null -w "%{http_code}" http://localhost:4173/` is `200`.
 | `src/store/karin.ts` | Zustand store (data, selection, theme) |
 | `src/types.ts` | Shared TS types for the data model |
 | `bin/karin.py` | Python indexer: scans local Codex sessions → `data/*.json` |
+| `bin/karin_claude.py` | Python indexer: Claude Code transcripts → `data/claude-raw.json` |
+| `bin/karin_warp.py` | Python indexer: Warp's SQLite → `data/warp-raw.json` (see below) |
+| `src/lib/warpRaw.ts` | Warp feed types + `isWarpRawData` guard |
 | `karin.ps1` | Windows launcher (local deploy, or `-Dev` dev server) |
-| `vite.config.ts` | Build config; `--mode offline` = the local build |
+| `vite.config.ts` | Build config; `--mode offline` = the local build. **`DATA_FILES` is an allowlist — a new feed must be added there or it never reaches `dist/data/`.** |
 
 `data/` (generated) and `dist/` (built) are git-ignored — never commit them.
+
+## Warp source (DeepSeek v4-flash / v4-pro)
+
+Warp is the owner's terminal agent, running their own DeepSeek endpoint alongside Warp's
+built-in models. `bin/karin_warp.py` reads Warp's local SQLite — it **snapshots db+wal+shm
+to a temp dir and opens the copy read-only**, so Warp is never locked or written to.
+
+Tables: `agent_conversations` (per-model token totals, `agent_name`, run id),
+`ai_queries` (typed prompts, cwd, status), `agent_tasks` (a **protobuf BLOB** per task).
+
+**The protobuf has no shipped schema.** `decode_fields` walks the wire format generically.
+Field numbers were derived from live data and are the fragile part — a Warp update could
+move them. Inside a task, `f5` repeats one event: `f1` uuid, `f13` turn id, `f14` a
+`Timestamp`, and one payload field naming the kind — `f3` assistant, `f15` reasoning,
+`f4` tool call, `f5` tool result. **Tool identity is the payload's field number** (`f2`
+run_command, `f5` read_files, `f6` apply_file_diff, `f15` file_glob, `f30` task_report,
+`f35` spawn_subagent). Unnamed fields are preserved verbatim in each record's `tree` and
+surface in the Raw tab, so nothing is silently dropped. A `tool_result`'s field number does
+**not** mirror its call's — resolve the tool name via `call_id`, never from the result.
+
+Two facts that shape the UI, both deliberate:
+
+- **Warp mixes models in one conversation.** A primary agent (`v4-flash`/`v4-pro`) plus
+  small built-ins for tool summarization and terminal use. `model` is whichever is billed
+  under the `primary_agent` category; `models` lists everyone who spent tokens.
+- **Warp is not priced, on purpose.** It records one cumulative token scalar per model —
+  no input/output split — and the two bill at very different rates. `ratesForUnified`
+  returns `null` for warp, `attributeCycleUsage` gives warp cycles no usage bars, and the
+  detail header says "Not priced". Do **not** "fix" this by inventing a split ratio.
+
+The indexer emits **Codex-shaped arrays** (`Message`/`Tool`/`Reasoning`/`CodeEdit`) so
+`warpEntries` reuses the Codex flattener and the renderer needs no Warp item types. Keep it
+that way. Live updates: `karin_warp.py --watch` polls the sqlite mtime and rewrites the
+feed; the app re-fetches every 5s (`refreshLocalData`).
 
 ## Version rule (every material change)
 
