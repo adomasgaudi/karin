@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.95',
+    title: 'Depth reads as hierarchy',
+    summary: 'Higher layers of the JSON tree get bigger type, bolder keys and more air.',
+    detail:
+      'Every row used to be the same size, so the only cue for structure was indent — which makes a long feed read as one wall of text. The tree now steps four levels: the top layer is about a third larger with a bold key and a clear gap above it, and each level down shrinks back towards ordinary body text. Sizes are stated relative to the parent so nesting does not compound them, and the ladder lives in @adomas/json-tree, so Pepper gets it too.',
+  },
+  {
     version: 'v.94',
     title: 'Unhide all keys',
     summary: 'Settings gets a per-feed action that brings every hidden key back.',
