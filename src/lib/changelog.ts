@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.96',
+    title: 'Delete versus hide',
+    summary: 'Two removals: delete drops a key from your format, hide only tidies it out of the clean view.',
+    detail:
+      'Hiding used to mean one thing, and it meant too much: a key you merely wanted out of the way vanished as completely as one you had decided was not yours. They are now separate rules. Delete says the key is not part of your format — it is gone from every mapped view. Hide says it still belongs but is noise, so it leaves only the tidy view; schema gains its own clean/raw sub-pill to ask the same question of the structure. In the original column both stay on the page and show what you did: deleted keys struck through in red, hidden keys greyed, so an edit is legible where you made it rather than only as an absence in the other column.',
+  },
+  {
     version: 'v.95',
     title: 'Depth reads as hierarchy',
     summary: 'Higher layers of the JSON tree get bigger type, bolder keys and more air.',
