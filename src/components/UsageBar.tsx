@@ -21,6 +21,7 @@ export default function UsageBar({
   compact = false,
   showLegend = true,
   inlineLabels = false,
+  hideSegmentLabels = false,
   thin = false,
   scaleMax,
   estimated = false,
@@ -39,6 +40,9 @@ export default function UsageBar({
   thin?: boolean
   // Draw each segment's label + value inside the bar itself (no dot legend below).
   inlineLabels?: boolean
+  // Keep the inline-label bar HEIGHT but drop the per-segment text, so a caller can
+  // overlay its own summary on the bar (the sidebar rows do this).
+  hideSegmentLabels?: boolean
   // When set, segment widths are drawn relative to this value (the session-total bar)
   // instead of the bar's own total, so cycles are proportional to the top bar.
   scaleMax?: number
@@ -91,7 +95,7 @@ export default function UsageBar({
                 style={{ width: `${frac * 100}%`, ...(estimated ? { backgroundImage: hatch } : null) }}
                 title={`${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens${mode === 'money' && rates ? `; ${fmtCurrency(segment.value, currency)}` : mode === 'token_units' && rates ? `; ${fmtCompact(segment.value)}${refSuffix}` : ''}`}
               >
-                {inlineLabels && frac >= 0.07 && (
+                {inlineLabels && !hideSegmentLabels && frac >= 0.07 && (
                   <span className={`${compact ? 'px-1 text-[0.6rem]' : 'px-1.5 text-[0.68rem]'} font-medium leading-none text-white/95`}>
                     {segment.label} {fmtSeg(segment)}
                   </span>

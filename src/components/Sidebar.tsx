@@ -217,29 +217,35 @@ export default function Sidebar({ className }: SidebarProps) {
                         {s.title || s.id}
                       </span>
                     </div>
-                    {/* Date + cached tokens live in the session detail now; the list row
-                        stays lean with just total tokens + project. */}
-                    <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                      {sessionTotalLabel(s, rates, unitMode, currency, tokenRef, tokenMult)}{project ? ` / ${project}` : ''}
+                    {/* Cost, project and the turn counts ride ON the usage bar — as separate
+                        lines they took three rows to say what one row can. */}
+                    <div className="relative">
+                      <UsageBar
+                        usage={s.latest_total_usage || {}}
+                        rates={rates}
+                        mode={unitMode}
+                        currency={currency}
+                        tokenRef={tokenRef}
+                        tokenMult={tokenMult}
+                        compact
+                        inlineLabels
+                        hideSegmentLabels
+                        showLegend={false}
+                        scaleMax={scaleMax}
+                      />
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-between gap-2 px-1.5 text-[0.65rem] leading-none text-neutral-700 mix-blend-luminosity dark:text-neutral-200">
+                        <span className="truncate">
+                          {sessionTotalLabel(s, rates, unitMode, currency, tokenRef, tokenMult)}
+                          {project ? ` / ${project}` : ''}
+                        </span>
+                        <span
+                          className="shrink-0 tabular-nums"
+                          title={`${s.counts.user} user / ${s.counts.assistant} assistant / ${s.counts.tool_calls} tools / ${s.counts.code_edits} edits`}
+                        >
+                          {s.counts.user}·{s.counts.assistant}·{s.counts.tool_calls}·{s.counts.code_edits}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-neutral-500 dark:text-neutral-500">
-                      <span>{s.counts.user} user</span>
-                      <span>{s.counts.assistant} assistant</span>
-                      <span>{s.counts.tool_calls} tools</span>
-                      <span>{s.counts.code_edits} edits</span>
-                    </div>
-                    <UsageBar
-                      usage={s.latest_total_usage || {}}
-                      rates={rates}
-                      mode={unitMode}
-                      currency={currency}
-                      tokenRef={tokenRef}
-                      tokenMult={tokenMult}
-                      compact
-                      inlineLabels
-                      showLegend={false}
-                      scaleMax={scaleMax}
-                    />
                   </button>
                 </li>
               )
