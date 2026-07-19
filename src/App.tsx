@@ -6,7 +6,7 @@ import Sidebar from './components/Sidebar'
 import SessionDetail from './components/SessionDetail'
 import TimelinePage from './components/TimelinePage'
 import SummaryPage from './components/SummaryPage'
-import ChangelogButton from './components/ChangelogButton'
+import DevCorner from './components/DevCorner'
 import V2Page from './components/V2Page'
 import NavBar from './components/NavBar'
 
@@ -35,7 +35,7 @@ export default function App() {
     return (
       <>
         <V2Page />
-        <ChangelogButton />
+        <DevCorner />
       </>
     )
 
@@ -43,7 +43,7 @@ export default function App() {
     return (
       <>
         <Dropzone />
-        <ChangelogButton />
+        <DevCorner />
       </>
     )
 
@@ -70,7 +70,7 @@ export default function App() {
           )}
         </div>
       </div>
-      <ChangelogButton />
+      <DevCorner />
     </>
   )
 }

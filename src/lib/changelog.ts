@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.101',
+    title: 'The shared dev corner',
+    summary: 'Karin now renders the same bottom-right dev chip as Pepper — version history plus the CSS x-ray.',
+    detail:
+      'The changelog pill was Karin\'s own, and v.2 did not draw it at all: that page returns early, before the pill was mounted. Both are fixed by dropping the local button for @adomas/dev-tools, the portable corner Pepper already uses — one chip holding the edit tray, the CSS x-ray (box, padding, margin, inspect; Ctrl+F flips all four) and the version history, fed by this changelog. It lives in its own repo, so a fix there lands in every app rather than being reimplemented per site.',
+  },
+  {
     version: 'v.100',
     title: 'The viewer stops re-reading itself',
     summary: 'Compiled trees and stored schemas are cached, so a click no longer rebuilds every feed.',
