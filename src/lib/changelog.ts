@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'v.89',
+    title: 'Keys go neutral',
+    summary: 'Keys are grey in every palette — hue is reserved for the values that vary.',
+    detail:
+      'A key labels a row; it does not carry data. Colouring it competes with the values for attention and spends a hue on the one thing that looks the same on every line. Keys now use near-zero chroma and earn their prominence from contrast instead — darker than everything else on a light page, brighter on a dark one. The custom palette loses its key slider accordingly, since offering a control that barely does anything implies a choice that is not really there.',
+  },
+  {
+    version: 'v.89',
     title: 'Group keys into one object',
     summary: 'Schema view can fold sibling keys — three timestamps, say — under one named object.',
     detail:
