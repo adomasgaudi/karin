@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.100',
+    title: 'The viewer stops re-reading itself',
+    summary: 'Compiled trees and stored schemas are cached, so a click no longer rebuilds every feed.',
+    detail:
+      'Every render rebuilt the whole picture from scratch: each feed was re-compiled through your schema, its peek map re-derived, and all three schemas re-read and re-parsed out of localStorage — several times over, and twice again once the split pane was up. So opening the settings menu or dragging a hue slider paid for six full tree rebuilds. Schemas are now read once at mount, and compiled trees are cached per feed, mode and tidy setting.',
+  },
+  {
     version: 'v.99',
     title: 'One cog per key',
     summary: 'Row actions moved behind a hover cog, with a "visible on collapse" toggle inside.',
