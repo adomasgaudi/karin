@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Crosshair } from 'lucide-react'
+import { Crosshair } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { cn } from '../lib/cn'
 import type { Session, SessionSource, UnifiedSession, TokenUsage } from '../types'
@@ -479,16 +479,8 @@ export default function TimelinePage() {
   const visible = valued.filter((p) => p.end >= view.start && p.start <= view.end)
 
   return (
-    <div className="flex h-dvh flex-col bg-neutral-100 text-neutral-900 dark:bg-black dark:text-neutral-100">
+    <div className="flex h-full flex-col bg-neutral-100 text-neutral-900 dark:bg-black dark:text-neutral-100">
       <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-neutral-200 bg-white px-4 py-2.5 dark:border-neutral-800 dark:bg-neutral-950">
-        <button
-          type="button"
-          onClick={() => setView('sessions')}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Sessions
-        </button>
         <h1 className="text-base font-semibold tracking-tight">Timeline</h1>
         <span className="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">
           {fmtDayTime(view.start)} — {fmtDayTime(view.end)}

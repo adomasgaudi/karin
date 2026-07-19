@@ -8,6 +8,7 @@ import TimelinePage from './components/TimelinePage'
 import SummaryPage from './components/SummaryPage'
 import ChangelogButton from './components/ChangelogButton'
 import V2Page from './components/V2Page'
+import NavBar from './components/NavBar'
 
 export default function App() {
   const booting = useKarin((s) => s.booting)
@@ -38,30 +39,28 @@ export default function App() {
       </>
     )
 
-  if (view === 'timeline')
-    return (
-      <>
-        <TimelinePage />
-        <ChangelogButton />
-      </>
-    )
-
-  if (view === 'summary')
-    return (
-      <>
-        <SummaryPage />
-        <ChangelogButton />
-      </>
-    )
-
-  // Two-pane on md+. On mobile: show the list until a session is picked, then the detail.
+  // One sticky nav above every page; each page fills the rest of the viewport.
   return (
     <>
-      <div className="flex h-dvh flex-col bg-neutral-100 text-neutral-900 md:flex-row dark:bg-black dark:text-neutral-100">
-        <Sidebar className={cn('md:flex', selectedUid ? 'hidden md:flex' : 'flex')} />
-        <main className={cn('min-w-0 flex-1 flex-col overflow-hidden', selectedUid ? 'flex' : 'hidden md:flex')}>
-          <SessionDetail />
-        </main>
+      <div className="flex h-dvh flex-col bg-neutral-100 dark:bg-black">
+        <div className="sticky top-0 z-40">
+          <NavBar />
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {view === 'timeline' ? (
+            <TimelinePage />
+          ) : view === 'summary' ? (
+            <SummaryPage />
+          ) : (
+            // Two-pane on md+. On mobile: show the list until a session is picked, then the detail.
+            <div className="flex h-full flex-col text-neutral-900 md:flex-row dark:text-neutral-100">
+              <Sidebar className={cn('md:flex', selectedUid ? 'hidden md:flex' : 'flex')} />
+              <main className={cn('min-w-0 flex-1 flex-col overflow-hidden', selectedUid ? 'flex' : 'hidden md:flex')}>
+                <SessionDetail />
+              </main>
+            </div>
+          )}
+        </div>
       </div>
       <ChangelogButton />
     </>

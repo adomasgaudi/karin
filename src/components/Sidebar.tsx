@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
-import { CalendarClock, FileDown, ListChecks, Moon, Search, Settings, Sun, Upload } from 'lucide-react'
+import { FileDown, Moon, Search, Settings, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -27,6 +27,7 @@ import UsageBar from './UsageBar'
 import SourceFilter from './SourceFilter'
 import SourceBadge from './SourceBadge'
 import TurnDot from './TurnDot'
+import KarinLogo from './KarinLogo'
 
 interface SidebarProps {
   className?: string
@@ -91,7 +92,7 @@ export default function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex h-dvh w-full min-w-0 flex-col border-r border-neutral-200 bg-white md:w-[clamp(300px,30vw,430px)] dark:border-neutral-800 dark:bg-neutral-950',
+        'flex h-full w-full min-w-0 flex-col border-r border-neutral-200 bg-white md:w-[clamp(300px,30vw,430px)] dark:border-neutral-800 dark:bg-neutral-950',
         className,
       )}
     >
@@ -99,21 +100,7 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <svg viewBox="0 0 40 18" className="h-5 shrink-0" aria-hidden="true">
-                {/* frame arms */}
-                <line x1="0" y1="9" x2="3" y2="9" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
-                <line x1="37" y1="9" x2="40" y2="9" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
-                {/* left lens */}
-                <circle cx="10" cy="9" r="7" fill="none" stroke="#dc2626" strokeWidth="1.6" />
-                {/* left eye - fully red, no pupil, shaped for focused expression */}
-                <path d="M5 6.5 C5 6.5 10 5.5 15 6.5 C15 6.5 13 12.5 10 12.5 C7 12.5 5 6.5 5 6.5Z" fill="#dc2626" />
-                {/* right lens */}
-                <circle cx="30" cy="9" r="7" fill="none" stroke="#dc2626" strokeWidth="1.6" />
-                {/* right eye */}
-                <path d="M25 6.5 C25 6.5 30 5.5 35 6.5 C35 6.5 33 12.5 30 12.5 C27 12.5 25 6.5 25 6.5Z" fill="#dc2626" />
-                {/* bridge */}
-                <path d="M17 9 Q20 6 23 9" fill="none" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <KarinLogo />
               <span className="text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">Karin</span>
               <button
                 type="button"
@@ -129,17 +116,8 @@ export default function Sidebar({ className }: SidebarProps) {
               {sessions.length} sessions / generated <DateStamp value={generatedAt} />
             </p>
           </div>
-          {/* Nav bar: primary views sit inline; everything occasional lives behind ⚙. */}
+          {/* Pages live in the app nav bar; only occasional actions sit here, behind ⚙. */}
           <div className="flex min-w-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => useKarin.getState().setView('timeline')}
-              title="Day timeline — sessions as bars across the day"
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              <CalendarClock className="h-3.5 w-3.5" />
-              Timeline
-            </button>
             <div className="relative">
               <button
                 type="button"
@@ -154,18 +132,6 @@ export default function Sidebar({ className }: SidebarProps) {
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setSettingsOpen(false)} />
                   <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-md border border-neutral-200 bg-white p-1 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-950">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSettingsOpen(false)
-                        useKarin.getState().setView('summary')
-                      }}
-                      title="Summary — what happened across all sessions and where the effort went"
-                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
-                    >
-                      <ListChecks className="h-3.5 w-3.5" />
-                      Summary
-                    </button>
                     {/* AI exports: "gist" (~1–3 lines/session, clues only) is the primary; "full"
                         (every cycle, ~100× bigger) hangs off it as a small secondary. */}
                     <div className="flex items-stretch">

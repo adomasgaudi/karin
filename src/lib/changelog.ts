@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.81',
+    title: 'v2 gets logo and settings',
+    summary: 'The v.2 header carries the Karin glasses and a gear menu holding the theme toggle.',
+    detail:
+      'The glasses SVG was inline in the sidebar; it is now a shared KarinLogo component used by both versions so they cannot drift. v.2 gains the same gear popover pattern as v.1, but holding only what it currently has — the light/dark switch — and the page itself is now theme-aware rather than hard-coded black. A separate explainer, docs/how-karin-works.html, walks through the whole pipeline in plain language.',
+  },
+  {
     version: 'v.80',
     title: 'Nav bar and settings menu',
     summary: 'Timeline is the nav button; Summary, exports, Load and theme move into a ⚙ menu.',
