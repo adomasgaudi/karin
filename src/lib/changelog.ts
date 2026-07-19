@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.78',
+    title: 'Header toolbar wraps',
+    summary: 'The sidebar toolbar no longer overflows its pane — buttons wrap to a second row.',
+  },
+  {
     version: 'v.77',
     title: 'Karin v.2.0 shell',
     summary: 'Clicking the sidebar version opens a blank v.2.0 page; v.1 stays fully intact.',
