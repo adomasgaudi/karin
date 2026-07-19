@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.86',
+    title: 'Schema view, colours, reorder',
+    summary: 'A third viewer mode showing shape not payload, a palette setting, and drag-to-reorder keys.',
+    detail:
+      'The v.2 viewer gains a schema mode: every value replaced by its type, arrays merged into one representative element, so a 4000-entry feed reads as a page of structure. In that mode rows can be dragged to reorder keys, with the order kept outside the data as a path-to-keys map. A palette picker sits in the settings menu. All of it landed in @adomas/json-tree rather than in Karin — these are viewer features, not Karin features, so Pepper gets them too.',
+  },
+  {
     version: 'v.85',
     title: 'v.2 clean/raw toggle',
     summary: 'The raw-feed viewer gains a clean mode with readable Vilnius timestamps, and a raw mode.',

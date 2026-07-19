@@ -1,11 +1,11 @@
 {
   "name": "karin",
   "version": "0.1.0",
-  "displayVersion": "v.85",
+  "displayVersion": "v.86",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
-  "description": "Karin Ã¢â‚¬â€ local Codex session viewer. React 19 + Vite + TS + Tailwind v4. Load-your-own data; transcripts never leave your machine.",
+  "description": "Karin \u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u009d local Codex session viewer. React 19 + Vite + TS + Tailwind v4. Load-your-own data; transcripts never leave your machine.",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
