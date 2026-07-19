@@ -7,6 +7,7 @@ import SessionDetail from './components/SessionDetail'
 import TimelinePage from './components/TimelinePage'
 import SummaryPage from './components/SummaryPage'
 import ChangelogButton from './components/ChangelogButton'
+import V2Page from './components/V2Page'
 
 export default function App() {
   const booting = useKarin((s) => s.booting)
@@ -26,6 +27,8 @@ export default function App() {
       </div>
     )
   }
+
+  if (view === 'v2') return <V2Page />
 
   if (!hasData)
     return (

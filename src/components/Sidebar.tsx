@@ -95,8 +95,8 @@ export default function Sidebar({ className }: SidebarProps) {
       )}
     >
       <div className="shrink-0 border-b border-neutral-200/80 px-3 py-3 dark:border-neutral-800">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <div className="flex items-baseline gap-2">
               <svg viewBox="0 0 40 18" className="h-5 shrink-0" aria-hidden="true">
                 {/* frame arms */}
@@ -114,14 +114,21 @@ export default function Sidebar({ className }: SidebarProps) {
                 <path d="M17 9 Q20 6 23 9" fill="none" stroke="#dc2626" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
               <span className="text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">Karin</span>
-              <span className="text-xs font-medium text-neutral-400 dark:text-neutral-500">{APP_VERSION}</span>
+              <button
+                type="button"
+                onClick={() => useKarin.getState().setView('v2')}
+                title="Open Karin v.2.0 (work in progress)"
+                className="text-xs font-medium text-neutral-400 hover:text-neutral-900 dark:text-neutral-500 dark:hover:text-neutral-100"
+              >
+                {APP_VERSION}
+              </button>
             </div>
             <AgeIndicator value={latestPrompt} now={now} className="mt-0.5 text-base" />
             <p className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
               {sessions.length} sessions / generated <DateStamp value={generatedAt} />
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => useKarin.getState().setView('timeline')}

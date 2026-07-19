@@ -57,9 +57,63 @@ python @indexArgs
 python @claudeIndexArgs
 python @warpIndexArgs
 
+# Kill-on-close job object.
+#
+# The watchers and cloudflared are detached `Start-Process` children, but the server
+# (`pnpm dev` / `pnpm preview`) holds this console in the FOREGROUND. Close the window
+# instead of Ctrl+C and the server dies while the `finally` cleanup below never runs —
+# the background children orphan and keep rewriting data/ behind a dead server. The feeds
+# stay perfectly fresh, so it looks like tracking works while nothing is served.
+#
+# A Win32 job with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE ties them to THIS process: when the
+# launcher dies by any means, the last job handle closes and the OS terminates every child.
+Add-Type -Namespace Karin -Name Job -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+[DllImport("kernel32.dll", SetLastError=true)]
+public static extern bool SetInformationJobObject(IntPtr hJob, int infoClass, IntPtr lpInfo, uint cbInfo);
+[DllImport("kernel32.dll", SetLastError=true)]
+public static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+'@
+
+$script:KarinJob = [IntPtr]::Zero
+function Initialize-KarinJob {
+    if ($script:KarinJob -ne [IntPtr]::Zero) { return }
+    try {
+        $job = [Karin.Job]::CreateJobObject([IntPtr]::Zero, $null)
+        if ($job -eq [IntPtr]::Zero) { return }
+
+        # JOBOBJECT_EXTENDED_LIMIT_INFORMATION. LimitFlags sits at offset 16 (two
+        # LARGE_INTEGERs) on both 32- and 64-bit; only the total size differs.
+        $size = if ([IntPtr]::Size -eq 8) { 144 } else { 112 }
+        $ptr = [Runtime.InteropServices.Marshal]::AllocHGlobal($size)
+        try {
+            [Runtime.InteropServices.Marshal]::Copy((New-Object byte[] $size), 0, $ptr, $size)
+            [Runtime.InteropServices.Marshal]::WriteInt32($ptr, 16, 0x2000)  # KILL_ON_JOB_CLOSE
+            if ([Karin.Job]::SetInformationJobObject($job, 9, $ptr, $size)) {
+                $script:KarinJob = $job
+            }
+        } finally {
+            [Runtime.InteropServices.Marshal]::FreeHGlobal($ptr)
+        }
+    } catch {
+        Write-Warning "Could not create the kill-on-close job ($($_.Exception.Message)); background helpers may outlive this window."
+    }
+}
+
+function Add-KarinJobChild($Proc) {
+    if ($null -eq $Proc -or $script:KarinJob -eq [IntPtr]::Zero) { return }
+    try {
+        [void][Karin.Job]::AssignProcessToJobObject($script:KarinJob, $Proc.Handle)
+    } catch {
+        Write-Warning "Could not bind PID $($Proc.Id) to the kill-on-close job."
+    }
+}
+
 function Start-KarinWatcher {
     $logDir = Join-Path $KarinHome "data"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    Initialize-KarinJob
 
     # Start-Process joins an -ArgumentList ARRAY with spaces and does NOT quote the
     # elements, so a script path containing a space (this repo lives under "Meta apps")
@@ -74,6 +128,7 @@ function Start-KarinWatcher {
     # Warp watcher polls warp.sqlite's mtime; a rewrite of data/warp-raw.json is what makes
     # a running DeepSeek agent show up live in the browser (the app re-fetches every 5s).
     $warp = Start-Process -FilePath "python" -ArgumentList $warpWatchArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir "warp-watch.log") -RedirectStandardError (Join-Path $logDir "warp-watch.err.log") -PassThru
+    foreach ($p in @($codex, $claude, $warp)) { Add-KarinJobChild $p }
     return @($codex, $claude, $warp)
 }
 
@@ -109,7 +164,9 @@ function Start-KarinTunnel($Port) {
     foreach ($f in @($outLog, $errLog)) { if (Test-Path $f) { Remove-Item $f -Force } }
 
     $tunArgs = @("tunnel", "--no-autoupdate", "--url", "http://localhost:$Port")
+    Initialize-KarinJob
     $proc = Start-Process -FilePath $cf -ArgumentList $tunArgs -WorkingDirectory $KarinHome -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
+    Add-KarinJobChild $proc
 
     # cloudflared prints the public URL within a few seconds - poll both logs for it.
     $publicUrl = $null
