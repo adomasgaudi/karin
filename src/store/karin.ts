@@ -10,7 +10,7 @@ import { mergeSessions } from '../lib/adapt'
 
 type Theme = 'light' | 'dark'
 export type SourceFilter = 'all' | 'codex' | 'claude' | 'warp'
-export type View = 'sessions' | 'timeline' | 'summary'
+export type View = 'sessions' | 'timeline' | 'summary' | 'v2'
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem('karin-theme')

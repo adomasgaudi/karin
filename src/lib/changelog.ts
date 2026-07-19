@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.77',
+    title: 'Karin v.2.0 shell',
+    summary: 'Clicking the sidebar version opens a blank v.2.0 page; v.1 stays fully intact.',
+    detail:
+      'A parallel rebuild starts here. The existing session UI was informative-per-pixel but overwhelming, so rather than refactor it in place, v.2 gets its own view (`view === "v2"`) and its own root component — currently an empty black page with a back link. Both versions run side by side so they can be compared before anything is retired.',
+  },
+  {
+    version: 'v.76',
+    title: 'Watchers die with the launcher',
+    summary: 'Closing the launcher window no longer leaves indexers running behind a dead server.',
+    detail:
+      'The server holds the launcher console in the foreground, but the watchers and cloudflared were detached background processes cleaned up only by a `finally` block — which never runs if the window is closed rather than Ctrl+C’d. The result was a silent split brain: the indexers kept rewriting data/ every few seconds while nothing served the page, so the feeds looked perfectly current and the tunnel 502’d. They are now bound to a Win32 job object with KILL_ON_JOB_CLOSE, so the OS terminates every child — and their grandchildren — whenever the launcher dies, by any means.',
+  },
+  {
     version: 'v.75',
     title: 'Warp + DeepSeek sessions',
     summary: 'Third source: Warp terminal agents, including v4-flash and v4-pro runs on your own API keys.',
