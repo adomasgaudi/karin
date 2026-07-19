@@ -1,10 +1,15 @@
 @import 'tailwindcss';
 
+/* The shared JSON viewer lives in its own repo; Tailwind must be told to scan it. */
+@source '../node_modules/@adomas/json-tree/src';
+
 /* Tailwind v4 class-based dark mode: toggled by adding `.dark` on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   color-scheme: light;
+  /* Key colour the shared JsonTree paints object keys with. */
+  --accent-text: #b45309;
 }
 html.dark {
   color-scheme: dark;

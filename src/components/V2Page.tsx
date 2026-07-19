@@ -1,16 +1,36 @@
 import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Settings, Sun } from 'lucide-react'
+import { JsonTree, type Json } from '@adomas/json-tree'
 import { useKarin } from '../store/karin'
 import KarinLogo from './KarinLogo'
 
-// Karin v.2.0 — deliberately near-blank. The v1 sessions UI stays untouched at
-// view === 'sessions'; this is the parallel rebuild surface to fill in.
+// Karin v.2.0 — starts from the raw feeds themselves. v.1 renders a heavily
+// interpreted view (cycles, attributed usage, pricing); v.2 begins at the other
+// end, showing exactly what the indexers wrote, and will earn its abstractions
+// one at a time. The viewer is @adomas/json-tree, the SAME package Pepper uses —
+// it lives in its own repo, so a change there lands in both apps.
+
+type FeedKey = 'codex' | 'claude' | 'warp'
+const FEEDS: { key: FeedKey; label: string; file: string }[] = [
+  { key: 'codex', label: 'Codex', file: 'karin-data.json' },
+  { key: 'claude', label: 'Claude', file: 'claude-raw.json' },
+  { key: 'warp', label: 'Warp', file: 'warp-raw.json' },
+]
+
 export default function V2Page() {
   const setView = useKarin((s) => s.setView)
   const theme = useKarin((s) => s.theme)
   const toggleTheme = useKarin((s) => s.toggleTheme)
+  // Selected one at a time: a selector returning a fresh object re-renders on every store tick.
+  const codex = useKarin((s) => s.codex)
+  const claude = useKarin((s) => s.claude)
+  const warp = useKarin((s) => s.warp)
+  const feeds = { codex, claude, warp }
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [active, setActive] = useState<FeedKey>('codex')
+
+  const value = feeds[active] as Json | null
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -26,6 +46,27 @@ export default function V2Page() {
         >
           v.2.0
         </button>
+
+        <div className="ml-4 flex items-center gap-1">
+          {FEEDS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setActive(f.key)}
+              disabled={feeds[f.key] == null}
+              title={`data/${f.file}`}
+              className={
+                'rounded-md border px-2 py-1 text-xs disabled:opacity-30 ' +
+                (active === f.key
+                  ? 'border-neutral-400 bg-neutral-100 text-neutral-900 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100'
+                  : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900')
+              }
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div className="relative ml-auto">
           <button
             type="button"
@@ -57,7 +98,16 @@ export default function V2Page() {
           )}
         </div>
       </header>
-      <main className="flex-1" />
+
+      <main className="min-h-0 flex-1 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed">
+        {value == null ? (
+          <p className="text-neutral-500">
+            No {FEEDS.find((f) => f.key === active)?.label} feed loaded — run the indexer for it.
+          </p>
+        ) : (
+          <JsonTree value={value} openDepth={2} />
+        )}
+      </main>
     </div>
   )
 }
