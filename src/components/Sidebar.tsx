@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
-import { CalendarClock, FileDown, ListChecks, Moon, Search, Sun, Upload } from 'lucide-react'
+import { CalendarClock, FileDown, ListChecks, Moon, Search, Settings, Sun, Upload } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -67,6 +67,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const subDivisors = useKarin((s) => s.subDivisors)
   const setSubDivisor = useKarin((s) => s.setSubDivisor)
   const [priceInfoOpen, setPriceInfoOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -128,69 +129,93 @@ export default function Sidebar({ className }: SidebarProps) {
               {sessions.length} sessions / generated <DateStamp value={generatedAt} />
             </p>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {/* Nav bar: primary views sit inline; everything occasional lives behind ⚙. */}
+          <div className="flex min-w-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => useKarin.getState().setView('timeline')}
               title="Day timeline — sessions as bars across the day"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               <CalendarClock className="h-3.5 w-3.5" />
               Timeline
             </button>
-            <button
-              type="button"
-              onClick={() => useKarin.getState().setView('summary')}
-              title="Summary — what happened across all sessions and where the effort went"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              <ListChecks className="h-3.5 w-3.5" />
-              Summary
-            </button>
-            {/* AI exports: "gist" (~1–3 lines/session, clues only) is the primary; "full"
-                (every cycle, ~100× bigger) hangs off it as a small secondary. */}
-            <div className="inline-flex h-8 items-stretch overflow-hidden rounded-md border border-neutral-200 bg-white text-xs text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => downloadGistExport(useKarin.getState().sessions)}
-                disabled={sessions.length === 0}
-                title="Download an ultra-compact gist of ALL sessions (~1–3 lines each) — just enough clues for another AI to summarize what happened"
-                className="inline-flex items-center gap-1.5 px-2 hover:bg-neutral-50 disabled:opacity-40 dark:hover:bg-neutral-800"
+                onClick={() => setSettingsOpen((o) => !o)}
+                aria-label="Settings"
+                title="Summary, exports, load, theme"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
               >
-                <FileDown className="h-3.5 w-3.5" />
-                AI gist
+                <Settings className="h-3.5 w-3.5" />
               </button>
-              <button
-                type="button"
-                onClick={() => downloadAiExport(useKarin.getState().sessions)}
-                disabled={sessions.length === 0}
-                title="Download the FULL digest — every prompt cycle with tools, files and reply excerpts (much larger)"
-                className="border-l border-neutral-200 px-1.5 text-[0.68rem] text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-800 dark:hover:bg-neutral-800"
-              >
-                full
-              </button>
+              {settingsOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setSettingsOpen(false)} />
+                  <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-md border border-neutral-200 bg-white p-1 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-950">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettingsOpen(false)
+                        useKarin.getState().setView('summary')
+                      }}
+                      title="Summary — what happened across all sessions and where the effort went"
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
+                    >
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Summary
+                    </button>
+                    {/* AI exports: "gist" (~1–3 lines/session, clues only) is the primary; "full"
+                        (every cycle, ~100× bigger) hangs off it as a small secondary. */}
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => downloadGistExport(useKarin.getState().sessions)}
+                        disabled={sessions.length === 0}
+                        title="Download an ultra-compact gist of ALL sessions (~1–3 lines each) — just enough clues for another AI to summarize what happened"
+                        className="flex flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-900"
+                      >
+                        <FileDown className="h-3.5 w-3.5" />
+                        AI gist
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadAiExport(useKarin.getState().sessions)}
+                        disabled={sessions.length === 0}
+                        title="Download the FULL digest — every prompt cycle with tools, files and reply excerpts (much larger)"
+                        className="rounded px-2 py-1.5 text-[0.68rem] text-neutral-500 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-900"
+                      >
+                        full
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettingsOpen(false)
+                        useKarin.getState().reset()
+                      }}
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Load
+                    </button>
+                    <div className="flex items-center gap-1.5 px-2 py-1.5">
+                      <Sun className="h-3.5 w-3.5 text-neutral-400" />
+                      <Switch.Root
+                        aria-label="Toggle dark mode"
+                        checked={theme === 'dark'}
+                        onCheckedChange={() => toggleTheme()}
+                        className="relative h-5 w-9 rounded-md bg-neutral-200 outline-none data-[state=checked]:bg-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:bg-neutral-200"
+                      >
+                        <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-sm bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px] dark:bg-neutral-950" />
+                      </Switch.Root>
+                      <Moon className="h-3.5 w-3.5 text-neutral-400" />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => useKarin.getState().reset()}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Load
-            </button>
-            <div className="flex items-center gap-1.5">
-              <Sun className="h-3.5 w-3.5 text-neutral-400" />
-              <Switch.Root
-                aria-label="Toggle dark mode"
-                checked={theme === 'dark'}
-                onCheckedChange={() => toggleTheme()}
-                className="relative h-5 w-9 rounded-md bg-neutral-200 outline-none data-[state=checked]:bg-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:bg-neutral-200"
-              >
-                <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-sm bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px] dark:bg-neutral-950" />
-              </Switch.Root>
-              <Moon className="h-3.5 w-3.5 text-neutral-400" />
-            </div>
-            <SourceFilter />
           </div>
         </div>
 
@@ -205,8 +230,8 @@ export default function Sidebar({ className }: SidebarProps) {
           />
         </label>
 
-        <div className="relative mt-2 flex items-center gap-2">
-          <span className="shrink-0 text-[0.68rem] text-neutral-400 dark:text-neutral-500">units</span>
+        {/* Units + source filter share one compact row. */}
+        <div className="relative mt-2 flex items-center gap-1">
           <button
             type="button"
             onClick={() => setUnitMode(unitModes[(unitModes.indexOf(unitMode) + 1) % unitModes.length])}
@@ -292,6 +317,9 @@ export default function Sidebar({ className }: SidebarProps) {
               posClass="left-0 right-0 top-full"
             />
           )}
+          <div className="ml-auto min-w-0">
+            <SourceFilter />
+          </div>
         </div>
       </div>
 
