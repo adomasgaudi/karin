@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.99',
+    title: 'One cog per key',
+    summary: 'Row actions moved behind a hover cog, with a "visible on collapse" toggle inside.',
+    detail:
+      'Hovering a key in the v.2 JSON tree used to trail five words after it — rename, group, peek, hide, delete — which competed with the data for attention on every row. Now a single ⚙ appears on hover and opens a small menu holding all of them. Peek is spelled out as "visible on collapse", a checkmarked toggle: it decides which keys stand in for an object when it is folded, instead of the tree guessing.',
+  },
+  {
     version: 'v.98',
     title: 'Each pane, its own view',
     summary: 'On a wide screen the two JSON panes carry separate clean/raw/schema and mapped/original controls.',
