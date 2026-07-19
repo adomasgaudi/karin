@@ -29,7 +29,15 @@ export default function App() {
     )
   }
 
-  if (view === 'v2') return <V2Page />
+  // v.2 gets the same floating changelog pill as every other view — it was the
+  // one page that returned early and so lost it.
+  if (view === 'v2')
+    return (
+      <>
+        <V2Page />
+        <ChangelogButton />
+      </>
+    )
 
   if (!hasData)
     return (
