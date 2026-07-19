@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.105',
+    title: 'v.2 becomes a file viewer',
+    summary: 'Original and mapped are no longer a toggle — they are separate JSON cards, each labelled with its file path.',
+    detail:
+      'The original/mapped pill and the side-by-side split are gone. v.2 now scrolls one flat list of documents: for every loaded feed, the file as it comes and the same feed read through your schema, each as its own card headed by a name and, in smaller grey text beside it, the path it was read from. Mapped is just more JSON, not a different way of looking at the same JSON. The clean/raw/schema pill still drives every card at once.',
+  },
+  {
     version: 'v.104',
     title: 'Row actions become icons',
     summary: 'A bigger cog, five icons instead of five sentences, and "visible on collapse" can finally be turned off.',
