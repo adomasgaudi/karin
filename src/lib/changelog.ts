@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.85',
+    title: 'v.2 clean/raw toggle',
+    summary: 'The raw-feed viewer gains a clean mode with readable Vilnius timestamps, and a raw mode.',
+    detail:
+      'v.2 showed ISO timestamps exactly as the indexers wrote them — precise, unreadable. A clean/raw switch now sits in the nav. Clean walks a copy of the feed and rewrites only date-like values to Vilnius day + time without seconds; epoch numbers under time-ish keys get the same treatment. Raw is byte-for-byte what is on disk. Both go through the same JsonTree, so collapse/expand and the big-array paging guards are identical, and the JSON on disk is never touched.',
+  },
+  {
     version: 'v.84',
     title: 'One shared nav, denser chrome',
     summary: 'Brand, pages and settings live in one half-height nav bar shared by v.1 and v.2.',

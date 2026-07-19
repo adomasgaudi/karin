@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Settings, Sun } from 'lucide-react'
 import { JsonTree, type Json } from '@adomas/json-tree'
 import { useKarin } from '../store/karin'
 import { NavBarShell } from './NavBar'
+import { prettifyJson } from '../lib/prettyJson'
 
 // Karin v.2.0 — starts from the raw feeds themselves. v.1 renders a heavily
 // interpreted view (cycles, attributed usage, pricing); v.2 begins at the other
@@ -29,8 +30,16 @@ export default function V2Page() {
   const feeds = { codex, claude, warp }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [active, setActive] = useState<FeedKey>('codex')
+  // 'raw' = byte-for-byte what the indexer wrote. 'clean' = the same tree with
+  // timestamps rewritten to Vilnius day+time. Same JsonTree either way, so
+  // collapse/expand and the big-array paging guards apply to both.
+  const [mode, setMode] = useState<'clean' | 'raw'>('clean')
 
-  const value = feeds[active] as Json | null
+  const raw = feeds[active] as Json | null
+  const value = useMemo(
+    () => (raw == null || mode === 'raw' ? raw : prettifyJson(raw)),
+    [raw, mode],
+  )
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -43,7 +52,25 @@ export default function V2Page() {
         onVersionClick={() => setView('sessions')}
         versionTitle="Back to Karin v.1"
         right={
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
+              {(['clean', 'raw'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  title={m === 'clean' ? 'Dates shown as Vilnius day + time' : 'Exactly as written on disk'}
+                  className={`rounded px-1.5 py-0.5 ${
+                    mode === m
+                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
             <button
               type="button"
               onClick={() => setSettingsOpen((o) => !o)}
@@ -72,6 +99,7 @@ export default function V2Page() {
                 </div>
               </>
             )}
+            </div>
           </div>
         }
       />
