@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.80',
+    title: 'Nav bar and settings menu',
+    summary: 'Timeline is the nav button; Summary, exports, Load and theme move into a ⚙ menu.',
+    detail:
+      'The sidebar header row held six controls side by side and overflowed the pane. Only Timeline is a real navigation destination, so it stays inline; Summary, the AI gist/full exports, Load and the dark-mode switch are occasional and now live behind a single gear popover. The units controls lost their "units" label and share one tighter row with the All/Codex/Claude/Warp source filter, which is right-aligned there instead of competing for space in the header.',
+  },
+  {
     version: 'v.79',
     title: 'Version label toggles v1v2',
     summary: 'The v.2.0 label is itself the way back to v.1 — the separate back button is gone.',
