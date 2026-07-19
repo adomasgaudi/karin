@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.106',
+    title: 'The cog menu stays clickable',
+    summary: 'In v.2, the next row’s settings cog sat over the open menu and swallowed the delete button.',
+    detail:
+      'Each row’s cog wrapper carried a z-index, which makes a stacking context — so the menu’s own higher z-index only ranked among its siblings inside that wrapper, not against the rest of the tree. The cog one row down, identical z-index but later in the document, therefore painted on top and took the clicks meant for delete. The wrapper now lifts itself while its menu is open.',
+  },
+  {
     version: 'v.105',
     title: 'v.2 becomes a file viewer',
     summary: 'Original and mapped are no longer a toggle — they are separate JSON cards, each labelled with its file path.',
