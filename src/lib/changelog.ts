@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.93',
+    title: 'Unhide all keys',
+    summary: 'Settings gets a per-feed action that brings every hidden key back.',
+    detail:
+      'Hiding is the one edit that removes something, which makes it the one you can get stuck behind: a key you hid is no longer on screen to unhide from. Settings now offers "Unhide all <feed> keys" whenever that feed has any hide rule. It clears only the hide rules — your order, renames and groups survive, unlike the full schema reset sitting beneath it, which would undo work you never asked to lose.',
+  },
+  {
+    version: 'v.93',
+    title: 'All feeds at once, side by side',
+    summary: 'Feed tabs are gone, mapped is the default, and a wide screen shows original beside mapped.',
+    detail:
+      'The feed tabs hid two thirds of what you had and made comparing Codex against Claude a navigation act. All three now sit on the page as collapsed branches you open when you want them, each keeping its own schema. Mapped is the default, since your format is what you came to read; on a screen wide enough — iPad and up — choosing it shows the original in a second column, so an edit can be checked against the feed it came from without toggling back and forth. Narrow screens keep mapped alone, because two columns of JSON on a phone is two unreadable columns. The original is never editable: it is the record on disk, and every edit belongs to your mapped copy.',
+  },
+  {
     version: 'v.92',
     title: 'Grouping is schema-only',
     summary: 'The group action now appears only in schema view, not in clean or raw.',

@@ -1,7 +1,7 @@
 {
   "name": "karin",
   "version": "0.1.0",
-  "displayVersion": "v.92",
+  "displayVersion": "v.93",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
