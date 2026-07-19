@@ -8,8 +8,6 @@
 
 :root {
   color-scheme: light;
-  /* Key colour the shared JsonTree paints object keys with. */
-  --accent-text: #b45309;
 }
 html.dark {
   color-scheme: dark;

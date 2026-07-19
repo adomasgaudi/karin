@@ -1,11 +1,8 @@
 import { useState } from 'react'
-import * as Switch from '@radix-ui/react-switch'
-import { FileDown, Moon, Search, Settings, Sun, Upload } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
 import { cn } from '../lib/cn'
-import { APP_VERSION } from '../lib/appVersion'
-import { downloadAiExport, downloadGistExport } from '../lib/aiExport'
 import {
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
@@ -20,14 +17,11 @@ import {
   unitModes,
   usageUnitTotal,
 } from '../lib/pricing'
-import AgeIndicator, { useLiveNow } from './AgeIndicator'
-import DateStamp from './DateStamp'
 import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
-import SourceFilter from './SourceFilter'
+import SourceCycle from './SourceCycle'
 import SourceBadge from './SourceBadge'
 import TurnDot from './TurnDot'
-import KarinLogo from './KarinLogo'
 
 interface SidebarProps {
   className?: string
@@ -45,14 +39,10 @@ function projectLabel(cwd: string | null, slug: string | null): string | null {
 
 export default function Sidebar({ className }: SidebarProps) {
   const sessions = useKarin((s) => s.sessions)
-  const generatedAt = useKarin((s) => s.generatedAt)
   const selectedUid = useKarin((s) => s.selectedUid)
   const search = useKarin((s) => s.search)
   const setSearch = useKarin((s) => s.setSearch)
   const sourceFilter = useKarin((s) => s.sourceFilter)
-  const theme = useKarin((s) => s.theme)
-  const toggleTheme = useKarin((s) => s.toggleTheme)
-  const now = useLiveNow()
   // Global usage-unit toggle (shared with the session detail) so it re-expresses
   // every token display at once, not just this pane's bars.
   const unitMode = useKarin((s) => s.unitMode)
@@ -68,7 +58,6 @@ export default function Sidebar({ className }: SidebarProps) {
   const subDivisors = useKarin((s) => s.subDivisors)
   const setSubDivisor = useKarin((s) => s.setSubDivisor)
   const [priceInfoOpen, setPriceInfoOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -83,11 +72,6 @@ export default function Sidebar({ className }: SidebarProps) {
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
-  // Newest prompt across ALL sessions (both sources) — "minutes since last prompt".
-  const latestPrompt = sessions.reduce<string | null>(
-    (max, s) => (s.updated_at && (!max || s.updated_at > max) ? s.updated_at : max),
-    null,
-  )
 
   return (
     <aside
@@ -96,97 +80,11 @@ export default function Sidebar({ className }: SidebarProps) {
         className,
       )}
     >
-      <div className="shrink-0 border-b border-neutral-200/80 px-3 py-3 dark:border-neutral-800">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <KarinLogo />
-              <span className="text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">Karin</span>
-              <button
-                type="button"
-                onClick={() => useKarin.getState().setView('v2')}
-                title="Open Karin v.2.0 (work in progress)"
-                className="text-xs font-medium text-neutral-400 hover:text-neutral-900 dark:text-neutral-500 dark:hover:text-neutral-100"
-              >
-                {APP_VERSION}
-              </button>
-            </div>
-            <AgeIndicator value={latestPrompt} now={now} className="mt-0.5 text-base" />
-            <p className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
-              {sessions.length} sessions / generated <DateStamp value={generatedAt} />
-            </p>
-          </div>
-          {/* Pages live in the app nav bar; only occasional actions sit here, behind ⚙. */}
-          <div className="flex min-w-0 items-center gap-1.5">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSettingsOpen((o) => !o)}
-                aria-label="Settings"
-                title="Summary, exports, load, theme"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </button>
-              {settingsOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setSettingsOpen(false)} />
-                  <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-md border border-neutral-200 bg-white p-1 text-xs shadow-lg dark:border-neutral-800 dark:bg-neutral-950">
-                    {/* AI exports: "gist" (~1–3 lines/session, clues only) is the primary; "full"
-                        (every cycle, ~100× bigger) hangs off it as a small secondary. */}
-                    <div className="flex items-stretch">
-                      <button
-                        type="button"
-                        onClick={() => downloadGistExport(useKarin.getState().sessions)}
-                        disabled={sessions.length === 0}
-                        title="Download an ultra-compact gist of ALL sessions (~1–3 lines each) — just enough clues for another AI to summarize what happened"
-                        className="flex flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-900"
-                      >
-                        <FileDown className="h-3.5 w-3.5" />
-                        AI gist
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadAiExport(useKarin.getState().sessions)}
-                        disabled={sessions.length === 0}
-                        title="Download the FULL digest — every prompt cycle with tools, files and reply excerpts (much larger)"
-                        className="rounded px-2 py-1.5 text-[0.68rem] text-neutral-500 hover:bg-neutral-100 disabled:opacity-40 dark:hover:bg-neutral-900"
-                      >
-                        full
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSettingsOpen(false)
-                        useKarin.getState().reset()
-                      }}
-                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      Load
-                    </button>
-                    <div className="flex items-center gap-1.5 px-2 py-1.5">
-                      <Sun className="h-3.5 w-3.5 text-neutral-400" />
-                      <Switch.Root
-                        aria-label="Toggle dark mode"
-                        checked={theme === 'dark'}
-                        onCheckedChange={() => toggleTheme()}
-                        className="relative h-5 w-9 rounded-md bg-neutral-200 outline-none data-[state=checked]:bg-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:bg-neutral-200"
-                      >
-                        <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-sm bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px] dark:bg-neutral-950" />
-                      </Switch.Root>
-                      <Moon className="h-3.5 w-3.5 text-neutral-400" />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <label className="mt-3 flex h-9 items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-sm text-neutral-500 focus-within:border-neutral-400 focus-within:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:focus-within:border-neutral-600 dark:focus-within:bg-neutral-950">
-          <Search className="h-4 w-4 shrink-0" />
+      <div className="shrink-0 border-b border-neutral-200/80 px-2 py-1.5 dark:border-neutral-800">
+        {/* Search, units and the source toggle share one row — brand and pages moved to the nav bar. */}
+        <div className="relative flex items-center gap-1.5">
+        <label className="flex h-7 flex-1 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 text-sm text-neutral-500 focus-within:border-neutral-400 focus-within:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:focus-within:border-neutral-600 dark:focus-within:bg-neutral-950">
+          <Search className="h-3.5 w-3.5 shrink-0" />
           <input
             type="text"
             value={search}
@@ -196,13 +94,14 @@ export default function Sidebar({ className }: SidebarProps) {
           />
         </label>
 
-        {/* Units + source filter share one compact row. */}
-        <div className="relative mt-2 flex items-center gap-1">
+          {/* Every unit control reads as ONE pill ("money · € · plan") — separate borders
+              made three independent-looking widgets out of one setting. */}
+          <div className="inline-flex shrink-0 items-center divide-x divide-neutral-200 rounded-md border border-neutral-200 bg-neutral-50 text-[0.65rem] dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
           <button
             type="button"
             onClick={() => setUnitMode(unitModes[(unitModes.indexOf(unitMode) + 1) % unitModes.length])}
             title="Cycle usage unit: tokens → token units → money"
-            className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            className="shrink-0 px-1.5 py-0.5 font-medium text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-800"
           >
             {UNIT_MODE_LABELS[unitMode]}
           </button>
@@ -212,14 +111,14 @@ export default function Sidebar({ className }: SidebarProps) {
               type="button"
               onClick={() => setTokenRef(tokenUnitRefs[(tokenUnitRefs.indexOf(tokenRef) + 1) % tokenUnitRefs.length])}
               title="Reference token type: every segment is shown as the equivalent number of these tokens"
-              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="shrink-0 px-1.5 py-0.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {TOKEN_UNIT_REF_LABELS[tokenRef]}
             </button>
           )}
           {/* scaled ref → ± multiplier stepper. */}
           {unitMode === 'token_units' && tokenRef === 'scaled' && (
-            <div className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-medium text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+            <div className="inline-flex shrink-0 items-center font-medium text-neutral-700 dark:text-neutral-300">
               <button
                 type="button"
                 onClick={() => setTokenMult(stepTokenMult(tokenMult, -1))}
@@ -243,7 +142,7 @@ export default function Sidebar({ className }: SidebarProps) {
             <button
               type="button"
               onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
-              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="shrink-0 px-1.5 py-0.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {CURRENCY_LABELS[currency]}
             </button>
@@ -254,7 +153,7 @@ export default function Sidebar({ className }: SidebarProps) {
               type="button"
               onClick={() => setPriceBasis(priceBasisModes[(priceBasisModes.indexOf(priceBasis) + 1) % priceBasisModes.length])}
               title="Which price: API list (theoretical) vs plan estimate (subscription)"
-              className="shrink-0 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[0.68rem] font-medium text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+              className="shrink-0 px-1.5 py-0.5 font-medium text-neutral-800 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-800"
             >
               {PRICE_BASIS_LABELS[priceBasis]}
             </button>
@@ -266,11 +165,13 @@ export default function Sidebar({ className }: SidebarProps) {
               onClick={() => setPriceInfoOpen((o) => !o)}
               aria-label="How this price is computed"
               title="How this price is computed — per-plan divisors, source"
-              className="inline-flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 text-[0.68rem] font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="inline-flex shrink-0 items-center justify-center px-1.5 py-0.5 font-semibold text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               ?
             </button>
           )}
+          </div>
+          <SourceCycle />
           {/* Panel spans the whole toolbar row (its `relative` ancestor), not the tiny "?"
               button, so its fixed width can't overflow the window's left edge. */}
           {unitMode === 'money' && priceInfoOpen && (
@@ -283,9 +184,6 @@ export default function Sidebar({ className }: SidebarProps) {
               posClass="left-0 right-0 top-full"
             />
           )}
-          <div className="ml-auto min-w-0">
-            <SourceFilter />
-          </div>
         </div>
       </div>
 

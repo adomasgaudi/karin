@@ -27,7 +27,7 @@ function initialSourceFilter(): SourceFilter {
 // session detail, cycles) so switching it re-expresses all instances at once.
 function initialUnitMode(): UsageUnitMode {
   const saved = localStorage.getItem('karin-unit')
-  return saved === 'tokens' || saved === 'token_units' || saved === 'money' ? saved : 'token_units'
+  return saved === 'tokens' || saved === 'token_units' || saved === 'money' ? saved : 'money'
 }
 
 // Which token type token_units mode normalizes against (independent of currency).
@@ -44,7 +44,7 @@ function initialTokenMult(): number {
 
 function initialCurrency(): CurrencyMode {
   const saved = localStorage.getItem('karin-currency')
-  return saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents' ? saved : 'usd'
+  return saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents' ? saved : 'eur'
 }
 
 // Which price the money mode shows: theoretical API list price, or the subscription
