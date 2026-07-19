@@ -8,15 +8,16 @@ export default function V2Page() {
   return (
     <div className="flex h-dvh flex-col bg-black text-neutral-100">
       <header className="flex items-center gap-3 border-b border-neutral-900 px-4 py-3">
+        <span className="text-sm font-semibold tracking-tight">Karin</span>
+        {/* The version label is the toggle both ways — click it to drop back to v.1. */}
         <button
           type="button"
           onClick={() => setView('sessions')}
-          className="rounded-md border border-neutral-800 px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-900"
+          title="Back to Karin v.1"
+          className="text-xs text-neutral-500 hover:text-neutral-100"
         >
-          ← v.1
+          v.2.0
         </button>
-        <span className="text-sm font-semibold tracking-tight">Karin</span>
-        <span className="text-xs text-neutral-500">v.2.0</span>
       </header>
       <main className="flex-1" />
     </div>
