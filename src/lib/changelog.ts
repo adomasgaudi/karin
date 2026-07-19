@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.84',
+    title: 'One shared nav, denser chrome',
+    summary: 'Brand, pages and settings live in one half-height nav bar shared by v.1 and v.2.',
+    detail:
+      'The nav bar now carries the logo, version toggle, page tabs and the settings gear, at half the previous padding, sized to fit a phone without wrapping or scrolling. NavBarShell is the scaffold both Karin versions render — v.2 passes its feed tabs and its own settings, so the chrome cannot drift. The sidebar keeps one row: a shorter search field, every unit control fused into a single "money · € · plan" pill, and the four source buttons replaced by one cycling All/Codex/Claude/Warp toggle. The "N sessions / generated" line is gone, freshness moved next to the gear, and each list row folds its cost, project and turn counts onto the usage bar itself. Money in euros is now the default.',
+  },
+  {
     version: 'v.83',
     title: 'v2 shows the raw feeds',
     summary: 'v.2 renders the Codex/Claude/Warp JSON directly, using the same viewer package as Pepper.',
