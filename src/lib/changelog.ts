@@ -19,7 +19,7 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: 'v.93',
+    version: 'v.94',
     title: 'Unhide all keys',
     summary: 'Settings gets a per-feed action that brings every hidden key back.',
     detail:
