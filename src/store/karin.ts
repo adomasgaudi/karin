@@ -5,7 +5,14 @@ import type { WarpRawData } from '../lib/warpRaw'
 import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis } from '../lib/pricing'
 import { DEFAULT_TOKEN_MULT, SUB_DIVISOR_DEFAULTS } from '../lib/pricing'
 import { saveCodex, saveClaude, saveWarp, loadSaved, clearSaved } from '../lib/persist'
-import { fetchLocalData, fetchClaudeRaw, fetchWarpRaw, fetchLocalStatus } from '../lib/loadData'
+import {
+  fetchLocalData,
+  fetchClaudeRaw,
+  fetchWarpRaw,
+  fetchLocalStatus,
+  feedTag,
+  FEED_PATHS,
+} from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
 
 type Theme = 'light' | 'dark'
@@ -150,6 +157,15 @@ function derive(
   return { sessions, generatedAt: freshestGeneratedAt(codex, claude, warp), selectedUid: stillSelected }
 }
 
+// Last ETag seen per feed, so the poll can tell "unchanged" from a HEAD alone.
+// Module state rather than store state: nothing renders it, and putting it in
+// the store would wake every subscriber on each tick.
+const lastTags: Record<'codex' | 'claude' | 'warp', string | null> = {
+  codex: null,
+  claude: null,
+  warp: null,
+}
+
 function isNewer(candidate: { generated_at: string } | null, current: { generated_at: string } | null): boolean {
   if (!candidate) return false
   if (!current) return true
@@ -184,13 +200,21 @@ export const useKarin = create<KarinStore>((set, get) => ({
   // Startup: prefer the freshest of saved vs local for EACH source, then keep polling.
   boot: async () => {
     applyTheme(get().theme)
-    const [saved, localCodex, localClaude, localWarp, status] = await Promise.all([
+    const [saved, localCodex, localClaude, localWarp, status, ...tags] = await Promise.all([
       loadSaved(),
       fetchLocalData(),
       fetchClaudeRaw(),
       fetchWarpRaw(),
       fetchLocalStatus(),
+      // Seeded here so the first 5s tick already knows what it just read, and
+      // does not re-download every feed once before settling down.
+      feedTag(FEED_PATHS.codex),
+      feedTag(FEED_PATHS.claude),
+      feedTag(FEED_PATHS.warp),
     ])
+    if (localCodex) lastTags.codex = tags[0]
+    if (localClaude) lastTags.claude = tags[1]
+    if (localWarp) lastTags.warp = tags[2]
     const codex = isNewer(localCodex, saved.codex) ? localCodex : saved.codex
     const claude = isNewer(localClaude, saved.claude) ? localClaude : saved.claude
     const warp = isNewer(localWarp, saved.warp) ? localWarp : saved.warp
@@ -218,12 +242,27 @@ export const useKarin = create<KarinStore>((set, get) => ({
 
   refreshLocalData: async () => {
     const { codex: curCodex, claude: curClaude, warp: curWarp } = get()
+    // Cheap HEAD per feed first — see feedTag. A tick where nothing changed now
+    // costs three tiny requests instead of ~146 MB of download and parse.
+    const [codexTag, claudeTag, warpTag] = await Promise.all([
+      feedTag(FEED_PATHS.codex),
+      feedTag(FEED_PATHS.claude),
+      feedTag(FEED_PATHS.warp),
+    ])
+    // A null tag means we could not tell — fetch, rather than risk going stale.
+    const codexStale = codexTag === null || codexTag !== lastTags.codex
+    const claudeStale = claudeTag === null || claudeTag !== lastTags.claude
+    const warpStale = warpTag === null || warpTag !== lastTags.warp
     const [localCodex, localClaude, localWarp, status] = await Promise.all([
-      fetchLocalData(),
-      fetchClaudeRaw(),
-      fetchWarpRaw(),
+      codexStale ? fetchLocalData() : Promise.resolve(null),
+      claudeStale ? fetchClaudeRaw() : Promise.resolve(null),
+      warpStale ? fetchWarpRaw() : Promise.resolve(null),
       fetchLocalStatus(),
     ])
+    // Record tags only after a successful read, so a failed fetch retries next tick.
+    if (codexStale && localCodex) lastTags.codex = codexTag
+    if (claudeStale && localClaude) lastTags.claude = claudeTag
+    if (warpStale && localWarp) lastTags.warp = warpTag
     if (status) set({ status })
     const codexNew = isNewer(localCodex, curCodex)
     const claudeNew = isNewer(localClaude, curClaude)

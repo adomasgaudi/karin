@@ -5,6 +5,35 @@ import type { KarinData, KarinStatus } from '../types'
 import { isClaudeRawData, type ClaudeRawData } from './claudeRaw'
 import { isWarpRawData, type WarpRawData } from './warpRaw'
 
+// The feeds are TENS OF MEGABYTES (Codex ~66 MB, Claude ~79 MB). The 5s refresh
+// used to download and JSON.parse all of them every tick just to discover, via
+// generated_at, that nothing had changed — a multi-second main-thread freeze on
+// a loop, which is what made the page feel broken. A HEAD is a few hundred bytes
+// and answers the same question, so ask that first and only pay for the body of
+// a feed whose tag actually moved. Falls back to Last-Modified + Content-Length
+// when no ETag is offered, and to null — meaning "assume changed, fetch it" —
+// when the request fails outright, so a missing header degrades to the old
+// behaviour rather than to a feed that never updates.
+export async function feedTag(path: string): Promise<string | null> {
+  const base = import.meta.env.BASE_URL || '/'
+  try {
+    const res = await fetch(base + path, { method: 'HEAD', cache: 'no-store' })
+    if (!res.ok) return null
+    const etag = res.headers.get('etag')
+    if (etag) return etag
+    const mod = res.headers.get('last-modified')
+    return mod ? `${mod}|${res.headers.get('content-length') ?? ''}` : null
+  } catch {
+    return null
+  }
+}
+
+export const FEED_PATHS = {
+  codex: 'data/karin-data.json',
+  claude: 'data/claude-raw.json',
+  warp: 'data/warp-raw.json',
+} as const
+
 export function parseKarinText(text: string): KarinData {
   let src = text.trim()
   // Strip the `window.KARIN_DATA = ` … `;` wrapper if present.

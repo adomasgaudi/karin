@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@adomas/dev-tools':
+        specifier: file:../dev-tools
+        version: file:../dev-tools(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@adomas/json-tree':
         specifier: file:../json-tree
         version: file:../json-tree(react@19.2.7)
@@ -65,6 +68,12 @@ importers:
         version: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)
 
 packages:
+
+  '@adomas/dev-tools@file:../dev-tools':
+    resolution: {directory: ../dev-tools, type: directory}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
 
   '@adomas/json-tree@file:../json-tree':
     resolution: {directory: ../json-tree, type: directory}
@@ -1171,6 +1180,11 @@ packages:
         optional: true
 
 snapshots:
+
+  '@adomas/dev-tools@file:../dev-tools(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
 
   '@adomas/json-tree@file:../json-tree(react@19.2.7)':
     dependencies:
