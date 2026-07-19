@@ -59,7 +59,7 @@ export async function parseKarinFile(file: File): Promise<KarinData> {
 // and the caller falls back to the drop zone.
 export async function fetchLocalData(): Promise<KarinData | null> {
   const base = import.meta.env.BASE_URL || '/'
-  for (const name of ['data/karin-data.json', 'data/karin-data.js']) {
+  for (const name of ['data/karin-data.json']) {
     try {
       const res = await fetch(base + name, { cache: 'no-store' })
       if (!res.ok) continue

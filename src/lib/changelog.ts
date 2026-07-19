@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.107',
+    title: 'Half the data on disk',
+    summary: 'karin-data.js was a byte-for-byte copy of the 63 MB karin-data.json, and nothing loaded it.',
+    detail:
+      'The Codex indexer wrote every dataset twice: once as JSON and once wrapped in a window.KARIN_DATA assignment for drag-drop. The app already fetched the JSON first and never reached the wrapper, so the second copy only cost disk and write time — 63 MB per re-index. The indexer now emits JSON only and removes any stale wrapper it finds, in data/ and dist/data/ alike.',
+  },
+  {
     version: 'v.106',
     title: 'The cog menu stays clickable',
     summary: 'In v.2, the next row’s settings cog sat over the open menu and swallowed the delete button.',

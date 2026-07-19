@@ -10,7 +10,6 @@ const root = dirname(fileURLToPath(import.meta.url))
 // local deploy at :4173 would silently serve a bundle without that source.
 const DATA_FILES = [
   'karin-data.json',
-  'karin-data.js',
   'karin-status.json',
   'claude-raw.json',
   'claude-status.json',
