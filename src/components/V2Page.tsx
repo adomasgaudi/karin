@@ -33,7 +33,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.9'
+export const V2_VERSION = 'v.2.10'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -126,7 +126,6 @@ export default function V2Page() {
   const warp = useKarin((s) => s.warp)
   const feeds = { codex, claude, warp }
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [active, setActive] = useState<FeedKey>('codex')
   // 'raw' = byte-for-byte what the indexer wrote. 'clean' = the same tree with
   // timestamps rewritten to Vilnius day+time. Same JsonTree either way, so
   // collapse/expand and the big-array paging guards apply to both.
@@ -134,7 +133,9 @@ export default function V2Page() {
   // into one element, so you can read the structure without the payload.
   const [mode, setMode] = useState<Mode>('clean')
   // Independent of mode: whether the schema spec is applied to whatever mode shows.
-  const [shape, setShape] = useState<Shape>('original')
+  // Mapped is the default — your format is the one you came to read; original is
+  // the reference you check it against.
+  const [shape, setShape] = useState<Shape>('mapped')
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
@@ -145,32 +146,97 @@ export default function V2Page() {
   // The feeds are regenerated every few seconds, so an edit written INTO them
   // would not survive; as a spec it is replayed over each fresh value instead.
   const [specs, setSpecs] = useState<Record<string, SchemaSpec>>({})
-  const spec = specs[active] ?? loadSpec(active)
+  const specOf = (feed: FeedKey) => specs[feed] ?? loadSpec(feed)
 
-  const editSpec = (next: SchemaSpec) => {
-    setSpecs((s) => ({ ...s, [active]: next }))
+  const editSpec = (feed: FeedKey, next: SchemaSpec) => {
+    setSpecs((s) => ({ ...s, [feed]: next }))
     try {
-      localStorage.setItem(specKey(active), JSON.stringify(next))
+      localStorage.setItem(specKey(feed), JSON.stringify(next))
     } catch {
       // A full or blocked localStorage costs you persistence, not the edit.
     }
   }
 
+  // Hiding is the one edit that REMOVES something, so it is the one you can get
+  // stuck behind: a key you hid is no longer on screen to unhide. This drops
+  // every hide rule and leaves order, rename and group alone — a full reset
+  // would throw away work you never asked to undo.
+  const unhideAll = (feed: FeedKey) => {
+    const spec = specOf(feed)
+    const next = Object.fromEntries(
+      Object.entries(spec).map(([path, rule]) => {
+        const { hide: _hide, ...rest } = rule
+        return [path, rest]
+      }),
+    ) as SchemaSpec
+    editSpec(feed, next)
+  }
+
   const tone = theme === 'dark' ? 'dark' : 'light'
 
-  const raw = feeds[active] as Json | null
+  // Every loaded feed is on the page at once, each as its own collapsed branch —
+  // there is no feed tab, because a tab hides two thirds of what you have and
+  // makes comparing sources a navigation act rather than a scroll.
   // Vilnius is where this instance runs; the transform itself is zone-agnostic.
-  const value = useMemo(() => {
-    if (raw == null) return null
-    return applyMode(raw, mode as ViewMode, { timeZone: 'Europe/Vilnius' })
-  }, [raw, mode])
+  const loaded = useMemo(
+    () =>
+      FEEDS.filter((f) => feeds[f.key] != null).map((f) => ({
+        ...f,
+        value: applyMode(feeds[f.key] as Json, mode as ViewMode, { timeZone: 'Europe/Vilnius' }),
+      })),
+    [codex, claude, warp, mode],
+  )
 
-  // The spec is replayed on top of whichever mode is showing — that IS mapped.
-  const shown = shape === 'mapped' && value != null ? compile(value, spec) : value
-  // Editing is a mapped affordance: there you are looking at your own format,
-  // so an edit lands where you can see it. Original stays untouched, and so
-  // read-only — that is the whole point of having it beside mapped.
-  const editing = shape === 'mapped'
+  /**
+   * Every feed as a collapsed branch. `mapped` decides both what is drawn — the
+   * spec applied or not — and whether the row actions are there at all: the
+   * original is the record on disk, so nothing about it is editable.
+   */
+  const feedTrees = (mapped: boolean) =>
+    loaded.map((f) => {
+      const spec = specOf(f.key)
+      const edit = (next: SchemaSpec) => editSpec(f.key, next)
+      return (
+        <JsonTree
+          key={f.key}
+          name={f.key}
+          value={(mapped ? compile(f.value, spec) : f.value) as Json}
+          // Collapsed: three feeds expanded is a wall, and the point of having
+          // them all present is choosing which to open, not scrolling past two.
+          openDepth={0}
+          theme={palette}
+          onReorder={mapped ? (path, keys) => edit(withRule(spec, path, { order: keys })) : undefined}
+          onHide={mapped ? (path, key) => edit(withHidden(spec, path, key)) : undefined}
+          // Grouping folds sibling keys — three separate timestamps, say — under
+          // one object. Typing the same name on each collects them; an empty
+          // answer takes a key back out.
+          onGroup={
+            mapped && mode === 'schema'
+              ? (path, key) => {
+                  // A row already inside a group is drawn one level deeper than
+                  // the rule that put it there, so aim at the parent's path.
+                  const cut = path.lastIndexOf('.')
+                  const parent = cut < 0 ? '' : path.slice(0, cut)
+                  const last = cut < 0 ? path : path.slice(cut + 1)
+                  const owner = spec[parent]?.group?.[last] ? parent : path
+                  const current = Object.entries(spec[owner]?.group ?? {}).find(([, ks]) => ks.includes(key))?.[0]
+                  const next = window.prompt(`Group "${key}" under (blank to ungroup):`, current ?? '')
+                  if (next === null) return
+                  edit(withGrouped(spec, owner, key, next.trim() || null))
+                }
+              : undefined
+          }
+          onRename={
+            mapped
+              ? (path, key) => {
+                  const next = window.prompt(`Rename "${key}" to:`, spec[path]?.rename?.[key] ?? key)
+                  if (next && next !== key) edit(withRule(spec, path, { rename: { [key]: next } }))
+                }
+              : undefined
+          }
+        />
+      )
+    })
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -256,15 +322,30 @@ export default function V2Page() {
                         ))}
                       </div>
                     )}
-                    {!isEmptySpec(spec) && (
+                    {/* One reset per feed that actually has edits — a single
+                        "reset everything" would throw away two schemas to fix one. */}
+                    {/* Unhide first: it is the recoverable half of a reset, and
+                        the only edit whose undo you cannot reach from the tree. */}
+                    {FEEDS.filter((f) => Object.values(specOf(f.key)).some((r) => r.hide?.length)).map((f) => (
                       <button
+                        key={`unhide-${f.key}`}
                         type="button"
-                        onClick={() => editSpec(EMPTY_SPEC)}
+                        onClick={() => unhideAll(f.key)}
                         className="mt-1.5 w-full rounded px-1 py-0.5 text-left text-[0.68rem] text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                       >
-                        Reset {active} schema
+                        Unhide all {f.key} keys
                       </button>
-                    )}
+                    ))}
+                    {FEEDS.filter((f) => !isEmptySpec(specOf(f.key))).map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => editSpec(f.key, EMPTY_SPEC)}
+                        className="mt-1.5 w-full rounded px-1 py-0.5 text-left text-[0.68rem] text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                      >
+                        Reset {f.key} schema
+                      </button>
+                    ))}
                   </div>
                 </div>
               </>
@@ -278,64 +359,39 @@ export default function V2Page() {
           It sits below the nav rather than inside it — three pills crowd the
           brand row on a phone, and these are the choices you actually change. */}
       <div className="sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-1.5 py-1 dark:border-neutral-800 dark:bg-neutral-950">
-        <Pill
-          options={FEEDS.map((f) => f.key)}
-          value={active}
-          onSelect={setActive}
-          hint={(k) => `data/${FEEDS.find((f) => f.key === k)?.file}`}
-          disabled={(k) => feeds[k] == null}
-        />
         <Pill options={MODES} value={mode} onSelect={setMode} hint={(m) => MODE_HINT[m]} />
         <Pill options={SHAPES} value={shape} onSelect={setShape} hint={(s) => SHAPE_HINT[s]} />
       </div>
 
       <main
-        className="min-h-0 flex-1 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed"
+        className="flex min-h-0 flex-1 gap-4 overflow-hidden p-4 font-mono text-[0.78rem] leading-relaxed"
         // The custom preset's atoms read these; a preset that doesn't use them
         // simply ignores them, so this is safe to set unconditionally.
         style={paletteVars(hues, tone)}
       >
-        {value == null ? (
-          <p className="text-neutral-500">
-            No {FEEDS.find((f) => f.key === active)?.label} feed loaded — run the indexer for it.
-          </p>
+        {loaded.length === 0 ? (
+          <p className="text-neutral-500">No feed loaded — run the indexers.</p>
         ) : (
-          <JsonTree
-            value={shown as Json}
-            openDepth={2}
-            theme={palette}
-            // Editing lives in mapped, in any mode: that is where you are looking
-            // at your own format, so an edit lands where you can see it.
-            onReorder={editing ? (path, keys) => editSpec(withRule(spec, path, { order: keys })) : undefined}
-            onHide={editing ? (path, key) => editSpec(withHidden(spec, path, key)) : undefined}
-            // Grouping folds sibling keys — three separate timestamps, say —
-            // under one object. Typing the same name on each collects them;
-            // an empty answer takes a key back out.
-            onGroup={
-              editing && mode === 'schema'
-                ? (path, key) => {
-                    // A row already inside a group is drawn one level deeper than
-                    // the rule that put it there, so aim at the parent's path.
-                    const cut = path.lastIndexOf('.')
-                    const parent = cut < 0 ? '' : path.slice(0, cut)
-                    const last = cut < 0 ? path : path.slice(cut + 1)
-                    const owner = spec[parent]?.group?.[last] ? parent : path
-                    const current = Object.entries(spec[owner]?.group ?? {}).find(([, ks]) => ks.includes(key))?.[0]
-                    const next = window.prompt(`Group "${key}" under (blank to ungroup):`, current ?? '')
-                    if (next === null) return
-                    editSpec(withGrouped(spec, owner, key, next.trim() || null))
-                  }
-                : undefined
-            }
-            onRename={
-              editing
-                ? (path, key) => {
-                    const next = window.prompt(`Rename "${key}" to:`, spec[path]?.rename?.[key] ?? key)
-                    if (next && next !== key) editSpec(withRule(spec, path, { rename: { [key]: next } }))
-                  }
-                : undefined
-            }
-          />
+          <>
+            {/* On a wide screen mapped shows BOTH: your format beside the feed it
+                came from, so an edit can be checked against the original without
+                toggling. Narrow screens get mapped alone — two columns of JSON on
+                a phone is two unreadable columns. */}
+            {shape === 'mapped' && (
+              <section className="hidden min-w-0 flex-1 overflow-auto md:block">
+                <h2 className="mb-1 text-[0.65rem] uppercase tracking-wide text-neutral-400">original</h2>
+                {feedTrees(false)}
+              </section>
+            )}
+            <section className="min-w-0 flex-1 overflow-auto">
+              {shape === 'mapped' && (
+                <h2 className="mb-1 hidden text-[0.65rem] uppercase tracking-wide text-neutral-400 md:block">
+                  mapped
+                </h2>
+              )}
+              {feedTrees(shape === 'mapped')}
+            </section>
+          </>
         )}
       </main>
     </div>
