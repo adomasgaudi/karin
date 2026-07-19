@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.92',
+    title: 'Grouping is schema-only',
+    summary: 'The group action now appears only in schema view, not in clean or raw.',
+    detail:
+      'Folding sibling keys under one object is a structural decision — it is about the shape of your format, not about the values in front of you. Offering it in clean and raw invited edits made while reading data that then silently reshaped every other view. It now shows up only where you are looking at the structure itself: mapped schema view. Hide, reorder and rename are unchanged and still available in any mapped mode.',
+  },
+  {
     version: 'v.91',
     title: 'Controls get their own bar',
     summary: 'Feed, mode and shape move out of the nav into a sticky bar under it.',

@@ -33,7 +33,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.8'
+export const V2_VERSION = 'v.2.9'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -312,7 +312,7 @@ export default function V2Page() {
             // under one object. Typing the same name on each collects them;
             // an empty answer takes a key back out.
             onGroup={
-              editing
+              editing && mode === 'schema'
                 ? (path, key) => {
                     // A row already inside a group is drawn one level deeper than
                     // the rule that put it there, so aim at the parent's path.
