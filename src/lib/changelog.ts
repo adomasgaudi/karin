@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.83',
+    title: 'v2 shows the raw feeds',
+    summary: 'v.2 renders the Codex/Claude/Warp JSON directly, using the same viewer package as Pepper.',
+    detail:
+      'v.1 shows a heavily interpreted view — cycles, attributed usage, pricing — which is exactly what felt overwhelming. v.2 starts at the other end: the raw indexer output, in a collapsible tree, with a tab per source. The viewer is not a copy of the one in Pepper: JsonTree moved out into its own repo, @adomas/json-tree, linked into both apps, so one edit changes both. It keeps the hard-won guards — big arrays never expand eagerly and page in 100 at a time.',
+  },
+  {
     version: 'v.82',
     title: 'Real sticky nav bar',
     summary: 'Sessions / Timeline / Summary are sticky tabs above every page, not buttons.',
