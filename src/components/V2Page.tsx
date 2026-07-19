@@ -13,6 +13,7 @@ import {
   compile,
   isEmptySpec,
   withGrouped,
+  withDropped,
   withHidden,
   withRule,
   type Hues,
@@ -33,7 +34,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.10'
+export const V2_VERSION = 'v.2.11'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -43,6 +44,17 @@ const MODE_HINT = {
 
 const MODES = ['clean', 'raw', 'schema'] as const
 type Mode = (typeof MODES)[number]
+
+// Clean vs raw is really one question — tidied, or everything — and schema asks
+// it too: a structure can be read as the shape you keep or the shape the file
+// actually has. So schema carries this pair as a sub-pill of its own.
+const VALUES = ['clean', 'raw'] as const
+type Values = (typeof VALUES)[number]
+
+const VALUES_HINT = {
+  clean: 'Tidied: keys you hid are left out',
+  raw: 'Everything your format keeps, including hidden keys',
+} as const
 
 // Mapped is not a fourth mode — it is an axis crossing all three. Each mode says
 // what the VALUES look like; mapped says whether your schema is applied on top.
@@ -132,6 +144,13 @@ export default function V2Page() {
   // 'schema' = the shape only: every leaf replaced by its type, arrays merged
   // into one element, so you can read the structure without the payload.
   const [mode, setMode] = useState<Mode>('clean')
+  // Schema shows the structure, and structure has the same two readings as data:
+  // the tidy one you keep, or everything your format contains. So schema carries
+  // its own clean/raw rather than borrowing whichever mode you left behind.
+  const [schemaValues, setSchemaValues] = useState<Values>('clean')
+  // Hiding is the tidy view's business. Clean is tidy; raw is the full record;
+  // schema is whichever of the two its own sub-pill says.
+  const tidy = mode === 'clean' || (mode === 'schema' && schemaValues === 'clean')
   // Independent of mode: whether the schema spec is applied to whatever mode shows.
   // Mapped is the default — your format is the one you came to read; original is
   // the reference you check it against.
@@ -200,13 +219,29 @@ export default function V2Page() {
         <JsonTree
           key={f.key}
           name={f.key}
-          value={(mapped ? compile(f.value, spec) : f.value) as Json}
+          value={(mapped ? compile(f.value, spec, '', { applyHide: tidy }) : f.value) as Json}
+          // The original is where an edit is legible: the key is still on the
+          // page, struck out or greyed, instead of being an absence you have to
+          // notice by comparing two columns.
+          mark={
+            mapped
+              ? undefined
+              : (path, key) =>
+                  spec[path]?.drop?.includes(key)
+                    ? 'dropped'
+                    : spec[path]?.hide?.includes(key)
+                      ? 'hidden'
+                      : undefined
+          }
           // Collapsed: three feeds expanded is a wall, and the point of having
           // them all present is choosing which to open, not scrolling past two.
           openDepth={0}
           theme={palette}
           onReorder={mapped ? (path, keys) => edit(withRule(spec, path, { order: keys })) : undefined}
           onHide={mapped ? (path, key) => edit(withHidden(spec, path, key)) : undefined}
+          // Delete says the key is not part of your format at all, so it goes
+          // from every view; hide only tidies it out of the clean one.
+          onDelete={mapped ? (path, key) => edit(withDropped(spec, path, key)) : undefined}
           // Grouping folds sibling keys — three separate timestamps, say — under
           // one object. Typing the same name on each collects them; an empty
           // answer takes a key back out.
@@ -360,6 +395,16 @@ export default function V2Page() {
           brand row on a phone, and these are the choices you actually change. */}
       <div className="sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-1.5 py-1 dark:border-neutral-800 dark:bg-neutral-950">
         <Pill options={MODES} value={mode} onSelect={setMode} hint={(m) => MODE_HINT[m]} />
+        {/* Only under schema: clean and raw already answer this for themselves,
+            so showing it beside them would be the same choice asked twice. */}
+        {mode === 'schema' && (
+          <Pill
+            options={VALUES}
+            value={schemaValues}
+            onSelect={setSchemaValues}
+            hint={(v) => VALUES_HINT[v]}
+          />
+        )}
         <Pill options={SHAPES} value={shape} onSelect={setShape} hint={(s) => SHAPE_HINT[s]} />
       </div>
 
