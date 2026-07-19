@@ -446,16 +446,17 @@ def build_payload(limit: int | None) -> dict[str, Any]:
 
 
 def write_data(payload: dict[str, Any]) -> None:
-    """Write both the plain-JSON dataset (primary) and the JS wrapper (drag-drop)."""
+    """Write the plain-JSON dataset. The old karin-data.js wrapper is no longer
+    emitted — it was a byte-for-byte duplicate of a 60 MB+ file that nothing loads."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, ensure_ascii=False)
     DATA_JSON.write_text(text, encoding="utf-8")
-    DATA_JS.write_text("window.KARIN_DATA = " + text + ";\n", encoding="utf-8")
+    DATA_JS.unlink(missing_ok=True)
     DATA_STATUS.write_text(json.dumps(status_from_payload(payload), ensure_ascii=False), encoding="utf-8")
     if DIST_DATA_DIR.exists():
         DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
         shutil.copy2(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
-        shutil.copy2(DATA_JS, DIST_DATA_DIR / DATA_JS.name)
+        (DIST_DATA_DIR / DATA_JS.name).unlink(missing_ok=True)
         shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
 
 

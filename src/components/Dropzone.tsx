@@ -81,7 +81,7 @@ export default function Dropzone() {
           )}
         >
           <Upload className="h-8 w-8 text-teal-700 dark:text-teal-400" />
-          <p className="text-sm text-neutral-900 dark:text-neutral-100">Drop karin-data.js or claude-raw.json here</p>
+          <p className="text-sm text-neutral-900 dark:text-neutral-100">Drop karin-data.json or claude-raw.json here</p>
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
