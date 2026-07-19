@@ -338,6 +338,21 @@ export default function V2Page() {
     })
   }
 
+  // JsonTree recurses over every open node and nothing in it is memoized, so
+  // re-creating these elements makes React walk the whole expanded tree. That is
+  // why opening the settings menu — which the JSON could not care less about —
+  // cost seconds: settingsOpen re-rendered V2Page, V2Page rebuilt the trees.
+  // Pinning each pane to its OWN inputs means unrelated state (settingsOpen, and
+  // the other pane's controls) returns the identical element and React skips it.
+  const leftTree = useMemo(
+    () => feedTrees({ mode: leftMode, values: leftValues, shape: leftShape }),
+    [byMode, specs, peeks, palette, leftMode, leftValues, leftShape],
+  )
+  const rightTree = useMemo(
+    () => feedTrees({ mode, values: schemaValues, shape }),
+    [byMode, specs, peeks, palette, mode, schemaValues, shape],
+  )
+
   /** The per-pane controls, drawn in the pane's own header when the split is up. */
   const PaneBar = ({
     mode: m,
@@ -523,7 +538,7 @@ export default function V2Page() {
                   shape={leftShape}
                   setShape={setLeftShape}
                 />
-                {feedTrees({ mode: leftMode, values: leftValues, shape: leftShape })}
+                {leftTree}
               </section>
             )}
             <section className="min-w-0 flex-1 overflow-auto">
@@ -539,7 +554,7 @@ export default function V2Page() {
                   />
                 </div>
               )}
-              {feedTrees({ mode, values: schemaValues, shape })}
+              {rightTree}
             </section>
           </>
         )}

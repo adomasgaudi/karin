@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.103',
+    title: 'Sessions split into turns again',
+    summary: 'Most Claude sessions showed as one "context only" blob; the prompt test was an outdated allowlist.',
+    detail:
+      'A new cycle opens at a human prompt, and the test for one listed the prompt sources known when it was written: typed and queued. Claude has since started tagging prompts "sdk" — 148 of your 214 human messages — so in 25 of 40 sessions no cycle ever opened. The whole session collapsed into a single blob headed by its line-one environment context, which is why almost everything read "context only" with the wrong entries under it. The test now asks what it means — human, and not injected by the system — so a fourth source widens it instead of breaking it.',
+  },
+  {
     version: 'v.102',
     title: 'It stops re-reading 146 MB',
     summary: 'The 5s refresh asks the server what changed before downloading anything.',

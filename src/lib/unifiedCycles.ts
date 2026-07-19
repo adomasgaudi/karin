@@ -125,7 +125,7 @@ export function buildEntries(s: UnifiedSession): UnifiedEntry[] {
 // interjection → …), not just "AI ran until the owner cold-started a new prompt". A new
 // cycle opens at:
 //   • a human prompt — Codex: any user message; Claude: a user message whose origin is
-//     human and whose prompt_source is `typed` (fresh) OR `queued` (interjected mid-turn).
+//     human and whose prompt_source is anything but `system` (so `typed`, `queued`, `sdk`…).
 //   • the owner's answer to an AI question — an AskUserQuestion tool call carrying a
 //     result. The split lands BEFORE that tool, so the Q&A heads the cycle it redirected.
 // Leading environment context naturally forms a context-only cycle before the first
@@ -145,7 +145,13 @@ function isHumanPrompt(entry: UnifiedEntry): boolean {
   // one of them is human, same as Codex.
   if (entry.source === 'codex' || entry.source === 'warp') return true
   const cm = m as ClaudeMessage
-  return cm.origin_kind === 'human' && (cm.prompt_source === 'typed' || cm.prompt_source === 'queued')
+  // Stated as "human and not injected by the system", NOT as a list of the sources
+  // known when this was written. That allowlist ('typed' | 'queued') silently
+  // dropped 'sdk' once Claude started tagging prompts that way: a session whose
+  // every prompt was sdk opened no cycle at all, so the whole session collapsed
+  // into one blob headed by its line-1 environment context — which is why most
+  // sessions read "context only". A new source should widen this, not break it.
+  return cm.origin_kind === 'human' && cm.prompt_source !== 'system'
 }
 
 // An AskUserQuestion tool call the owner actually answered (result present). Codex has no
