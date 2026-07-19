@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'v.86',
+    title: 'Settings menu opens again',
+    summary: 'The nav bar was clipping its own popover, so the gear button appeared to do nothing.',
+    detail:
+      'The shared nav scaffold carried overflow-hidden to stop the tab strip spilling on a narrow screen. The settings popover is absolutely positioned inside that same bar, so the clip applied to it too: the menu did open, was rendered, and was cut away to nothing. The bar now relies on flex-nowrap for the tabs and sits on its own stacking context, so the popover escapes. This affects both versions, since v.1 and v.2 render the same shell.',
+  },
+  {
+    version: 'v.86',
     title: 'Schema view, colours, reorder',
     summary: 'A third viewer mode showing shape not payload, a palette setting, and drag-to-reorder keys.',
     detail:

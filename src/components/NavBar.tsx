@@ -39,8 +39,10 @@ export function NavBarShell<T extends string>({
   versionTitle,
   right,
 }: NavBarProps<T>) {
+  // The bar must NOT be overflow-hidden: the settings popover is absolutely positioned
+  // inside it, so clipping the bar clips the menu — it opens and is invisible.
   return (
-    <nav className="flex shrink-0 items-center gap-0.5 overflow-hidden border-b border-neutral-200 bg-white px-1.5 dark:border-neutral-800 dark:bg-neutral-950">
+    <nav className="relative z-40 flex shrink-0 flex-nowrap items-center gap-0.5 border-b border-neutral-200 bg-white px-1.5 dark:border-neutral-800 dark:bg-neutral-950">
       <KarinLogo className="h-4 shrink-0" />
       <button
         type="button"
