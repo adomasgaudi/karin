@@ -33,7 +33,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.5'
+export const V2_VERSION = 'v.2.6'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -199,7 +199,9 @@ export default function V2Page() {
                             <option key={h} value={h}>{h}</option>
                           ))}
                         </select>
-                        {(['key', 'string', 'number', 'null'] as Role[]).map((role) => (
+                        {/* No key slider: keys are neutral by design, so a hue
+                            control for them would suggest a choice that isn't there. */}
+                        {(['string', 'number', 'null'] as Role[]).map((role) => (
                           <div key={role} className="mt-1 flex items-center gap-1.5">
                             <span
                               className="h-3 w-3 shrink-0 rounded-full"
