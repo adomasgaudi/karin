@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.102',
+    title: 'It stops re-reading 146 MB',
+    summary: 'The 5s refresh asks the server what changed before downloading anything.',
+    detail:
+      'This was the lag. Your Codex feed is about 66 MB and your Claude feed about 79 MB, and every five seconds the app downloaded both, JSON.parsed them on the main thread, then compared a timestamp and usually threw the result away. That is a multi-second freeze on a loop, which is why everything felt stuck no matter what you clicked. Each tick now sends a HEAD request first — a few hundred bytes — and only downloads a feed whose ETag actually moved. An idle tick went from ~146 MB to roughly nothing.',
+  },
+  {
     version: 'v.101',
     title: 'The shared dev corner',
     summary: 'Karin now renders the same bottom-right dev chip as Pepper — version history plus the CSS x-ray.',
