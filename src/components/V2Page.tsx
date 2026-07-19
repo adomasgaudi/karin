@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Settings, Sun } from 'lucide-react'
-import { JsonTree, type Json } from '@adomas/json-tree'
+import { JsonTree, PRESETS, applyMode, type Json, type JsonTheme, type KeyOrder, type ViewMode } from '@adomas/json-tree'
 import { useKarin } from '../store/karin'
 import { NavBarShell } from './NavBar'
-import { prettifyJson } from '../lib/prettyJson'
 
 // Karin v.2.0 — starts from the raw feeds themselves. v.1 renders a heavily
 // interpreted view (cycles, attributed usage, pricing); v.2 begins at the other
@@ -14,7 +13,13 @@ import { prettifyJson } from '../lib/prettyJson'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.1'
+export const V2_VERSION = 'v.2.3'
+
+const MODE_HINT = {
+  clean: 'Dates shown as Vilnius day + time',
+  raw: 'Exactly as written on disk',
+  schema: 'Structure only — every value replaced by its type',
+} as const
 
 type FeedKey = 'codex' | 'claude' | 'warp'
 const FEEDS: { key: FeedKey; label: string; file: string }[] = [
@@ -37,11 +42,18 @@ export default function V2Page() {
   // 'raw' = byte-for-byte what the indexer wrote. 'clean' = the same tree with
   // timestamps rewritten to Vilnius day+time. Same JsonTree either way, so
   // collapse/expand and the big-array paging guards apply to both.
-  const [mode, setMode] = useState<'clean' | 'raw'>('clean')
+  // 'schema' = the shape only: every leaf replaced by its type, arrays merged
+  // into one element, so you can read the structure without the payload.
+  const [mode, setMode] = useState<ViewMode>('clean')
+  // Palette and per-path key order are viewer settings, not data — they live
+  // here and are handed to JsonTree, which stays a pure renderer.
+  const [palette, setPalette] = useState<JsonTheme>('auto')
+  const [order, setOrder] = useState<KeyOrder>({})
 
   const raw = feeds[active] as Json | null
+  // Vilnius is where this instance runs; the transform itself is zone-agnostic.
   const value = useMemo(
-    () => (raw == null || mode === 'raw' ? raw : prettifyJson(raw)),
+    () => (raw == null ? null : applyMode(raw, mode, { timeZone: 'Europe/Vilnius' })),
     [raw, mode],
   )
 
@@ -58,12 +70,12 @@ export default function V2Page() {
         right={
           <div className="flex items-center gap-2">
             <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
-              {(['clean', 'raw'] as const).map((m) => (
+              {(['clean', 'raw', 'schema'] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  title={m === 'clean' ? 'Dates shown as Vilnius day + time' : 'Exactly as written on disk'}
+                  title={MODE_HINT[m]}
                   className={`rounded px-1.5 py-0.5 ${
                     mode === m
                       ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
@@ -100,6 +112,29 @@ export default function V2Page() {
                     </Switch.Root>
                     <Moon className="h-3.5 w-3.5 text-neutral-400" />
                   </div>
+                  {/* Viewer palette — the settings menu is where future viewer
+                      options (indent, open depth) go too. */}
+                  <div className="mt-1 border-t border-neutral-200 px-2 pb-1 pt-1.5 dark:border-neutral-800">
+                    <label className="block text-[0.68rem] text-neutral-500">JSON colours</label>
+                    <select
+                      value={typeof palette === 'string' ? palette : 'auto'}
+                      onChange={(e) => setPalette(e.target.value as JsonTheme)}
+                      className="mt-1 w-full rounded border border-neutral-200 bg-transparent px-1 py-0.5 text-[0.7rem] dark:border-neutral-800"
+                    >
+                      {Object.keys(PRESETS).map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    {mode === 'schema' && Object.keys(order).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setOrder({})}
+                        className="mt-1.5 w-full rounded px-1 py-0.5 text-left text-[0.68rem] text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                      >
+                        Reset key order
+                      </button>
+                    )}
+                  </div>
                 </div>
               </>
             )}
@@ -114,7 +149,19 @@ export default function V2Page() {
             No {FEEDS.find((f) => f.key === active)?.label} feed loaded — run the indexer for it.
           </p>
         ) : (
-          <JsonTree value={value} openDepth={2} theme="auto" />
+          <JsonTree
+            value={value}
+            openDepth={2}
+            theme={palette}
+            order={order}
+            // Reordering is a schema-view affordance: there you are reading the
+            // shape, so arranging keys is the point. Elsewhere the tree is read-only.
+            onReorder={
+              mode === 'schema'
+                ? (path, keys) => setOrder((o) => ({ ...o, [path]: keys }))
+                : undefined
+            }
+          />
         )}
       </main>
     </div>
