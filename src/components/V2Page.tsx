@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
-import { Moon, Settings, Sun } from 'lucide-react'
+import { Moon, RefreshCw, Settings, Sun } from 'lucide-react'
 import {
   DEFAULT_HUES,
   EMPTY_SPEC,
@@ -35,7 +35,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.14'
+export const V2_VERSION = 'v.2.15'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -133,12 +133,14 @@ export default function V2Page() {
   const setView = useKarin((s) => s.setView)
   const theme = useKarin((s) => s.theme)
   const toggleTheme = useKarin((s) => s.toggleTheme)
+  const refreshLocalData = useKarin((s) => s.refreshLocalData)
   // Selected one at a time: a selector returning a fresh object re-renders on every store tick.
   const codex = useKarin((s) => s.codex)
   const claude = useKarin((s) => s.claude)
   const warp = useKarin((s) => s.warp)
   const feeds = { codex, claude, warp }
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   // 'raw' = byte-for-byte what the indexer wrote. 'clean' = the same tree with
   // timestamps rewritten to Vilnius day+time. Same JsonTree either way, so
   // collapse/expand and the big-array paging guards apply to both.
@@ -247,20 +249,21 @@ export default function V2Page() {
     }
   }, [codex, claude, warp, specs])
 
-  const peeks = useMemo(
-    () =>
-      Object.fromEntries(
-        FEEDS.map((f) => [
-          f.key,
-          Object.fromEntries(
-            Object.entries(specs[f.key] ?? EMPTY_SPEC)
-              .filter(([, r]) => r.peek?.length)
-              .map(([p, r]) => [p, r.peek as string[]]),
-          ),
-        ]),
-      ),
-    [specs],
-  )
+  // Both halves of the collapsed-summary rule, per feed: the keys forced on and
+  // the keys forced off. See shownOnCollapse in @adomas/json-tree.
+  const byRule = (field: 'peek' | 'unpeek') =>
+    Object.fromEntries(
+      FEEDS.map((f) => [
+        f.key,
+        Object.fromEntries(
+          Object.entries(specs[f.key] ?? EMPTY_SPEC)
+            .filter(([, r]) => r[field]?.length)
+            .map(([p, r]) => [p, r[field] as string[]]),
+        ),
+      ]),
+    )
+  const peeks = useMemo(() => byRule('peek'), [specs])
+  const unpeeks = useMemo(() => byRule('unpeek'), [specs])
 
   /**
    * Every feed as a collapsed branch. `mapped` decides both what is drawn — the
@@ -302,7 +305,8 @@ export default function V2Page() {
           onReorder={mapped ? (path, keys) => edit(withRule(spec, path, { order: keys })) : undefined}
           onHide={mapped ? (path, key) => edit(withHidden(spec, path, key)) : undefined}
           peek={peek}
-          onPeek={mapped ? (path, key) => edit(withPeeked(spec, path, key)) : undefined}
+          unpeek={unpeeks[f.key]}
+          onPeek={mapped ? (path, key, visible) => edit(withPeeked(spec, path, key, visible)) : undefined}
           // Delete says the key is not part of your format at all, so it goes
           // from every view; hide only tidies it out of the clean one.
           onDelete={mapped ? (path, key) => edit(withDropped(spec, path, key)) : undefined}
@@ -346,11 +350,11 @@ export default function V2Page() {
   // the other pane's controls) returns the identical element and React skips it.
   const leftTree = useMemo(
     () => feedTrees({ mode: leftMode, values: leftValues, shape: leftShape }),
-    [byMode, specs, peeks, palette, leftMode, leftValues, leftShape],
+    [byMode, specs, peeks, unpeeks, palette, leftMode, leftValues, leftShape],
   )
   const rightTree = useMemo(
     () => feedTrees({ mode, values: schemaValues, shape }),
-    [byMode, specs, peeks, palette, mode, schemaValues, shape],
+    [byMode, specs, peeks, unpeeks, palette, mode, schemaValues, shape],
   )
 
   /** The per-pane controls, drawn in the pane's own header when the split is up. */
@@ -511,6 +515,23 @@ export default function V2Page() {
           />
         )}
         <Pill options={SHAPES} value={shape} onSelect={setShape} hint={(s) => SHAPE_HINT[s]} />
+        {/* The feeds already reload themselves every 5s (an ETag check, then the
+            body only if it moved), so this is not how the view stays current —
+            it is how you stop WONDERING whether it is, right after re-running an
+            indexer. Same call the timer makes. */}
+        <button
+          type="button"
+          onClick={() => {
+            setRefreshing(true)
+            void refreshLocalData().finally(() => setRefreshing(false))
+          }}
+          disabled={refreshing}
+          title="Re-read the feeds from disk now"
+          aria-label="Refresh feeds"
+          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-100"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       <main

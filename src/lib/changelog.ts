@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.104',
+    title: 'Row actions become icons',
+    summary: 'A bigger cog, five icons instead of five sentences, and "visible on collapse" can finally be turned off.',
+    detail:
+      'The row cog was about ten pixels and its menu spelled out five verbs in full, so the actions were harder to hit than to read. The cog is now 24px and the menu is a row of icons — rename, group, visible-on-collapse, hide, delete — with the old wording kept as hover tooltips. Visible-on-collapse also shows its state and, more importantly, works: it was an add-only list, so unticking the last key emptied it and the tree fell back to guessing, handing the key straight back. A refusal is now recorded as its own fact. A refresh button sits at the end of the control bar.',
+  },
+  {
     version: 'v.103',
     title: 'Sessions split into turns again',
     summary: 'Most Claude sessions showed as one "context only" blob; the prompt test was an outdated allowlist.',
