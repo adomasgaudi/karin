@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.89',
+    title: 'Group keys into one object',
+    summary: 'Schema view can fold sibling keys — three timestamps, say — under one named object.',
+    detail:
+      'Hovering a row in schema view now offers "group" beside rename and hide. Type a name and the key moves under an object of that name; type the same name on a sibling and the two sit together. The group lands where its first member sat, so it reads as a fold of the rows you picked rather than a jump to the bottom. Leaving the name blank takes a key back out, and a group with no members left disappears. Like every other schema edit this is a rule kept beside the data, replayed over each fresh feed, so it survives the reindex that overwrites the file.',
+  },
+  {
     version: 'v.88',
     title: 'Pick colours by data type',
     summary: 'A custom palette where each type gets its own hue, kept balanced by OKLCH.',
