@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.88',
+    title: 'Pick colours by data type',
+    summary: 'A custom palette where each type gets its own hue, kept balanced by OKLCH.',
+    detail:
+      'Choosing the custom palette reveals a hue slider per data type — keys, strings, numbers, nulls. The colours are built in OKLCH, where equal numbers mean equal appearance, so lightness and chroma are held fixed per theme and only hue is yours to move. That is what stops one type shouting over the others, which is exactly what happens when four colours are picked by eye in hex. Named harmonies (spectrum, warm, cool, triad) set all four at once by the spacing between them. The colours reach the tree as CSS variables, since Tailwind cannot emit a class for a colour chosen at runtime.',
+  },
+  {
     version: 'v.87',
     title: 'Schema compiler, your format',
     summary: 'Edits in schema view become rules that are replayed over every fresh feed.',

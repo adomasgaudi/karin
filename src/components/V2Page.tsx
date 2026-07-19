@@ -2,16 +2,23 @@ import { useMemo, useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Settings, Sun } from 'lucide-react'
 import {
+  DEFAULT_HUES,
   EMPTY_SPEC,
+  HARMONIES,
   JsonTree,
   PRESETS,
+  paletteVars,
+  swatch,
   applyMode,
   compile,
   isEmptySpec,
+  withGrouped,
   withHidden,
   withRule,
+  type Hues,
   type Json,
   type JsonTheme,
+  type Role,
   type SchemaSpec,
   type ViewMode,
 } from '@adomas/json-tree'
@@ -26,7 +33,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.4'
+export const V2_VERSION = 'v.2.5'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -78,6 +85,9 @@ export default function V2Page() {
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
+  // Hues only — lightness and chroma are fixed per theme by the palette module,
+  // which is what keeps four hand-picked colours equally readable. See palette.ts.
+  const [hues, setHues] = useState<Hues>(DEFAULT_HUES)
   // The schema spec: the edits you make in schema view, kept beside the data.
   // The feeds are regenerated every few seconds, so an edit written INTO them
   // would not survive; as a spec it is replayed over each fresh value instead.
@@ -92,6 +102,8 @@ export default function V2Page() {
       // A full or blocked localStorage costs you persistence, not the edit.
     }
   }
+
+  const tone = theme === 'dark' ? 'dark' : 'light'
 
   const raw = feeds[active] as Json | null
   // Vilnius is where this instance runs; the transform itself is zone-agnostic.
@@ -174,6 +186,40 @@ export default function V2Page() {
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
+                    {palette === 'custom' && (
+                      <div className="mt-1.5">
+                        {/* Harmonies first: picking a RELATIONSHIP between the four
+                            hues beats picking four colours independently. */}
+                        <select
+                          onChange={(e) => setHues(HARMONIES[e.target.value])}
+                          defaultValue="spectrum"
+                          className="w-full rounded border border-neutral-200 bg-transparent px-1 py-0.5 text-[0.7rem] dark:border-neutral-800"
+                        >
+                          {Object.keys(HARMONIES).map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                        {(['key', 'string', 'number', 'null'] as Role[]).map((role) => (
+                          <div key={role} className="mt-1 flex items-center gap-1.5">
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-full"
+                              style={{ background: swatch(hues, role, tone) }}
+                            />
+                            <span className="w-12 shrink-0 text-[0.65rem] text-neutral-500">{role}</span>
+                            {/* Hue only — a slider that could also change lightness
+                                is a slider that can make one type unreadable. */}
+                            <input
+                              type="range"
+                              min={0}
+                              max={359}
+                              value={hues[role]}
+                              onChange={(e) => setHues((h) => ({ ...h, [role]: Number(e.target.value) }))}
+                              className="h-1 w-full accent-neutral-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {!isEmptySpec(spec) && (
                       <button
                         type="button"
@@ -192,7 +238,12 @@ export default function V2Page() {
         }
       />
 
-      <main className="min-h-0 flex-1 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed">
+      <main
+        className="min-h-0 flex-1 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed"
+        // The custom preset's atoms read these; a preset that doesn't use them
+        // simply ignores them, so this is safe to set unconditionally.
+        style={paletteVars(hues, tone)}
+      >
         {value == null ? (
           <p className="text-neutral-500">
             No {FEEDS.find((f) => f.key === active)?.label} feed loaded — run the indexer for it.
@@ -206,6 +257,25 @@ export default function V2Page() {
             // shape, so arranging it is the point. Every other mode is read-only.
             onReorder={mode === 'schema' ? (path, keys) => editSpec(withRule(spec, path, { order: keys })) : undefined}
             onHide={mode === 'schema' ? (path, key) => editSpec(withHidden(spec, path, key)) : undefined}
+            // Grouping folds sibling keys — three separate timestamps, say —
+            // under one object. Typing the same name on each collects them;
+            // an empty answer takes a key back out.
+            onGroup={
+              mode === 'schema'
+                ? (path, key) => {
+                    // A row already inside a group is drawn one level deeper than
+                    // the rule that put it there, so aim at the parent's path.
+                    const cut = path.lastIndexOf('.')
+                    const parent = cut < 0 ? '' : path.slice(0, cut)
+                    const last = cut < 0 ? path : path.slice(cut + 1)
+                    const owner = spec[parent]?.group?.[last] ? parent : path
+                    const current = Object.entries(spec[owner]?.group ?? {}).find(([, ks]) => ks.includes(key))?.[0]
+                    const next = window.prompt(`Group "${key}" under (blank to ungroup):`, current ?? '')
+                    if (next === null) return
+                    editSpec(withGrouped(spec, owner, key, next.trim() || null))
+                  }
+                : undefined
+            }
             onRename={
               mode === 'schema'
                 ? (path, key) => {
