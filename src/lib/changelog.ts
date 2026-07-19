@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.82',
+    title: 'Real sticky nav bar',
+    summary: 'Sessions / Timeline / Summary are sticky tabs above every page, not buttons.',
+    detail:
+      'Timeline and Summary were reachable only as buttons buried in the sidebar toolbar, and each page carried its own "← Sessions" button to get back — navigation disguised as actions. There is now one sticky nav bar above the whole app with three underlined tabs, so the current page is always visible and every page is one click away. The per-page back buttons and the sidebar Timeline/Summary buttons are gone; pages now fill the space under the bar instead of claiming the full viewport height.',
+  },
+  {
     version: 'v.81',
     title: 'v2 gets logo and settings',
     summary: 'The v.2 header carries the Karin glasses and a gear menu holding the theme toggle.',
