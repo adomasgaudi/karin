@@ -35,7 +35,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.15'
+export const V2_VERSION = 'v.2.16'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -57,17 +57,10 @@ const VALUES_HINT = {
   raw: 'Everything your format keeps, including hidden keys',
 } as const
 
-// Mapped is not a fourth mode — it is an axis crossing all three. Each mode says
-// what the VALUES look like; mapped says whether your schema is applied on top.
-// So you can read the raw bytes in your own key order, or the shape alone
-// unedited, without one choice swallowing the other.
-const SHAPES = ['original', 'mapped'] as const
-type Shape = (typeof SHAPES)[number]
-
-const SHAPE_HINT = {
-  original: 'The feed as it comes, untouched by your schema',
-  mapped: 'Your format: the same view with your schema edits applied',
-} as const
+// Original and mapped are not a mode or a tab — they are simply two documents.
+// Every feed contributes both to one flat list of JSON cards, each labelled with
+// the file it came from, so reading them is scrolling, not switching.
+type Shape = 'original' | 'mapped'
 
 // The spec is per feed — Codex and Claude have nothing in common shape-wise —
 // and lives in localStorage so it outlives the reload that overwrites the data.
@@ -154,17 +147,6 @@ export default function V2Page() {
   // Hiding is the tidy view's business. Clean is tidy; raw is the full record;
   // schema is whichever of the two its own sub-pill says.
   const tidyOf = (m: Mode, v: Values) => m === 'clean' || (m === 'schema' && v === 'clean')
-  // Independent of mode: whether the schema spec is applied to whatever mode shows.
-  // Mapped is the default — your format is the one you came to read; original is
-  // the reference you check it against.
-  const [shape, setShape] = useState<Shape>('mapped')
-  // The split is two readings side by side, and the whole point of two panes is
-  // that they can differ. So the left pane carries its own mode/values/shape
-  // rather than mirroring the bar — clean beside raw, or mapped beside mapped,
-  // is a comparison the single-pane controls cannot express.
-  const [leftMode, setLeftMode] = useState<Mode>('clean')
-  const [leftValues, setLeftValues] = useState<Values>('clean')
-  const [leftShape, setLeftShape] = useState<Shape>('original')
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
@@ -270,10 +252,10 @@ export default function V2Page() {
    * spec applied or not — and whether the row actions are there at all: the
    * original is the record on disk, so nothing about it is editable.
    */
-  const feedTrees = (pane: { mode: Mode; values: Values; shape: Shape }) => {
+  const feedTree = (pane: { mode: Mode; values: Values; shape: Shape }, only: FeedKey) => {
     const mapped = pane.shape === 'mapped'
     const tidy = tidyOf(pane.mode, pane.values)
-    return byMode.of(pane.mode).map((f) => {
+    return byMode.of(pane.mode).filter((f) => f.key === only).map((f) => {
       const spec = specOf(f.key)
       const edit = (next: SchemaSpec) => editSpec(f.key, next)
       // A collapsed branch otherwise guesses its own one-line gist. `peek` is
@@ -348,38 +330,23 @@ export default function V2Page() {
   // cost seconds: settingsOpen re-rendered V2Page, V2Page rebuilt the trees.
   // Pinning each pane to its OWN inputs means unrelated state (settingsOpen, and
   // the other pane's controls) returns the identical element and React skips it.
-  const leftTree = useMemo(
-    () => feedTrees({ mode: leftMode, values: leftValues, shape: leftShape }),
-    [byMode, specs, peeks, unpeeks, palette, leftMode, leftValues, leftShape],
-  )
-  const rightTree = useMemo(
-    () => feedTrees({ mode, values: schemaValues, shape }),
-    [byMode, specs, peeks, unpeeks, palette, mode, schemaValues, shape],
-  )
-
-  /** The per-pane controls, drawn in the pane's own header when the split is up. */
-  const PaneBar = ({
-    mode: m,
-    setMode: sm,
-    values,
-    setValues,
-    shape: sh,
-    setShape: ssh,
-  }: {
-    mode: Mode
-    setMode: (v: Mode) => void
-    values: Values
-    setValues: (v: Values) => void
-    shape: Shape
-    setShape: (v: Shape) => void
-  }) => (
-    <div className="mb-1 flex flex-wrap items-center gap-1.5">
-      <Pill options={MODES} value={m} onSelect={sm} hint={(v) => MODE_HINT[v]} />
-      {m === 'schema' && (
-        <Pill options={VALUES} value={values} onSelect={setValues} hint={(v) => VALUES_HINT[v]} />
-      )}
-      <Pill options={SHAPES} value={sh} onSelect={ssh} hint={(v) => SHAPE_HINT[v]} />
-    </div>
+  // One flat list of documents: every present feed as-it-comes, and the same feed
+  // with your schema applied. Two cards, not two tabs.
+  const cards = useMemo(
+    () =>
+      byMode
+        .of(mode)
+        .flatMap((f) =>
+          (['original', 'mapped'] as Shape[]).map((shape) => ({
+            id: `${f.key}:${shape}`,
+            label: shape === 'mapped' ? `${f.label} · mapped` : f.label,
+            // Mapped is your format, so it has no file on disk — it is this feed
+            // read through the schema you keep in the browser.
+            path: shape === 'mapped' ? `data/${f.file} → your schema` : `data/${f.file}`,
+            tree: feedTree({ mode, values: schemaValues, shape }, f.key),
+          })),
+        ),
+    [byMode, specs, peeks, unpeeks, palette, mode, schemaValues],
   )
 
   return (
@@ -514,7 +481,6 @@ export default function V2Page() {
             hint={(v) => VALUES_HINT[v]}
           />
         )}
-        <Pill options={SHAPES} value={shape} onSelect={setShape} hint={(s) => SHAPE_HINT[s]} />
         {/* The feeds already reload themselves every 5s (an ETag check, then the
             body only if it moved), so this is not how the view stays current —
             it is how you stop WONDERING whether it is, right after re-running an
@@ -535,7 +501,7 @@ export default function V2Page() {
       </div>
 
       <main
-        className="flex min-h-0 flex-1 gap-4 overflow-hidden p-4 font-mono text-[0.78rem] leading-relaxed"
+        className="min-h-0 flex-1 space-y-4 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed"
         // The custom preset's atoms read these; a preset that doesn't use them
         // simply ignores them, so this is safe to set unconditionally.
         style={paletteVars(hues, tone)}
@@ -543,41 +509,19 @@ export default function V2Page() {
         {byMode.count === 0 ? (
           <p className="text-neutral-500">No feed loaded — run the indexers.</p>
         ) : (
-          <>
-            {/* On a wide screen mapped shows BOTH panes, and each carries its own
-                controls: clean beside raw, mapped beside mapped, whatever the
-                comparison you came for. Narrow screens get one pane — two columns
-                of JSON on a phone is two unreadable columns — so the bar above
-                stays the control there. */}
-            {shape === 'mapped' && (
-              <section className="hidden min-w-0 flex-1 overflow-auto md:block">
-                <PaneBar
-                  mode={leftMode}
-                  setMode={setLeftMode}
-                  values={leftValues}
-                  setValues={setLeftValues}
-                  shape={leftShape}
-                  setShape={setLeftShape}
-                />
-                {leftTree}
-              </section>
-            )}
-            <section className="min-w-0 flex-1 overflow-auto">
-              {shape === 'mapped' && (
-                <div className="hidden md:block">
-                  <PaneBar
-                    mode={mode}
-                    setMode={setMode}
-                    values={schemaValues}
-                    setValues={setSchemaValues}
-                    shape={shape}
-                    setShape={setShape}
-                  />
-                </div>
-              )}
-              {rightTree}
+          /* A file viewer: one card per document, each headed by its name and,
+             smaller beside it, the file it came from. */
+          cards.map((c) => (
+            <section key={c.id} className="min-w-0">
+              <header className="mb-1 flex flex-wrap items-baseline gap-2">
+                <h2 className="text-[0.72rem] font-semibold tracking-wide text-neutral-700 dark:text-neutral-300">
+                  {c.label}
+                </h2>
+                <span className="text-[0.62rem] text-neutral-400 dark:text-neutral-600">{c.path}</span>
+              </header>
+              {c.tree}
             </section>
-          </>
+          ))
         )}
       </main>
     </div>
