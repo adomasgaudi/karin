@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.90',
+    title: 'Mapped becomes an axis',
+    summary: 'Every view now has an original and a mapped version, instead of mapped being a fourth mode.',
+    detail:
+      'Mapped sat in the same row as clean, raw and schema, which forced a false choice: picking your own format meant giving up raw values, and reading the shape meant giving up your edits. The two are separate questions — what the values look like, and whether your schema is applied — so they are now separate toggles. Any of the three modes can be read original or mapped, so you can see the raw bytes in your key order, or the bare shape with nothing of yours on it. Editing lives in mapped, where an edit lands somewhere you can see it; original is read-only by design.',
+  },
+  {
     version: 'v.89',
     title: 'Keys go neutral',
     summary: 'Keys are grey in every palette — hue is reserved for the values that vary.',

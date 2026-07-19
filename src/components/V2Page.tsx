@@ -33,17 +33,28 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.6'
+export const V2_VERSION = 'v.2.7'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
   raw: 'Exactly as written on disk',
-  schema: 'Structure only — drag, rename and hide keys to define your format',
-  mapped: 'Your format: the feed with your schema edits applied',
+  schema: 'Structure only — every value replaced by its type',
 } as const
 
-const MODES = ['clean', 'raw', 'schema', 'mapped'] as const
+const MODES = ['clean', 'raw', 'schema'] as const
 type Mode = (typeof MODES)[number]
+
+// Mapped is not a fourth mode — it is an axis crossing all three. Each mode says
+// what the VALUES look like; mapped says whether your schema is applied on top.
+// So you can read the raw bytes in your own key order, or the shape alone
+// unedited, without one choice swallowing the other.
+const SHAPES = ['original', 'mapped'] as const
+type Shape = (typeof SHAPES)[number]
+
+const SHAPE_HINT = {
+  original: 'The feed as it comes, untouched by your schema',
+  mapped: 'Your format: the same view with your schema edits applied',
+} as const
 
 // The spec is per feed — Codex and Claude have nothing in common shape-wise —
 // and lives in localStorage so it outlives the reload that overwrites the data.
@@ -82,6 +93,8 @@ export default function V2Page() {
   // 'schema' = the shape only: every leaf replaced by its type, arrays merged
   // into one element, so you can read the structure without the payload.
   const [mode, setMode] = useState<Mode>('clean')
+  // Independent of mode: whether the schema spec is applied to whatever mode shows.
+  const [shape, setShape] = useState<Shape>('original')
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
@@ -109,14 +122,15 @@ export default function V2Page() {
   // Vilnius is where this instance runs; the transform itself is zone-agnostic.
   const value = useMemo(() => {
     if (raw == null) return null
-    // Mapped is clean's readable values run through your spec — the compiler
-    // output, which is what the rest of Karin would consume.
-    if (mode === 'mapped') return compile(applyMode(raw, 'clean', { timeZone: 'Europe/Vilnius' }), spec)
     return applyMode(raw, mode as ViewMode, { timeZone: 'Europe/Vilnius' })
-  }, [raw, mode, spec])
+  }, [raw, mode])
 
-  // Schema view shows the shape you are editing, so the spec applies there too.
-  const shown = mode === 'schema' && value != null ? compile(value, spec) : value
+  // The spec is replayed on top of whichever mode is showing — that IS mapped.
+  const shown = shape === 'mapped' && value != null ? compile(value, spec) : value
+  // Editing is a mapped affordance: there you are looking at your own format,
+  // so an edit lands where you can see it. Original stays untouched, and so
+  // read-only — that is the whole point of having it beside mapped.
+  const editing = shape === 'mapped'
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -144,6 +158,24 @@ export default function V2Page() {
                   }`}
                 >
                   {m}
+                </button>
+              ))}
+            </div>
+            {/* The second axis, in its own pill so it never reads as a 4th mode. */}
+            <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
+              {SHAPES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setShape(s)}
+                  title={SHAPE_HINT[s]}
+                  className={`rounded px-1.5 py-0.5 ${
+                    shape === s
+                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+                  }`}
+                >
+                  {s}
                 </button>
               ))}
             </div>
@@ -255,15 +287,15 @@ export default function V2Page() {
             value={shown as Json}
             openDepth={2}
             theme={palette}
-            // Editing is a schema-view affordance: there you are reading the
-            // shape, so arranging it is the point. Every other mode is read-only.
-            onReorder={mode === 'schema' ? (path, keys) => editSpec(withRule(spec, path, { order: keys })) : undefined}
-            onHide={mode === 'schema' ? (path, key) => editSpec(withHidden(spec, path, key)) : undefined}
+            // Editing lives in mapped, in any mode: that is where you are looking
+            // at your own format, so an edit lands where you can see it.
+            onReorder={editing ? (path, keys) => editSpec(withRule(spec, path, { order: keys })) : undefined}
+            onHide={editing ? (path, key) => editSpec(withHidden(spec, path, key)) : undefined}
             // Grouping folds sibling keys — three separate timestamps, say —
             // under one object. Typing the same name on each collects them;
             // an empty answer takes a key back out.
             onGroup={
-              mode === 'schema'
+              editing
                 ? (path, key) => {
                     // A row already inside a group is drawn one level deeper than
                     // the rule that put it there, so aim at the parent's path.
@@ -279,7 +311,7 @@ export default function V2Page() {
                 : undefined
             }
             onRename={
-              mode === 'schema'
+              editing
                 ? (path, key) => {
                     const next = window.prompt(`Rename "${key}" to:`, spec[path]?.rename?.[key] ?? key)
                     if (next && next !== key) editSpec(withRule(spec, path, { rename: { [key]: next } }))
