@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.98',
+    title: 'Each pane, its own view',
+    summary: 'On a wide screen the two JSON panes carry separate clean/raw/schema and mapped/original controls.',
+    detail:
+      'The split view used to be one choice drawn twice: the left pane was always the original, in whatever mode the bar said. Now each pane has its own pill row in its header, so you can read clean beside raw, schema beside clean, or mapped beside mapped — whatever comparison you actually came for. The bar above still drives the right pane and decides whether the split is up at all; narrow screens are unchanged, one pane and one set of controls.',
+  },
+  {
+    version: 'v.97',
+    title: 'Pick what a fold shows',
+    summary: 'A "peek" action per key chooses which values stand in for a collapsed object.',
+    detail:
+      'A collapsed branch used to guess its own one-line gist — text/type if present, otherwise the first four non-null values. Now each row in the mapped tree has a peek button: the keys you mark are the ones drawn in the parent\'s summary, with a +N for the rest. It is a spec rule like hide and order, so it is replayed over every refreshed feed and survives reloads. Press peek again to unpeek and fall back to the guess.',
+  },
+  {
     version: 'v.96',
     title: 'Delete versus hide',
     summary: 'Two removals: delete drops a key from your format, hide only tidies it out of the clean view.',

@@ -15,6 +15,7 @@ import {
   withGrouped,
   withDropped,
   withHidden,
+  withPeeked,
   withRule,
   type Hues,
   type Json,
@@ -34,7 +35,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.11'
+export const V2_VERSION = 'v.2.13'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -150,11 +151,18 @@ export default function V2Page() {
   const [schemaValues, setSchemaValues] = useState<Values>('clean')
   // Hiding is the tidy view's business. Clean is tidy; raw is the full record;
   // schema is whichever of the two its own sub-pill says.
-  const tidy = mode === 'clean' || (mode === 'schema' && schemaValues === 'clean')
+  const tidyOf = (m: Mode, v: Values) => m === 'clean' || (m === 'schema' && v === 'clean')
   // Independent of mode: whether the schema spec is applied to whatever mode shows.
   // Mapped is the default — your format is the one you came to read; original is
   // the reference you check it against.
   const [shape, setShape] = useState<Shape>('mapped')
+  // The split is two readings side by side, and the whole point of two panes is
+  // that they can differ. So the left pane carries its own mode/values/shape
+  // rather than mirroring the bar — clean beside raw, or mapped beside mapped,
+  // is a comparison the single-pane controls cannot express.
+  const [leftMode, setLeftMode] = useState<Mode>('clean')
+  const [leftValues, setLeftValues] = useState<Values>('clean')
+  const [leftShape, setLeftShape] = useState<Shape>('original')
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
@@ -197,24 +205,45 @@ export default function V2Page() {
   // there is no feed tab, because a tab hides two thirds of what you have and
   // makes comparing sources a navigation act rather than a scroll.
   // Vilnius is where this instance runs; the transform itself is zone-agnostic.
-  const loaded = useMemo(
-    () =>
-      FEEDS.filter((f) => feeds[f.key] != null).map((f) => ({
-        ...f,
-        value: applyMode(feeds[f.key] as Json, mode as ViewMode, { timeZone: 'Europe/Vilnius' }),
-      })),
-    [codex, claude, warp, mode],
-  )
+  // Keyed by mode, because two panes can be reading two different modes at once
+  // and neither should pay for the other's transform on every render.
+  const byMode = useMemo(() => {
+    const present = FEEDS.filter((f) => feeds[f.key] != null)
+    const cache = new Map<Mode, { key: FeedKey; label: string; file: string; value: Json }[]>()
+    return {
+      count: present.length,
+      of: (m: Mode) => {
+        const hit = cache.get(m)
+        if (hit) return hit
+        const built = present.map((f) => ({
+          ...f,
+          value: applyMode(feeds[f.key] as Json, m as ViewMode, { timeZone: 'Europe/Vilnius' }),
+        }))
+        cache.set(m, built)
+        return built
+      },
+    }
+  }, [codex, claude, warp])
 
   /**
    * Every feed as a collapsed branch. `mapped` decides both what is drawn — the
    * spec applied or not — and whether the row actions are there at all: the
    * original is the record on disk, so nothing about it is editable.
    */
-  const feedTrees = (mapped: boolean) =>
-    loaded.map((f) => {
+  const feedTrees = (pane: { mode: Mode; values: Values; shape: Shape }) => {
+    const mapped = pane.shape === 'mapped'
+    const tidy = tidyOf(pane.mode, pane.values)
+    return byMode.of(pane.mode).map((f) => {
       const spec = specOf(f.key)
       const edit = (next: SchemaSpec) => editSpec(f.key, next)
+      // A collapsed branch otherwise guesses its own one-line gist. `peek` is
+      // where you overrule that guess per path, so a fold shows the fields you
+      // actually read closed instead of the first four non-null ones.
+      const peek = Object.fromEntries(
+        Object.entries(spec)
+          .filter(([, r]) => r.peek?.length)
+          .map(([p, r]) => [p, r.peek as string[]]),
+      )
       return (
         <JsonTree
           key={f.key}
@@ -239,6 +268,8 @@ export default function V2Page() {
           theme={palette}
           onReorder={mapped ? (path, keys) => edit(withRule(spec, path, { order: keys })) : undefined}
           onHide={mapped ? (path, key) => edit(withHidden(spec, path, key)) : undefined}
+          peek={peek}
+          onPeek={mapped ? (path, key) => edit(withPeeked(spec, path, key)) : undefined}
           // Delete says the key is not part of your format at all, so it goes
           // from every view; hide only tidies it out of the clean one.
           onDelete={mapped ? (path, key) => edit(withDropped(spec, path, key)) : undefined}
@@ -246,7 +277,7 @@ export default function V2Page() {
           // one object. Typing the same name on each collects them; an empty
           // answer takes a key back out.
           onGroup={
-            mapped && mode === 'schema'
+            mapped && pane.mode === 'schema'
               ? (path, key) => {
                   // A row already inside a group is drawn one level deeper than
                   // the rule that put it there, so aim at the parent's path.
@@ -272,6 +303,32 @@ export default function V2Page() {
         />
       )
     })
+  }
+
+  /** The per-pane controls, drawn in the pane's own header when the split is up. */
+  const PaneBar = ({
+    mode: m,
+    setMode: sm,
+    values,
+    setValues,
+    shape: sh,
+    setShape: ssh,
+  }: {
+    mode: Mode
+    setMode: (v: Mode) => void
+    values: Values
+    setValues: (v: Values) => void
+    shape: Shape
+    setShape: (v: Shape) => void
+  }) => (
+    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+      <Pill options={MODES} value={m} onSelect={sm} hint={(v) => MODE_HINT[v]} />
+      {m === 'schema' && (
+        <Pill options={VALUES} value={values} onSelect={setValues} hint={(v) => VALUES_HINT[v]} />
+      )}
+      <Pill options={SHAPES} value={sh} onSelect={ssh} hint={(v) => SHAPE_HINT[v]} />
+    </div>
+  )
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -414,27 +471,42 @@ export default function V2Page() {
         // simply ignores them, so this is safe to set unconditionally.
         style={paletteVars(hues, tone)}
       >
-        {loaded.length === 0 ? (
+        {byMode.count === 0 ? (
           <p className="text-neutral-500">No feed loaded — run the indexers.</p>
         ) : (
           <>
-            {/* On a wide screen mapped shows BOTH: your format beside the feed it
-                came from, so an edit can be checked against the original without
-                toggling. Narrow screens get mapped alone — two columns of JSON on
-                a phone is two unreadable columns. */}
+            {/* On a wide screen mapped shows BOTH panes, and each carries its own
+                controls: clean beside raw, mapped beside mapped, whatever the
+                comparison you came for. Narrow screens get one pane — two columns
+                of JSON on a phone is two unreadable columns — so the bar above
+                stays the control there. */}
             {shape === 'mapped' && (
               <section className="hidden min-w-0 flex-1 overflow-auto md:block">
-                <h2 className="mb-1 text-[0.65rem] uppercase tracking-wide text-neutral-400">original</h2>
-                {feedTrees(false)}
+                <PaneBar
+                  mode={leftMode}
+                  setMode={setLeftMode}
+                  values={leftValues}
+                  setValues={setLeftValues}
+                  shape={leftShape}
+                  setShape={setLeftShape}
+                />
+                {feedTrees({ mode: leftMode, values: leftValues, shape: leftShape })}
               </section>
             )}
             <section className="min-w-0 flex-1 overflow-auto">
               {shape === 'mapped' && (
-                <h2 className="mb-1 hidden text-[0.65rem] uppercase tracking-wide text-neutral-400 md:block">
-                  mapped
-                </h2>
+                <div className="hidden md:block">
+                  <PaneBar
+                    mode={mode}
+                    setMode={setMode}
+                    values={schemaValues}
+                    setValues={setSchemaValues}
+                    shape={shape}
+                    setShape={setShape}
+                  />
+                </div>
               )}
-              {feedTrees(shape === 'mapped')}
+              {feedTrees({ mode, values: schemaValues, shape })}
             </section>
           </>
         )}
