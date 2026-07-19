@@ -172,8 +172,13 @@ export default function V2Page() {
   // The schema spec: the edits you make in schema view, kept beside the data.
   // The feeds are regenerated every few seconds, so an edit written INTO them
   // would not survive; as a spec it is replayed over each fresh value instead.
-  const [specs, setSpecs] = useState<Record<string, SchemaSpec>>({})
-  const specOf = (feed: FeedKey) => specs[feed] ?? loadSpec(feed)
+  // Read from localStorage ONCE, at mount. Doing it per call made every render
+  // parse three JSON specs several times over — the settings menu alone reads
+  // them twice per feed — and a parse per render is a parse per keystroke.
+  const [specs, setSpecs] = useState<Record<string, SchemaSpec>>(() =>
+    Object.fromEntries(FEEDS.map((f) => [f.key, loadSpec(f.key)])),
+  )
+  const specOf = (feed: FeedKey) => specs[feed] ?? EMPTY_SPEC
 
   const editSpec = (feed: FeedKey, next: SchemaSpec) => {
     setSpecs((s) => ({ ...s, [feed]: next }))
