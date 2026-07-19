@@ -1,7 +1,20 @@
 import { useMemo, useState } from 'react'
 import * as Switch from '@radix-ui/react-switch'
 import { Moon, Settings, Sun } from 'lucide-react'
-import { JsonTree, PRESETS, applyMode, type Json, type JsonTheme, type KeyOrder, type ViewMode } from '@adomas/json-tree'
+import {
+  EMPTY_SPEC,
+  JsonTree,
+  PRESETS,
+  applyMode,
+  compile,
+  isEmptySpec,
+  withHidden,
+  withRule,
+  type Json,
+  type JsonTheme,
+  type SchemaSpec,
+  type ViewMode,
+} from '@adomas/json-tree'
 import { useKarin } from '../store/karin'
 import { NavBarShell } from './NavBar'
 
@@ -13,13 +26,30 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.3'
+export const V2_VERSION = 'v.2.4'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
   raw: 'Exactly as written on disk',
-  schema: 'Structure only — every value replaced by its type',
+  schema: 'Structure only — drag, rename and hide keys to define your format',
+  mapped: 'Your format: the feed with your schema edits applied',
 } as const
+
+const MODES = ['clean', 'raw', 'schema', 'mapped'] as const
+type Mode = (typeof MODES)[number]
+
+// The spec is per feed — Codex and Claude have nothing in common shape-wise —
+// and lives in localStorage so it outlives the reload that overwrites the data.
+const specKey = (feed: string) => `karin.v2.schema.${feed}`
+
+function loadSpec(feed: string): SchemaSpec {
+  try {
+    const raw = localStorage.getItem(specKey(feed))
+    return raw ? (JSON.parse(raw) as SchemaSpec) : EMPTY_SPEC
+  } catch {
+    return EMPTY_SPEC
+  }
+}
 
 type FeedKey = 'codex' | 'claude' | 'warp'
 const FEEDS: { key: FeedKey; label: string; file: string }[] = [
@@ -44,18 +74,37 @@ export default function V2Page() {
   // collapse/expand and the big-array paging guards apply to both.
   // 'schema' = the shape only: every leaf replaced by its type, arrays merged
   // into one element, so you can read the structure without the payload.
-  const [mode, setMode] = useState<ViewMode>('clean')
+  const [mode, setMode] = useState<Mode>('clean')
   // Palette and per-path key order are viewer settings, not data — they live
   // here and are handed to JsonTree, which stays a pure renderer.
   const [palette, setPalette] = useState<JsonTheme>('auto')
-  const [order, setOrder] = useState<KeyOrder>({})
+  // The schema spec: the edits you make in schema view, kept beside the data.
+  // The feeds are regenerated every few seconds, so an edit written INTO them
+  // would not survive; as a spec it is replayed over each fresh value instead.
+  const [specs, setSpecs] = useState<Record<string, SchemaSpec>>({})
+  const spec = specs[active] ?? loadSpec(active)
+
+  const editSpec = (next: SchemaSpec) => {
+    setSpecs((s) => ({ ...s, [active]: next }))
+    try {
+      localStorage.setItem(specKey(active), JSON.stringify(next))
+    } catch {
+      // A full or blocked localStorage costs you persistence, not the edit.
+    }
+  }
 
   const raw = feeds[active] as Json | null
   // Vilnius is where this instance runs; the transform itself is zone-agnostic.
-  const value = useMemo(
-    () => (raw == null ? null : applyMode(raw, mode, { timeZone: 'Europe/Vilnius' })),
-    [raw, mode],
-  )
+  const value = useMemo(() => {
+    if (raw == null) return null
+    // Mapped is clean's readable values run through your spec — the compiler
+    // output, which is what the rest of Karin would consume.
+    if (mode === 'mapped') return compile(applyMode(raw, 'clean', { timeZone: 'Europe/Vilnius' }), spec)
+    return applyMode(raw, mode as ViewMode, { timeZone: 'Europe/Vilnius' })
+  }, [raw, mode, spec])
+
+  // Schema view shows the shape you are editing, so the spec applies there too.
+  const shown = mode === 'schema' && value != null ? compile(value, spec) : value
 
   return (
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
@@ -70,7 +119,7 @@ export default function V2Page() {
         right={
           <div className="flex items-center gap-2">
             <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
-              {(['clean', 'raw', 'schema'] as const).map((m) => (
+              {MODES.map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -125,13 +174,13 @@ export default function V2Page() {
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
-                    {mode === 'schema' && Object.keys(order).length > 0 && (
+                    {!isEmptySpec(spec) && (
                       <button
                         type="button"
-                        onClick={() => setOrder({})}
+                        onClick={() => editSpec(EMPTY_SPEC)}
                         className="mt-1.5 w-full rounded px-1 py-0.5 text-left text-[0.68rem] text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                       >
-                        Reset key order
+                        Reset {active} schema
                       </button>
                     )}
                   </div>
@@ -150,15 +199,19 @@ export default function V2Page() {
           </p>
         ) : (
           <JsonTree
-            value={value}
+            value={shown as Json}
             openDepth={2}
             theme={palette}
-            order={order}
-            // Reordering is a schema-view affordance: there you are reading the
-            // shape, so arranging keys is the point. Elsewhere the tree is read-only.
-            onReorder={
+            // Editing is a schema-view affordance: there you are reading the
+            // shape, so arranging it is the point. Every other mode is read-only.
+            onReorder={mode === 'schema' ? (path, keys) => editSpec(withRule(spec, path, { order: keys })) : undefined}
+            onHide={mode === 'schema' ? (path, key) => editSpec(withHidden(spec, path, key)) : undefined}
+            onRename={
               mode === 'schema'
-                ? (path, keys) => setOrder((o) => ({ ...o, [path]: keys }))
+                ? (path, key) => {
+                    const next = window.prompt(`Rename "${key}" to:`, spec[path]?.rename?.[key] ?? key)
+                    if (next && next !== key) editSpec(withRule(spec, path, { rename: { [key]: next } }))
+                  }
                 : undefined
             }
           />

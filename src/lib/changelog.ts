@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.87',
+    title: 'Schema compiler, your format',
+    summary: 'Edits in schema view become rules that are replayed over every fresh feed.',
+    detail:
+      'The feeds are regenerated every few seconds, so an edit written into them would be gone by the next refresh — and writing back into the transcripts would corrupt them. So an edit becomes a rule instead: drag to order, rename, or hide a key, and it is saved beside the data as a path-keyed spec. A new mapped mode shows the compiled result, which is the shape the rest of Karin would consume. One rule covers every element of an array, so you arrange the shape once rather than once per row. Specs are per feed and persist in localStorage.',
+  },
+  {
     version: 'v.86',
     title: 'Settings menu opens again',
     summary: 'The nav bar was clipping its own popover, so the gear button appeared to do nothing.',
