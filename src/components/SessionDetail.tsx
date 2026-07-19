@@ -143,7 +143,7 @@ export default function SessionDetail() {
 
   if (!s) {
     return (
-      <div className="flex h-dvh flex-1 items-center justify-center p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+      <div className="flex h-full flex-1 items-center justify-center p-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
         Select a session to view its prompts, tools, and token usage.
       </div>
     )
@@ -170,7 +170,7 @@ export default function SessionDetail() {
   }
 
   return (
-    <div className="flex h-dvh min-w-0 flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="shrink-0 border-b border-neutral-200/80 bg-white/90 p-3 shadow-sm shadow-neutral-950/[0.03] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
         <div className="flex min-w-0 items-center gap-2">
           <button

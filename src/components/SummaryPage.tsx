@@ -4,7 +4,6 @@
 // as one-liners.
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import { buildSummary, type SummaryRange } from '../lib/summary'
 import { fmtCompact, fmtDuration } from '../lib/format'
@@ -21,7 +20,6 @@ const COLORS = ['#2563eb', '#ea580c', '#059669', '#9333ea', '#dc2626', '#0891b2'
 
 export default function SummaryPage() {
   const sessions = useKarin((s) => s.sessions)
-  const setView = useKarin((s) => s.setView)
   const [range, setRange] = useState<SummaryRange>('today')
 
   // `sessions` identity changes only on data refresh, so the summary recomputes rarely.
@@ -30,16 +28,8 @@ export default function SummaryPage() {
   const restShare = 1 - topProjects.reduce((sum, p) => sum + p.share, 0)
 
   return (
-    <div className="flex h-dvh flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+    <div className="flex h-full flex-col bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
       <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-950">
-        <button
-          type="button"
-          onClick={() => setView('sessions')}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Sessions
-        </button>
         <h1 className="text-sm font-semibold">Summary</h1>
         <div className="inline-flex overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
           {RANGES.map((r) => (

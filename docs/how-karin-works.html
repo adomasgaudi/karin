@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How Karin works</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#171717; --dim:#6b7280; --line:#e5e7eb; --card:#fafafa; --accent:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0a0a; --fg:#ededed; --dim:#8b8b8b; --line:#242424; --card:#111; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; }
+  .wrap { max-width: 860px; margin:0 auto; padding: 3rem 1.25rem 6rem; }
+  h1 { font-size:1.9rem; margin:0 0 .25rem; letter-spacing:-.02em; }
+  h2 { font-size:1.15rem; margin:2.75rem 0 .5rem; letter-spacing:-.01em; }
+  h2 .n { color:var(--accent); font-variant-numeric:tabular-nums; margin-right:.5rem; }
+  h3 { font-size:.95rem; margin:1.25rem 0 .35rem; }
+  p { margin:.5rem 0; }
+  .lede { color:var(--dim); font-size:1.02rem; }
+  code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.86em; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:.05em .35em; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1rem 1.1rem; margin:.75rem 0; }
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:1rem 0; }
+  .flow .step { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:.45rem .7rem; font-size:.83rem; }
+  .flow .arrow { color:var(--accent); }
+  .scroll { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:.87rem; }
+  th, td { text-align:left; vertical-align:top; border-bottom:1px solid var(--line); padding:.5rem .6rem; }
+  th { color:var(--dim); font-weight:600; }
+  ul { margin:.4rem 0; padding-left:1.15rem; }
+  li { margin:.25rem 0; }
+  .note { border-left:3px solid var(--accent); padding-left:.85rem; color:var(--dim); margin:1rem 0; }
+  footer { margin-top:4rem; color:var(--dim); font-size:.82rem; border-top:1px solid var(--line); padding-top:1rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>How Karin works</h1>
+<p class="lede">A local viewer for your AI sessions. Three different AI tools write logs on this machine; Karin reads them, converts each into one shared shape, groups them into turns, prices them, and draws them. Nothing leaves the PC.</p>
+
+<div class="flow">
+  <span class="step">Codex / Claude / Warp logs</span><span class="arrow">→</span>
+  <span class="step">Python indexers</span><span class="arrow">→</span>
+  <span class="step">JSON feeds in <code>data/</code></span><span class="arrow">→</span>
+  <span class="step">adapters → UnifiedSession</span><span class="arrow">→</span>
+  <span class="step">cycles</span><span class="arrow">→</span>
+  <span class="step">pricing</span><span class="arrow">→</span>
+  <span class="step">React UI</span>
+</div>
+
+<h2><span class="n">1</span>Where the data comes from</h2>
+<p>Each AI tool logs to its own place in its own format. One small Python program per tool reads that and writes a plain JSON file into <code>data/</code>. That is the only code that knows anything tool-specific about reading.</p>
+<div class="scroll">
+<table>
+  <tr><th>Source</th><th>Indexer</th><th>Reads</th><th>Writes</th></tr>
+  <tr><td>Codex</td><td><code>bin/karin.py</code></td><td><code>~/.codex/sessions/**.jsonl</code></td><td><code>data/karin-data.json</code></td></tr>
+  <tr><td>Claude</td><td><code>bin/karin_claude.py</code></td><td><code>~/.claude/projects/**.jsonl</code></td><td><code>data/claude-raw.json</code></td></tr>
+  <tr><td>Warp</td><td><code>bin/karin_warp.py</code></td><td>Warp's SQLite database</td><td><code>data/warp-raw.json</code></td></tr>
+</table>
+</div>
+<p>All three redact secrets on the way through, and all three can run with <code>--watch</code>: they poll for changes and rewrite the feed, which is how the page stays current while you work.</p>
+<div class="note">Warp is the awkward one. Its per-task log is an undocumented binary blob with no published schema, so the indexer walks the raw format generically and identifies things by field number. It works, but a Warp update could move those numbers. Anything it can't name is still kept verbatim and shows up in the Raw tab, so nothing is silently dropped.</div>
+
+<h2><span class="n">2</span>One shape for all three</h2>
+<p>This is the central design decision: <strong>there is no per-AI user interface.</strong> Each feed is converted once, in <code>src/lib/adapt.ts</code>, into a single type called <code>UnifiedSession</code> (defined in <code>src/types.ts</code>). Everything downstream — list, detail, timeline, summary, search, export — only ever sees that type.</p>
+<div class="card">
+  <p style="margin-top:0"><strong>A UnifiedSession carries:</strong> a unique id, which tool it came from, a title, the working directory, the model(s) used, start/update times, counts of prompts and tools, its token totals, whether the turn is still working or waiting on you, a pre-built lowercase blob for fast search, and the untouched original record for the Raw tab.</p>
+</div>
+<p>Loading is separate from adapting: <code>src/lib/loadData.ts</code> just fetches the feed files and sanity-checks them; <code>mergeSessions()</code> then interleaves all three into one list, newest first.</p>
+
+<h2><span class="n">3</span>Cycles — the unit you actually read</h2>
+<p>A raw session is a flat stream of hundreds of events. Karin regroups it into <strong>cycles</strong>, where one cycle = <em>one thing you asked for, plus all the work the AI did because of it</em>. That's the shape the detail page renders.</p>
+<p>In <code>src/lib/unifiedCycles.ts</code>, events from any source are flattened into a common <code>UnifiedEntry</code> (a message, a thought, a tool call, a file edit, a usage frame…), then a new cycle is opened whenever you typed a prompt — or answered a question the AI asked you. Each cycle also derives its own prompt label, counts, model, and timing, split into time actually working versus time waiting on you.</p>
+
+<h3>Who spent the tokens</h3>
+<p>Tools report token usage at different granularity, so <code>attributeCycleUsage()</code> behaves differently per source — this is the one place the sources genuinely differ:</p>
+<ul>
+  <li><strong>Claude</strong> reports usage per reply, so bars are <em>measured</em> and sit exactly where they belong.</li>
+  <li><strong>Codex</strong> reports usage in periodic frames, so Karin splits each frame across the cards it covered, weighted by their text length — these bars are honest <em>estimates</em> and labelled as such.</li>
+  <li><strong>Warp</strong> reports one running total per model and nothing per event, so it gets no per-cycle bars at all.</li>
+</ul>
+
+<h2><span class="n">4</span>Turning tokens into a number you care about</h2>
+<p><code>src/lib/pricing.ts</code> can express the same usage three ways, toggled in the UI:</p>
+<ul>
+  <li><strong>tokens</strong> — the raw counts.</li>
+  <li><strong>token units</strong> — everything restated as "how many of <em>this</em> kind of token would that cost", since input, cached and output tokens are priced very differently.</li>
+  <li><strong>money</strong> — real currency, in USD or EUR, whole or cents.</li>
+</ul>
+<p>Money has a second switch: <strong>API basis</strong> uses published list prices; <strong>subscription basis</strong> divides those by a per-tool divisor to estimate what the work actually costs you on a flat monthly plan. Rate tables for each model live in that same file, and the reference table shown in the UI is derived from them so the two can't disagree.</p>
+<div class="note">Warp is deliberately not priced. It only records a cumulative token count per model with no input/output split, and those two bill at wildly different rates — any cost figure would be invented. The rate lookup returns nothing for Warp and the header says "Not priced". This is a decision, not a gap.</div>
+
+<h2><span class="n">5</span>What's on screen</h2>
+<div class="scroll">
+<table>
+  <tr><th>Piece</th><th>Shows</th></tr>
+  <tr><td><code>App.tsx</code></td><td>Boots the data, then picks the view: sessions, timeline, summary, or v2.</td></tr>
+  <tr><td><code>Sidebar.tsx</code></td><td>Searchable, filterable session list with per-session usage bars, plus the global unit/price toggles.</td></tr>
+  <tr><td><code>SessionDetail.tsx</code></td><td>One session: header, meta, pricing panel, then its cycles.</td></tr>
+  <tr><td><code>Cycle.tsx</code> / <code>EventEntry.tsx</code></td><td>A single turn, and each individual event card inside it.</td></tr>
+  <tr><td><code>TimelinePage.tsx</code></td><td>All sessions laid out across the day as bars.</td></tr>
+  <tr><td><code>SummaryPage.tsx</code></td><td>"What happened" — reconstructed work items and where effort went per project.</td></tr>
+</table>
+</div>
+<p>State lives in one Zustand store, <code>src/store/karin.ts</code>: the three feeds, the derived session list, your selection, search, and every toggle (all persisted to local storage). <code>boot()</code> loads everything in parallel, then a refresh loop re-fetches the feeds <strong>every 5 seconds</strong> and only re-renders if something is genuinely newer. Sidebar order is frozen for a few minutes so rows don't jump around while you're reading.</p>
+
+<h2><span class="n">6</span>Running it</h2>
+<div class="scroll">
+<table>
+  <tr><th>Command</th><th>What you get</th></tr>
+  <tr><td><code>./karin.ps1</code></td><td>Local deploy on <strong>:4173</strong> — a real built bundle with your data baked in. Source changes need a rebuild.</td></tr>
+  <tr><td><code>./karin.ps1 -Dev</code></td><td>Dev server on <strong>:5173</strong> — hot reload, best for iterating.</td></tr>
+  <tr><td><code>./karin.ps1 -Tunnel</code></td><td>Adds a Cloudflare URL so you can open it from your phone. Still served from this PC.</td></tr>
+</table>
+</div>
+<p>Either way the launcher also starts the indexers in watch mode, so the feeds keep updating underneath. Two footguns worth knowing: a new feed file must be added to the <code>DATA_FILES</code> allowlist in <code>vite.config.ts</code> or it never reaches the built page; and <strong>committing does not update :4173</strong> — that URL serves the built folder, so it needs a rebuild (a post-commit hook now does this automatically).</p>
+
+<h2><span class="n">7</span>Why it's local-only</h2>
+<p>There used to be a public copy on GitHub Pages. It was removed on purpose: transcripts are sensitive and publishing them would defeat the point, the dataset is too big for a static host, and a static host can't see live activity on your machine anyway. The tunnel exists to reach <em>this</em> machine remotely, not to copy data anywhere.</p>
+
+<footer>Generated as an orientation document for Karin. For the authoritative details, the code is the source of truth — start at <code>src/lib/adapt.ts</code> and <code>src/lib/unifiedCycles.ts</code>.</footer>
+
+</div>
+</body>
+</html>
