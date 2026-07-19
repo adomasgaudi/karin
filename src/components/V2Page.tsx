@@ -35,7 +35,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.13'
+export const V2_VERSION = 'v.2.14'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -230,6 +230,38 @@ export default function V2Page() {
     }
   }, [codex, claude, warp])
 
+  // compile() and the peek map both walk a whole feed, and both were being redone
+  // on every render — twice per feed once the split pane is up, so a settings
+  // toggle or a hue drag paid for six full tree rebuilds. They depend only on
+  // (feed, mode, tidy) and the spec, so cache on exactly that and let identity
+  // stability spare JsonTree the re-render too.
+  const compiled = useMemo(() => {
+    const cache = new Map<string, Json>()
+    return (f: { key: FeedKey; value: Json }, tidy: boolean, mode: Mode) => {
+      const k = `${f.key}|${mode}|${tidy}`
+      const hit = cache.get(k)
+      if (hit !== undefined) return hit
+      const built = compile(f.value, specs[f.key] ?? EMPTY_SPEC, '', { applyHide: tidy }) as Json
+      cache.set(k, built)
+      return built
+    }
+  }, [codex, claude, warp, specs])
+
+  const peeks = useMemo(
+    () =>
+      Object.fromEntries(
+        FEEDS.map((f) => [
+          f.key,
+          Object.fromEntries(
+            Object.entries(specs[f.key] ?? EMPTY_SPEC)
+              .filter(([, r]) => r.peek?.length)
+              .map(([p, r]) => [p, r.peek as string[]]),
+          ),
+        ]),
+      ),
+    [specs],
+  )
+
   /**
    * Every feed as a collapsed branch. `mapped` decides both what is drawn — the
    * spec applied or not — and whether the row actions are there at all: the
@@ -244,16 +276,12 @@ export default function V2Page() {
       // A collapsed branch otherwise guesses its own one-line gist. `peek` is
       // where you overrule that guess per path, so a fold shows the fields you
       // actually read closed instead of the first four non-null ones.
-      const peek = Object.fromEntries(
-        Object.entries(spec)
-          .filter(([, r]) => r.peek?.length)
-          .map(([p, r]) => [p, r.peek as string[]]),
-      )
+      const peek = peeks[f.key]
       return (
         <JsonTree
           key={f.key}
           name={f.key}
-          value={(mapped ? compile(f.value, spec, '', { applyHide: tidy }) : f.value) as Json}
+          value={mapped ? compiled(f, tidy, pane.mode) : f.value}
           // The original is where an edit is legible: the key is still on the
           // page, struck out or greyed, instead of being an absence you have to
           // notice by comparing two columns.
