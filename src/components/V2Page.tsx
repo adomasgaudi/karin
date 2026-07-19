@@ -12,6 +12,10 @@ import { prettifyJson } from '../lib/prettyJson'
 // one at a time. The viewer is @adomas/json-tree, the SAME package Pepper uses —
 // it lives in its own repo, so a change there lands in both apps.
 
+// v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
+// separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
+export const V2_VERSION = 'v.2.1'
+
 type FeedKey = 'codex' | 'claude' | 'warp'
 const FEEDS: { key: FeedKey; label: string; file: string }[] = [
   { key: 'codex', label: 'Codex', file: 'karin-data.json' },
@@ -48,7 +52,7 @@ export default function V2Page() {
         tabs={FEEDS.map((f) => ({ id: f.key, label: f.label, title: `data/${f.file}`, disabled: feeds[f.key] == null }))}
         active={active}
         onSelect={setActive}
-        versionLabel="v.2.0"
+        versionLabel={V2_VERSION}
         onVersionClick={() => setView('sessions')}
         versionTitle="Back to Karin v.1"
         right={
