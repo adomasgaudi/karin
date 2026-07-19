@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.91',
+    title: 'Controls get their own bar',
+    summary: 'Feed, mode and shape move out of the nav into a sticky bar under it.',
+    detail:
+      'The v.2 nav was carrying the brand, the version toggle, three feed tabs, three mode buttons, two shape buttons and a gear — too much for one row, and worst on the narrow screen where it matters. The three choices now sit in their own sticky bar directly below, drawn by one segmented-pill component rather than three near-identical blocks that would drift apart. The nav keeps what identifies the app; the bar keeps what you actually change while reading.',
+  },
+  {
     version: 'v.90',
     title: 'Mapped becomes an axis',
     summary: 'Every view now has an original and a mapped version, instead of mapped being a fourth mode.',

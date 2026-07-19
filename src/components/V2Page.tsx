@@ -33,7 +33,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.7'
+export const V2_VERSION = 'v.2.8'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
@@ -75,6 +75,46 @@ const FEEDS: { key: FeedKey; label: string; file: string }[] = [
   { key: 'claude', label: 'Claude', file: 'claude-raw.json' },
   { key: 'warp', label: 'Warp', file: 'warp-raw.json' },
 ]
+
+/**
+ * One segmented pill. Feed, mode and shape are three independent choices of the
+ * same kind — pick one of N — so they are drawn by one component rather than
+ * three near-identical blocks that drift apart.
+ */
+function Pill<T extends string>({
+  options,
+  value,
+  onSelect,
+  hint,
+  disabled,
+}: {
+  options: readonly T[]
+  value: T
+  onSelect: (v: T) => void
+  hint?: (v: T) => string | undefined
+  disabled?: (v: T) => boolean
+}) {
+  return (
+    <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onSelect(o)}
+          disabled={disabled?.(o)}
+          title={hint?.(o)}
+          className={`rounded px-1.5 py-0.5 disabled:opacity-30 ${
+            value === o
+              ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+              : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export default function V2Page() {
   const setView = useKarin((s) => s.setView)
@@ -136,49 +176,11 @@ export default function V2Page() {
     <div className="flex h-dvh flex-col bg-white text-neutral-900 dark:bg-black dark:text-neutral-100">
       {/* Same nav scaffold as v.1 — only the tabs and the right slot differ. */}
       <NavBarShell
-        tabs={FEEDS.map((f) => ({ id: f.key, label: f.label, title: `data/${f.file}`, disabled: feeds[f.key] == null }))}
-        active={active}
-        onSelect={setActive}
         versionLabel={V2_VERSION}
         onVersionClick={() => setView('sessions')}
         versionTitle="Back to Karin v.1"
         right={
           <div className="flex items-center gap-2">
-            <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
-              {MODES.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  title={MODE_HINT[m]}
-                  className={`rounded px-1.5 py-0.5 ${
-                    mode === m
-                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            {/* The second axis, in its own pill so it never reads as a 4th mode. */}
-            <div className="flex rounded border border-neutral-200 p-px text-[0.68rem] dark:border-neutral-800">
-              {SHAPES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setShape(s)}
-                  title={SHAPE_HINT[s]}
-                  className={`rounded px-1.5 py-0.5 ${
-                    shape === s
-                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
             <div className="relative">
             <button
               type="button"
@@ -271,6 +273,21 @@ export default function V2Page() {
           </div>
         }
       />
+
+      {/* The control bar: which feed, what the values look like, whose format.
+          It sits below the nav rather than inside it — three pills crowd the
+          brand row on a phone, and these are the choices you actually change. */}
+      <div className="sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-1.5 py-1 dark:border-neutral-800 dark:bg-neutral-950">
+        <Pill
+          options={FEEDS.map((f) => f.key)}
+          value={active}
+          onSelect={setActive}
+          hint={(k) => `data/${FEEDS.find((f) => f.key === k)?.file}`}
+          disabled={(k) => feeds[k] == null}
+        />
+        <Pill options={MODES} value={mode} onSelect={setMode} hint={(m) => MODE_HINT[m]} />
+        <Pill options={SHAPES} value={shape} onSelect={setShape} hint={(s) => SHAPE_HINT[s]} />
+      </div>
 
       <main
         className="min-h-0 flex-1 overflow-auto p-4 font-mono text-[0.78rem] leading-relaxed"

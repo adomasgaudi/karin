@@ -19,9 +19,10 @@ export interface NavTab<T extends string = string> {
 }
 
 interface NavBarProps<T extends string> {
-  tabs: NavTab<T>[]
-  active: T
-  onSelect: (id: T) => void
+  /** Optional: v.2 puts its own controls in a sticky bar below, so its nav has no tabs. */
+  tabs?: NavTab<T>[]
+  active?: T
+  onSelect?: (id: T) => void
   /** Version label text; clicking it switches to the other Karin version. */
   versionLabel: string
   onVersionClick: () => void
@@ -52,14 +53,14 @@ export function NavBarShell<T extends string>({
       >
         {versionLabel}
       </button>
-      {tabs.map((t) => {
+      {(tabs ?? []).map((t) => {
         const isActive = active === t.id
         const Icon = t.icon
         return (
           <button
             key={t.id}
             type="button"
-            onClick={() => onSelect(t.id)}
+            onClick={() => onSelect?.(t.id)}
             disabled={t.disabled}
             title={t.title}
             aria-current={isActive ? 'page' : undefined}
