@@ -35,7 +35,7 @@ import { NavBarShell } from './NavBar'
 
 // v.2 carries its OWN 2.x version line, bumped on every material v.2 change —
 // separate from the app-wide v.N in appVersion.ts, which also keeps ticking.
-export const V2_VERSION = 'v.2.16'
+export const V2_VERSION = 'v.2.17'
 
 const MODE_HINT = {
   clean: 'Dates shown as Vilnius day + time',
