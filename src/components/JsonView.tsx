@@ -10,8 +10,10 @@ import { cn } from '../lib/cn'
 // use the raw toggle / Copy JSON, which every caller keeps alongside this view.
 // ---------------------------------------------------------------------------
 
-const KEY = 'shrink-0 font-mono text-[0.66rem] text-neutral-400 dark:text-neutral-500'
-const VAL = 'min-w-0 font-mono text-[0.68rem] break-words text-neutral-700 dark:text-neutral-200'
+// Contrast note: these trees often sit inside a dimmed context band, so the palette runs
+// one step brighter than a normal label would — muted must still be READABLE.
+const KEY = 'shrink-0 font-mono text-[0.66rem] text-neutral-500 dark:text-neutral-400'
+const VAL = 'min-w-0 font-mono text-[0.68rem] break-words text-neutral-800 dark:text-neutral-100'
 
 // Long prose is the common case in transcripts, so it gets a block of its own
 // rather than being squeezed into the value column.
@@ -37,7 +39,7 @@ function clockHint(key: string, v: string): string | null {
 }
 
 function Scalar({ k, v }: { k: string; v: unknown }) {
-  if (v === null || v === undefined) return <span className="font-mono text-[0.68rem] text-neutral-300 dark:text-neutral-600">—</span>
+  if (v === null || v === undefined) return <span className="font-mono text-[0.68rem] text-neutral-400 dark:text-neutral-500">—</span>
   if (typeof v === 'boolean')
     return (
       <span className={cn('font-mono text-[0.68rem]', v ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500')}>
@@ -51,8 +53,8 @@ function Scalar({ k, v }: { k: string; v: unknown }) {
   const hint = clockHint(k, s)
   return (
     <span className={VAL}>
-      {s || <span className="text-neutral-300 dark:text-neutral-600">(empty)</span>}
-      {hint && <span className="ml-2 text-[0.62rem] text-neutral-400 dark:text-neutral-500">{hint}</span>}
+      {s || <span className="text-neutral-400 dark:text-neutral-500">(empty)</span>}
+      {hint && <span className="ml-2 text-[0.62rem] text-neutral-400 dark:text-neutral-400">{hint}</span>}
     </span>
   )
 }
@@ -65,7 +67,7 @@ function TextBlock({ text }: { text: string }) {
   const shown = full || !long ? text : text.slice(0, CLAMP_AT)
   return (
     <div className="mt-0.5">
-      <p className="whitespace-pre-wrap break-words font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:text-neutral-200">
+      <p className="whitespace-pre-wrap break-words font-mono text-[0.68rem] leading-relaxed text-neutral-800 dark:text-neutral-100">
         {shown}
         {long && !full && <span className="text-neutral-400 dark:text-neutral-500">…</span>}
       </p>
@@ -115,12 +117,12 @@ function Node({ k, v }: { k: string; v: unknown }) {
       <div className="mt-0.5">
         <div className="flex items-baseline gap-2">
           <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
-          <span className="text-[0.6rem] text-neutral-300 dark:text-neutral-600">{branchLabel(v)}</span>
+          <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
         </div>
         <div className="ml-[0.4rem] border-l border-neutral-200 pl-2.5 dark:border-neutral-800">
           {v.map((item, i) => (
             <div key={i} className="flex items-baseline gap-1.5">
-              <span className="text-neutral-300 dark:text-neutral-600">·</span>
+              <span className="text-neutral-400 dark:text-neutral-500">·</span>
               <Scalar k={k} v={item} />
             </div>
           ))}
@@ -137,7 +139,7 @@ function Node({ k, v }: { k: string; v: unknown }) {
       <div className="mt-0.5">
         <div className="flex items-baseline gap-2">
           <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
-          <span className="text-[0.6rem] text-neutral-300 dark:text-neutral-600">{branchLabel(v)}</span>
+          <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
         </div>
         <div className="ml-[0.4rem] border-l border-neutral-200 pl-2.5 dark:border-neutral-800">
           {entries.map(([ck, cv]) => (
@@ -163,7 +165,7 @@ function Node({ k, v }: { k: string; v: unknown }) {
       <span className={cn(KEY, 'w-28 truncate text-right')} title={k}>
         {k}
       </span>
-      {empty ? <span className="font-mono text-[0.66rem] text-neutral-300 dark:text-neutral-600">{branchLabel(v)}</span> : <Scalar k={k} v={v} />}
+      {empty ? <span className="font-mono text-[0.66rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span> : <Scalar k={k} v={v} />}
     </div>
   )
 }
@@ -205,7 +207,7 @@ export default function JsonView({ value, hideKeys = [] }: { value: unknown; hid
       <div className="px-2 py-1.5">
         {value.map((item, i) => (
           <div key={i} className="flex items-baseline gap-1.5">
-            <span className="text-neutral-300 dark:text-neutral-600">·</span>
+            <span className="text-neutral-400 dark:text-neutral-500">·</span>
             <Scalar k="" v={item} />
           </div>
         ))}

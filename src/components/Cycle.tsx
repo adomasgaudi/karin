@@ -122,7 +122,7 @@ export default function Cycle({
     <details
       className={`cycle group mb-2 rounded-md border shadow-sm shadow-neutral-950/[0.02] transition-[margin] open:mb-8 open:shadow-md ${
         contextOnly
-          ? 'border-neutral-200/70 bg-neutral-50/50 opacity-70 dark:border-neutral-800/70 dark:bg-neutral-900/40'
+          ? 'border-neutral-200/70 bg-neutral-50/50 dark:border-neutral-800/70 dark:bg-neutral-900/40'
           : 'border-neutral-200 bg-white open:border-neutral-300 open:ring-1 open:ring-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/80 dark:open:border-neutral-700 dark:open:ring-neutral-800'
       }`}
     >

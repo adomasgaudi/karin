@@ -164,7 +164,7 @@ function Row({
   children: ReactNode
 }) {
   return (
-    <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-70' : ''}`}>
+    <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>
       <summary className="flex cursor-pointer select-none list-none flex-col gap-px px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
         <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
           <Chevron />
@@ -292,7 +292,7 @@ export function isSessionMeta(entry: Entry): boolean {
 export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: number }) {
   const labels = entries.map((e) => metaLabel(e.item as ClaudeContext)).join(', ')
   return (
-    <details className={`${rowBase} border-l-neutral-300 opacity-70 dark:border-l-neutral-700`}>
+    <details className={`${rowBase} border-l-neutral-300 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
         <Chevron />
         <NumBadge n={num} />

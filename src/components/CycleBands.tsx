@@ -109,7 +109,7 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
   flushMeta()
 
   return (
-    <details className={`${rowBase} border-l-neutral-300 opacity-70 dark:border-l-neutral-700`}>
+    <details className={`${rowBase} border-l-neutral-300 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
         <Chevron />
         <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">context</span>

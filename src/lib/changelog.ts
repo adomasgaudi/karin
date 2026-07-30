@@ -19,6 +19,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.110',
+    title: 'Context rows are readable',
+    summary: 'Three stacked dimmings made expanded context text nearly invisible; the tree palette got brighter too.',
+    detail:
+      'A context-only cycle was dimmed to 70%, the context band inside it dimmed to 70% again, and the row on top of ' +
+      'that — so its body rendered at roughly half opacity over already-muted grays. Dimming now happens once, on the ' +
+      'summary-level styling (background and border), not multiplied down the tree. The JSON tree also moved a step ' +
+      'brighter in dark mode: keys neutral-400, values neutral-100.',
+  },
+  {
     version: 'v.109',
     title: 'A refresh no longer collapses',
     summary: 'Cached bodies survive the 5s poll, cycles keep their identity, and JSON-in-text reads as a tree.',
