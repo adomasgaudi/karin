@@ -168,6 +168,29 @@ function Node({ k, v }: { k: string; v: unknown }) {
   )
 }
 
+// Much of a transcript is JSON that arrives as a STRING — hook payloads, context
+// attachments, Codex tool arguments. Render those as a tree too; anything that
+// isn't JSON stays verbatim text.
+export function MaybeJson({ text, className }: { text: string | null | undefined; className?: string }) {
+  const body = text ?? ''
+  const t = body.trim()
+  if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+    try {
+      const parsed = JSON.parse(t) as unknown
+      if (isObj(parsed) || Array.isArray(parsed)) {
+        return (
+          <div className="overflow-x-auto rounded-md bg-white/70 dark:bg-neutral-950/55">
+            <JsonView value={parsed} />
+          </div>
+        )
+      }
+    } catch {
+      // not JSON after all — fall through to plain text
+    }
+  }
+  return <pre className={className}>{body}</pre>
+}
+
 export default function JsonView({ value, hideKeys = [] }: { value: unknown; hideKeys?: string[] }) {
   if (!isObj(value) && !Array.isArray(value)) {
     return (

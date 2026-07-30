@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { ClaudeTool } from '../lib/claudeModel'
-import JsonView from './JsonView'
+import JsonView, { MaybeJson } from './JsonView'
 
 // Structural renderer for a Claude tool_use result. Dispatches on `tool.name` to render
 // `tool.result?.raw` in a shape that fits the tool (stdout/stderr, unified diff, file
@@ -353,7 +353,7 @@ function FallbackBody({ raw, text }: { raw: unknown; text?: string }) {
     if (text) {
       return (
         <Section label="Output">
-          <pre className={preClass}>{text}</pre>
+          <MaybeJson text={text} className={preClass} />
         </Section>
       )
     }
@@ -371,7 +371,7 @@ function FallbackBody({ raw, text }: { raw: unknown; text?: string }) {
   }
   return (
     <Section label="Output">
-      <pre className={preClass}>{str(raw) || text || ''}</pre>
+      <MaybeJson text={str(raw) || text || ''} className={preClass} />
     </Section>
   )
 }

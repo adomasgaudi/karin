@@ -23,7 +23,6 @@ import {
   usageUnitTotal,
 } from '../lib/pricing'
 import PriceModelPanel from './PriceModelPanel'
-import { APP_VERSION } from '../lib/appVersion'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import Cycle from './Cycle'
 import ContextAudit from './ContextAudit'
@@ -185,7 +184,7 @@ export default function SessionDetail() {
           <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
             {s.title || s.id}
           </h1>
-          <span className="shrink-0 text-[0.68rem] font-medium text-neutral-400 dark:text-neutral-500">Karin {APP_VERSION}</span>
+          {/* The version lives in the nav bar — repeating it in every session header was noise. */}
           <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
 
           {hasRaw && (
@@ -460,7 +459,11 @@ export default function SessionDetail() {
               cycleInfos.map(({ cycle, model, effort, rates: cycleRates }, i) => {
                 return (
                   <Cycle
-                    key={i}
+                    // Keyed by the cycle's first raw line, NOT its position: a cycle
+                    // appearing earlier in the transcript must not renumber the DOM and
+                    // collapse the cycle the owner is reading (<details> open state lives
+                    // on the element).
+                    key={`c${cycle.startLine}`}
                     cycle={cycle}
                     index={i}
                     source={s.source}

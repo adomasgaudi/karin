@@ -40,17 +40,21 @@ export function claudeTurnState(s: ClaudeDetailSession): TurnState {
 
 // Codex: a turn ends with a `final`-phase assistant message. Anything recorded after the
 // last final answer (a tool call, commentary, or a fresh user prompt) means work resumed.
+// `tools` is a lazy-loaded body field — empty in the index — so the only thing this needs
+// from it, the newest tool's line, is precomputed by the indexer as `tool_max_line`. Fall
+// back to reading the array for a hydrated session or an old un-split feed.
 export function codexTurnState(s: Session): TurnState {
   const msgs = s.messages || []
   const tools = s.tools || []
-  if (!msgs.length && !tools.length) return 'unknown'
   const maxLine = (arr: { line: number }[]) => arr.reduce((mx, x) => (x.line > mx ? x.line : mx), -1)
+  const toolMaxLine = tools.length ? maxLine(tools) : s.tool_max_line ?? -1
+  if (!msgs.length && toolMaxLine < 0) return 'unknown'
   const finals = msgs.filter((m) => m.role === 'assistant' && m.phase === 'final')
   const assistants = msgs.filter((m) => m.role === 'assistant')
   // Prefer real "final" answers; fall back to any assistant message if the phase is absent.
   const lastFinalLine = finals.length ? maxLine(finals) : maxLine(assistants)
   if (lastFinalLine < 0) return 'working' // messages/tools exist but no assistant answer yet
-  const lastEventLine = Math.max(maxLine(msgs), maxLine(tools))
+  const lastEventLine = Math.max(maxLine(msgs), toolMaxLine)
   return lastEventLine > lastFinalLine ? 'working' : 'waiting'
 }
 

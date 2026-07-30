@@ -19,6 +19,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.109',
+    title: 'A refresh no longer collapses',
+    summary: 'Cached bodies survive the 5s poll, cycles keep their identity, and JSON-in-text reads as a tree.',
+    detail:
+      'Three fixes. (1) The poll replaced each feed with a body-less index, so the open session briefly lost every ' +
+      'event — cycles unmounted and everything you had expanded snapped shut. Bodies already fetched are now re-attached ' +
+      'synchronously, and only sessions whose updated_at actually moved are re-fetched. (2) Cycles are keyed by their ' +
+      'first raw line instead of their position, so a cycle appearing earlier in the transcript no longer renumbers the ' +
+      'DOM and collapses what you were reading. (3) v.108 missed the biggest case: hook payloads, context attachments ' +
+      'and Codex tool arguments are JSON stored as a STRING. Those now render as the same key/value tree. Also dropped ' +
+      'the duplicate version label from the session header — it already sits in the nav bar.',
+  },
+  {
     version: 'v.108',
     title: 'Expanded details read as text',
     summary: 'Raw JSON dumps became a key/value tree — no braces, quotes or commas.',

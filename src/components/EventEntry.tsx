@@ -23,7 +23,7 @@ import {
 } from '../lib/pricing'
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
-import JsonView from './JsonView'
+import JsonView, { MaybeJson } from './JsonView'
 import DiffView from './DiffView'
 
 interface UsageProps {
@@ -310,7 +310,7 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
                 <span>{metaLabel(item)}</span>
                 <span className="font-normal normal-case">{item.chars} chars</span>
               </div>
-              <pre className={preClass}>{item.text}</pre>
+              <MaybeJson text={item.text} className={preClass} />
             </div>
           )
         })}
@@ -441,9 +441,9 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row num={num} title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
-          <pre className={preClass}>{item.arguments}</pre>
+          <MaybeJson text={item.arguments} className={preClass} />
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
-          <pre className={preClass}>{item.output ?? ''}</pre>
+          <MaybeJson text={item.output ?? ''} className={preClass} />
         </Row>
       )
     }
@@ -508,7 +508,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
         <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} thin={thin} dim>
-          <pre className={preClass}>{item.text}</pre>
+          <MaybeJson text={item.text} className={preClass} />
         </Row>
       )
     }
@@ -516,7 +516,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as RuntimeEvent
       return (
         <Row num={num} title={`runtime / ${item.type}`} tint={tint} step={step} bar={bar} thin={thin}>
-          <pre className={preClass}>{item.text}</pre>
+          <MaybeJson text={item.text} className={preClass} />
         </Row>
       )
     }

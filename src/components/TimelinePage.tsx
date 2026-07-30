@@ -218,6 +218,13 @@ interface Tip {
 export default function TimelinePage() {
   const sessions = useKarin((s) => s.sessions)
   const sourceFilter = useKarin((s) => s.sourceFilter)
+  // Unlike the sidebar, the timeline needs every session's EVENTS to draw its segments,
+  // and the feeds ship those lazily (see lib/hydrate.ts). Pull them all in on mount;
+  // bodies are cached, so revisiting this view costs nothing.
+  const hydrateAll = useKarin((s) => s.hydrateAll)
+  useEffect(() => {
+    void hydrateAll()
+  }, [hydrateAll])
   const setView = useKarin((s) => s.setView)
   const select = useKarin((s) => s.select)
   const priceBasis = useKarin((s) => s.priceBasis)

@@ -76,6 +76,8 @@ export interface ClaudeRawData {
   claude_home: string
   project_count: number
   session_count: number
+  // True when the feed is an index whose session bodies live in data/sessions/claude/.
+  split?: boolean
   projects: ClaudeProject[]
 }
 

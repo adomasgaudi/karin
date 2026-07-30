@@ -15,7 +15,14 @@ function metaRow(label: string, value: string | number | null | undefined): Unif
 
 // --- Codex -----------------------------------------------------------------
 
+// The searchable text. The indexer ships this precomputed (`s.haystack`), because the
+// arrays it used to be built from are lazy-loaded and empty at list level. Its scope is
+// deliberately narrower than the old client-side version — tool output, runtime-event
+// bodies and injected context blocks are excluded, as they were ~56 MB of mostly-unique
+// machine text. Titles, prompts, reasoning, tool names and edited paths still match.
+// The local build below is the fallback for a hydrated session or an old un-split feed.
 function codexHaystack(s: Session): string {
+  if (s.haystack) return s.haystack
   return [
     s.title,
     s.id,
@@ -73,7 +80,9 @@ export function adaptCodexData(d: KarinData | null): UnifiedSession[] {
 
 // --- Claude ----------------------------------------------------------------
 
+// Precomputed by bin/karin_claude.py for the same reason as codexHaystack — see there.
 function claudeHaystack(s: ClaudeDetailSession): string {
+  if (s.haystack) return s.haystack
   return [
     s.title,
     s.first_prompt,

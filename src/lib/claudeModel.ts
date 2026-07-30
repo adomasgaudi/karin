@@ -202,6 +202,10 @@ export interface ClaudeDetailSession {
   counts: ClaudeCounts
   audit: ClaudeAudit
   latest_total_usage: TokenUsage // running total of the last usage_frame
+  // Precomputed search text — see codexHaystack in adapt.ts. Present on split feeds,
+  // where records/tools/contexts/code_edits/usage_frames/subagents above arrive empty
+  // and are filled in by hydrateSession().
+  haystack?: string
 
   // Claude-only session meta (carried when present) ------------------------------
   entrypoint?: string | null
