@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Check, ChevronRight, Copy } from 'lucide-react'
+import { Braces, Check, ChevronRight, Copy } from 'lucide-react'
 import { cn } from '../lib/cn'
 import { shortAge } from '../lib/format'
 import TypeTag from './TypeTag'
+import JsonView from './JsonView'
 import type { ClaudeRecord } from '../lib/claudeRaw'
 
 // --- preview extraction ---------------------------------------------------
@@ -58,6 +59,9 @@ function oneLine(text: string, max = 160): string {
 export default function RecordRow({ record, now }: { record: ClaudeRecord; now: Date }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Readable key/value tree by default; raw JSON stays one click away for when the
+  // exact bytes matter.
+  const [raw, setRaw] = useState(false)
 
   const json = JSON.stringify(record, null, 2)
   const preview = oneLine(recordPreview(record))
@@ -99,18 +103,36 @@ export default function RecordRow({ record, now }: { record: ClaudeRecord; now: 
               line {record._line}
               {typeof record.uuid === 'string' ? ` · ${record.uuid.slice(0, 8)}` : ''}
             </span>
-            <button
-              type="button"
-              onClick={copy}
-              className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[0.62rem] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              {copied ? 'Copied' : 'Copy JSON'}
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setRaw((r) => !r)}
+                title={raw ? 'Back to the readable view' : 'Show the raw JSON line'}
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[0.62rem] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              >
+                <Braces className="h-3 w-3" />
+                {raw ? 'Readable' : 'Raw JSON'}
+              </button>
+              <button
+                type="button"
+                onClick={copy}
+                className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[0.62rem] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? 'Copied' : 'Copy JSON'}
+              </button>
+            </div>
           </div>
-          <pre className="max-h-[28rem] overflow-x-auto overflow-y-auto whitespace-pre bg-neutral-50 px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-            {json}
-          </pre>
+          {raw ? (
+            <pre className="max-h-[28rem] overflow-x-auto overflow-y-auto whitespace-pre bg-neutral-50 px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+              {json}
+            </pre>
+          ) : (
+            <div className="max-h-[28rem] overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
+              {/* _line and _type already sit in the row header — repeating them is noise. */}
+              <JsonView value={record} hideKeys={['_line', '_type']} />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,8 +1,8 @@
 import type { Session, UnifiedSession } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
+import JsonView from './JsonView'
 
-const preClass =
-  'overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed text-neutral-700 dark:bg-neutral-950/55 dark:text-neutral-300'
+const panelClass = 'overflow-x-auto rounded-md bg-white/70 dark:bg-neutral-950/55'
 
 // Drop empty/absent count maps so the raw-counts block only shows what this source records.
 function present(counts: Record<string, Record<string, number> | undefined>): Record<string, Record<string, number>> {
@@ -50,15 +50,15 @@ export default function ContextAudit({ session }: { session: UnifiedSession }) {
           <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
             Visible in {session.source === 'claude' ? 'Claude' : 'Karin'}
           </div>
-          <pre className={preClass}>{JSON.stringify(audit.visible, null, 2)}</pre>
+          <div className={panelClass}><JsonView value={audit.visible} /></div>
         </div>
         <div>
           <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">Not available locally</div>
-          <pre className={preClass}>{JSON.stringify(audit.not_available, null, 2)}</pre>
+          <div className={panelClass}><JsonView value={audit.not_available} /></div>
         </div>
         <div>
           <div className="mb-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">Raw transcript counts</div>
-          <pre className={preClass}>{JSON.stringify(rawCounts, null, 2)}</pre>
+          <div className={panelClass}><JsonView value={rawCounts} /></div>
         </div>
       </div>
     </details>

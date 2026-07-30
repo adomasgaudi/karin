@@ -23,6 +23,7 @@ import {
 } from '../lib/pricing'
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
+import JsonView from './JsonView'
 import DiffView from './DiffView'
 
 interface UsageProps {
@@ -467,7 +468,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           {item.result && (
             <>
               <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Result</div>
-              <pre className={preClass}>{JSON.stringify(item.result, null, 2)}</pre>
+              <JsonView value={item.result} />
             </>
           )}
         </Row>
@@ -482,14 +483,14 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         const meta = `in ${fmtCompact(parts.freshInput + parts.cachedInput + parts.cacheCreate)} / out ${fmtCompact(parts.output + parts.reasoning)}`
         return (
           <Row num={num} title="usage" meta={meta} tint={tint} step={step} bar={bar} thin={thin}>
-            <pre className={preClass}>{JSON.stringify(item.usage_raw, null, 2)}</pre>
+            <JsonView value={item.usage_raw} />
           </Row>
         )
       }
       const item = entry.item as TokenEvent
       return (
         <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} tint={tint} step={step} bar={bar} thin={thin}>
-          <pre className={preClass}>{JSON.stringify(item, null, 2)}</pre>
+          <JsonView value={item} />
         </Row>
       )
     }

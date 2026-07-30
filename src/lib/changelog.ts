@@ -19,6 +19,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.108',
+    title: 'Expanded details read as text',
+    summary: 'Raw JSON dumps became a key/value tree — no braces, quotes or commas.',
+    detail:
+      'Expanding a record, a tool call, a usage frame or the context audit used to print pretty-printed JSON. ' +
+      'They now render as an indented key → value tree: keys in a muted column, strings unquoted, long text as its own ' +
+      'wrapped block (clamped, with "show all"), booleans as yes/no, timestamps with the wall-clock beside them, and ' +
+      'arrays as bullets or labelled items instead of 0/1/2. The exact bytes are still one click away — every record row ' +
+      'has a Raw JSON toggle next to Copy JSON.',
+  },
+  {
     version: 'v.107',
     title: 'Half the data on disk',
     summary: 'karin-data.js was a byte-for-byte copy of the 63 MB karin-data.json, and nothing loaded it.',

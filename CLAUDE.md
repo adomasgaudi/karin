@@ -71,6 +71,7 @@ verify `curl -s -o /dev/null -w "%{http_code}" http://localhost:4173/` is `200`.
 | `src/components/Cycle.tsx`, `EventEntry.tsx` | Per-turn / per-event rendering |
 | `src/components/AgeIndicator.tsx` | Single live "Xm ago" relative age (`value` prop) |
 | `src/components/DateStamp.tsx`, `UsageBar.tsx`, `ContextAudit.tsx` | Display widgets |
+| `src/components/JsonView.tsx` | Readable key→value tree for any JSON blob (no braces/quotes); used by every expanded detail. Raw JSON stays behind RecordRow's toggle |
 | `src/lib/format.ts` | `shortAge`, `dateParts`, number/date formatting |
 | `src/lib/pricing.ts` | Model rates, token-unit + currency modes |
 | `src/lib/cycles.ts` | Builds cycles from a session; per-cycle usage |
