@@ -515,7 +515,9 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} thin={thin} dim>
           {entry.source === 'codex' &&
-          ((item as ContextBlock).name === 'base_instructions' || looksLikeStructuredContext(item.text)) ? (
+          ((item as ContextBlock).name === 'base_instructions' ||
+            (item as ContextBlock).name === 'developer_message' ||
+            looksLikeStructuredContext(item.text)) ? (
             <BaseInstructions text={item.text} />
           ) : (
             <MaybeJson text={item.text} className={preClass} />

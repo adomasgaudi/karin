@@ -19,6 +19,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.116',
+    title: 'Developer message split',
+    summary: 'Developer instructions now split by Markdown headings and XML sections into collapsed readable parts.',
+    detail:
+      'The shared section renderer now handles Codex developer_message payloads, which combine XML-like wrappers such as ' +
+      '<permissions instructions> with nested Markdown headings. Opening tags create boundaries, closing tags stay structural, ' +
+      'and empty wrapper disclosures are omitted when a heading immediately follows. Base instructions and injected startup ' +
+      'context continue to use the same fenced-code-safe parser.',
+  },
+  {
     version: 'v.115',
     title: 'Startup context splits',
     summary: 'Injected startup payloads now split into collapsible plugin, instruction, and environment sections.',

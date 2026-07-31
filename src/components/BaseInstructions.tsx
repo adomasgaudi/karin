@@ -28,12 +28,16 @@ function unwrapInstructions(raw: string): string {
   return raw
 }
 
+function cleanTitle(raw: string): string {
+  return raw.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function headingFrom(line: string): { level: number; title: string } | null {
   const match = /^( {0,3})(#{1,6})[ \t]+(.+?)[ \t]*$/.exec(line)
   if (!match) return null
   return {
     level: match[2].length,
-    title: match[3].replace(/[ \t]+#+[ \t]*$/, '').trim(),
+    title: cleanTitle(match[3].replace(/[ \t]+#+[ \t]*$/, '')),
   }
 }
 
@@ -42,10 +46,16 @@ const STRUCTURED_TAGS: Record<string, string> = {
   environment_context: 'Environment context',
 }
 
-function contextTagFrom(line: string): { name: string; closing: boolean } | null {
-  const match = /^\s*<\/?([a-z][a-z0-9_-]*)>\s*$/.exec(line)
-  if (!match || !(match[1] in STRUCTURED_TAGS)) return null
-  return { name: match[1], closing: line.includes('</') }
+function contextTagFrom(line: string): { name: string; closing: boolean; rest: string } | null {
+  const closing = /^\s*<\/([a-z][a-z0-9_.-]*(?:[ \t]+[a-z][a-z0-9_.-]*)*)>\s*$/.exec(line)
+  if (closing) return { name: closing[1], closing: true, rest: '' }
+  const opening = /^\s*<([a-z][a-z0-9_.-]*(?:[ \t]+[a-z][a-z0-9_.-]*)*)>(.*)$/.exec(line)
+  if (!opening) return null
+  return { name: opening[1], closing: false, rest: opening[2] }
+}
+
+function contextTitle(name: string): string {
+  return STRUCTURED_TAGS[name] || cleanTitle(name)
 }
 
 // Startup payloads can combine XML blocks with Markdown (recommended plugins →
@@ -66,10 +76,15 @@ export function splitInstructions(raw: string): InstructionSection[] {
   let body: string[] = []
   let fence: { char: string; length: number } | null = null
   let contextTag: string | null = null
+  let tagSection = false
 
   const push = () => {
     const content = body.join('\n').replace(/^\n+|\n+$/g, '')
-    if (title || content) sections.push({ level, title: title || 'Preamble', body: content })
+    // A wrapper immediately followed by its first Markdown heading has no useful
+    // body of its own; omit that empty disclosure and keep the real heading.
+    if ((title || content) && (content || !tagSection)) {
+      sections.push({ level, title: title || 'Preamble', body: content })
+    }
   }
 
   for (const line of lines) {
@@ -89,9 +104,11 @@ export function splitInstructions(raw: string): InstructionSection[] {
     if (tagged && !contextTag && !tagged.closing) {
       push()
       level = 1
-      title = STRUCTURED_TAGS[tagged.name]
+      title = contextTitle(tagged.name)
       body = []
       contextTag = tagged.name
+      tagSection = true
+      if (tagged.rest) body.push(tagged.rest)
       continue
     }
     if (tagged && contextTag === tagged.name && tagged.closing) {
@@ -100,15 +117,17 @@ export function splitInstructions(raw: string): InstructionSection[] {
       title = ''
       body = []
       contextTag = null
+      tagSection = false
       continue
     }
 
-    const heading = contextTag ? null : headingFrom(line)
+    const heading = headingFrom(line)
     if (heading) {
       push()
       level = heading.level
       title = heading.title
       body = []
+      tagSection = false
     } else {
       body.push(line)
     }
