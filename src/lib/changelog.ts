@@ -19,6 +19,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.112',
+    title: 'A local model summarizes',
+    summary: 'qwen3.5:9b runs on this PC via Ollama and writes a session summary — nothing leaves localhost.',
+    detail:
+      'Every session now carries a "Local summary" panel: pick a pulled Ollama model, hit Summarize, and the digest ' +
+      'that used to be downloaded for a flagship AI is instead handed to a 9B model running on your own GPU. Output ' +
+      'streams as it generates and the panel reports its real tok/s. Measured on the RTX 5060: ~39 tok/s, 86% GPU. ' +
+      'The panel hides itself when Ollama is not running, so nothing breaks without it. Transcripts never leave the ' +
+      'machine, which is the only way a summary feature fits Karin at all.',
+  },
+  {
     version: 'v.111',
     title: 'Nested JSON unwraps too',
     summary: 'JSON stuffed inside a string value now renders as a tree instead of a wall of braces and \\n escapes.',

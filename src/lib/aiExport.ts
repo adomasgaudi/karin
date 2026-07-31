@@ -142,6 +142,18 @@ function sessionBody(s: UnifiedSession): string[] {
   return lines
 }
 
+// ONE session as a digest, for the local model to summarize (see lib/localLlm.ts). Same
+// header + cycle body as the full export, minus the multi-session framing — a 9B model on
+// a laptop GPU gets a much better answer from one session's worth of context than from a
+// day of them, and the whole thing has to fit a modest context window.
+export function buildSessionDigest(s: UnifiedSession, maxChars = 24_000): string {
+  const text = [...sessionHeader(s, 1), '', '### Cycles', '', ...sessionBody(s)].join('\n')
+  if (text.length <= maxChars) return text
+  // Keep the head (what the session is + how it opened) and the tail (where it ended up).
+  const head = Math.floor(maxChars * 0.6)
+  return `${text.slice(0, head)}\n\n…[${text.length - maxChars} chars of middle cycles omitted]…\n\n${text.slice(text.length - (maxChars - head))}`
+}
+
 export function buildAiExport(sessions: UnifiedSession[]): string {
   // Chronological (oldest first) so the reading AI gets a narrative of the work.
   const ordered = [...sessions].sort((a, b) =>

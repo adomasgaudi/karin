@@ -26,6 +26,7 @@ import PriceModelPanel from './PriceModelPanel'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import Cycle from './Cycle'
 import ContextAudit from './ContextAudit'
+import LocalSummary from './LocalSummary'
 import UsageBar from './UsageBar'
 import SourceBadge from './SourceBadge'
 import RecordRow from './RecordRow'
@@ -422,6 +423,7 @@ export default function SessionDetail() {
           </>
         ) : (
           <>
+            <LocalSummary session={s} />
             <ContextAudit session={s} />
 
             <div className="mb-2 mt-4 flex justify-end">

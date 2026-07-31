@@ -14,6 +14,7 @@ import {
   FEED_PATHS,
 } from '../lib/loadData'
 import { mergeSessions } from '../lib/adapt'
+import { applyCachedBody, hydrateSession, needsHydration } from '../lib/hydrate'
 
 type Theme = 'light' | 'dark'
 export type SourceFilter = 'all' | 'codex' | 'claude' | 'warp'
@@ -103,6 +104,8 @@ interface KarinStore {
   refreshLocalData: () => Promise<void>
   reset: () => Promise<void>
   select: (uid: string | null) => void
+  hydrateSelected: (uid: string) => Promise<void>
+  hydrateAll: () => Promise<void>
   setSearch: (q: string) => void
   setSourceFilter: (f: SourceFilter) => void
   setUnitMode: (m: UsageUnitMode) => void
@@ -144,6 +147,33 @@ function frozenOrder(sorted: UnifiedSession[]): UnifiedSession[] {
   const fresh = sorted.filter((s) => !rank.has(s.uid))
   return [...fresh, ...known]
 }
+
+// A fresh feed carries only the index — bodies live in per-session files. Re-attach the
+// bodies we already fetched BEFORE the new feed reaches the store, so a refresh never
+// blanks the open session (which would unmount its cycles and collapse what the owner is
+// reading). Sessions whose updated_at moved are re-fetched afterwards, in the background.
+function attachKnownBodies(codex: KarinData | null, claude: ClaudeRawData | null): {
+  codex: KarinData | null
+  claude: ClaudeRawData | null
+} {
+  const nextCodex = codex?.split
+    ? { ...codex, sessions: codex.sessions.map((s) => applyCachedBody('codex', s)) }
+    : codex
+  const nextClaude = claude?.split
+    ? {
+        ...claude,
+        projects: claude.projects.map((p) => ({
+          ...p,
+          sessions: p.sessions.map((s) => applyCachedBody('claude', s as never) as never),
+        })),
+      }
+    : claude
+  return { codex: nextCodex, claude: nextClaude }
+}
+
+// Set once the timeline has pulled every body; a later refresh then re-hydrates them all
+// instead of silently dropping back to index-only sessions.
+let hydratedAll = false
 
 // Recompute the merged list + derived fields from whatever codex/claude/warp are set.
 function derive(
@@ -268,13 +298,60 @@ export const useKarin = create<KarinStore>((set, get) => ({
     const claudeNew = isNewer(localClaude, curClaude)
     const warpNew = isNewer(localWarp, curWarp)
     if (!codexNew && !claudeNew && !warpNew) return
-    const codex = codexNew ? localCodex : curCodex
-    const claude = claudeNew ? localClaude : curClaude
     const warp = warpNew ? localWarp : curWarp
     if (codexNew && localCodex) void saveCodex(localCodex)
     if (claudeNew && localClaude) void saveClaude(localClaude)
     if (warpNew && localWarp) void saveWarp(localWarp)
+    // Re-attach known bodies to the fresh index before it ever reaches a component.
+    const { codex, claude } = attachKnownBodies(codexNew ? localCodex : curCodex, claudeNew ? localClaude : curClaude)
     set((st) => ({ codex, claude, warp, error: null, ...derive(codex, claude, warp, st.selectedUid) }))
+    // Then pull whatever actually moved: the open session first, and every body if the
+    // timeline is relying on them.
+    const uid = get().selectedUid
+    if (uid) void get().hydrateSelected(uid)
+    if (hydratedAll) void get().hydrateAll()
+  },
+
+  // The timeline builds cycles for EVERY session, so it needs every body. Bodies are
+  // cached after the first fetch, so this is a one-off cost per feed generation; the
+  // view shows its normal empty state until it resolves. Batched so a hundred sessions
+  // don't open a hundred simultaneous requests.
+  hydrateAll: async () => {
+    const codex = get().codex
+    if (codex?.split) {
+      const pending = codex.sessions.filter((s) => needsHydration('codex', s as unknown as Record<string, unknown>))
+      const filled = new Map<string, (typeof codex.sessions)[number]>()
+      for (let i = 0; i < pending.length; i += 8) {
+        const batch = await Promise.all(pending.slice(i, i + 8).map((s) => hydrateSession('codex', s)))
+        batch.forEach((s) => filled.set(s.id, s))
+      }
+      if (filled.size && get().codex === codex) {
+        const next = { ...codex, sessions: codex.sessions.map((s) => filled.get(s.id) ?? s) }
+        set((st) => ({ codex: next, ...derive(next, st.claude, st.warp, st.selectedUid) }))
+      }
+    }
+
+    const claude = get().claude
+    if (claude?.split) {
+      const all = claude.projects.flatMap((p) => p.sessions)
+      const pending = all.filter((s) => needsHydration('claude', s as unknown as Record<string, unknown>))
+      const filled = new Map<string, (typeof all)[number]>()
+      for (let i = 0; i < pending.length; i += 8) {
+        const batch = await Promise.all(pending.slice(i, i + 8).map((s) => hydrateSession('claude', s as never)))
+        batch.forEach((s) => filled.set((s as { id: string }).id, s as never))
+      }
+      if (filled.size && get().claude === claude) {
+        const next = {
+          ...claude,
+          projects: claude.projects.map((p) => ({
+            ...p,
+            sessions: p.sessions.map((s) => filled.get(s.id) ?? s),
+          })),
+        }
+        set((st) => ({ claude: next, ...derive(st.codex, next, st.warp, st.selectedUid) }))
+      }
+    }
+    hydratedAll = true
   },
 
   reset: async () => {
@@ -283,7 +360,59 @@ export const useKarin = create<KarinStore>((set, get) => ({
     set({ codex: null, claude: null, warp: null, sessions: [], generatedAt: null, status: null, selectedUid: null, search: '', error: null })
   },
 
-  select: (uid) => set({ selectedUid: uid }),
+  // Selecting a session shows it immediately from the index, then fills in its events.
+  // The body swap replaces that session inside the source feed and re-derives, so the
+  // detail view re-renders with real cycles once the fetch lands.
+  select: (uid) => {
+    set({ selectedUid: uid })
+    if (uid) void get().hydrateSelected(uid)
+  },
+
+  hydrateSelected: async (uid) => {
+    const [source, ...rest] = uid.split(':')
+    const id = rest.join(':')
+    if (source !== 'codex' && source !== 'claude') return
+
+    if (source === 'codex') {
+      const data = get().codex
+      const session = data?.sessions.find((s) => s.id === id)
+      if (!data || !session || !needsHydration('codex', session as unknown as Record<string, unknown>)) return
+      const full = await hydrateSession('codex', session)
+      if (full === session) return
+      // Bail if the feed was replaced by a refresh while we were fetching.
+      if (get().codex !== data) return
+      const next = { ...data, sessions: data.sessions.map((s) => (s.id === id ? full : s)) }
+      set((st) => ({ codex: next, ...derive(next, st.claude, st.warp, st.selectedUid) }))
+      return
+    }
+
+    const data = get().claude
+    if (!data) return
+    let touched = false
+    const projects = data.projects.map((p) => ({
+      ...p,
+      sessions: p.sessions.map((s) => {
+        if (s.id !== id || !needsHydration('claude', s as unknown as Record<string, unknown>)) return s
+        touched = true
+        return s
+      }),
+    }))
+    if (!touched) return
+    const target = data.projects.flatMap((p) => p.sessions).find((s) => s.id === id)
+    if (!target) return
+    const full = await hydrateSession('claude', target as never)
+    if (full === (target as never)) return
+    if (get().claude !== data) return
+    const next = {
+      ...data,
+      projects: projects.map((p) => ({
+        ...p,
+        sessions: p.sessions.map((s) => (s.id === id ? (full as never) : s)),
+      })),
+    }
+    set((st) => ({ claude: next, ...derive(st.codex, next, st.warp, st.selectedUid) }))
+  },
+
   setSearch: (q) => set({ search: q }),
   setSourceFilter: (f) => {
     localStorage.setItem('karin-source', f)

@@ -122,6 +122,25 @@ The indexer emits **Codex-shaped arrays** (`Message`/`Tool`/`Reasoning`/`CodeEdi
 that way. Live updates: `karin_warp.py --watch` polls the sqlite mtime and rewrites the
 feed; the app re-fetches every 5s (`refreshLocalData`).
 
+## Local LLM (Ollama) — summaries without a flagship model
+
+Karin can run small LLM jobs on this PC via **Ollama** (`127.0.0.1:11434`), so a summary
+never sends a transcript off-machine — the same rule that killed the public build.
+
+- Installed: **`qwen3.5:9b`** (6.6 GB, Q4). Measured on the RTX 5060 Laptop (8 GB):
+  **~39 tok/s** generation, ~7s cold load, running **86% GPU / 14% CPU** — the weights
+  nearly fill the card, so a little spills. `qwen3.5:4b` (3.4 GB) fits fully if you want
+  speed over quality.
+- `src/lib/localLlm.ts` — client: `probe()` (is it up, what's pulled), `generate()`
+  (streaming NDJSON). **Always set `num_ctx`**: Ollama defaults to a 4096-token window no
+  matter what the model supports, which silently truncates a digest.
+- `src/components/LocalSummary.tsx` — the session-detail panel: model picker, streamed
+  output, measured tok/s. Hides itself when Ollama isn't running.
+- `buildSessionDigest()` in `src/lib/aiExport.ts` — one session as markdown, head+tail
+  clipped to a char budget, reusing the same builders as the AI export.
+- CORS is fine out of the box: Ollama allows `http://localhost:*` origins, so both `:4173`
+  and `:5173` can call it. Ollama must be running (tray app or `ollama serve`).
+
 ## Version rule (every material change)
 
 Bump the owner-facing `v.N` in **both** spots, keep them in sync:
