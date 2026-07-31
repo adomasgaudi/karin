@@ -25,6 +25,7 @@ import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
 import JsonView, { MaybeJson } from './JsonView'
 import DiffView from './DiffView'
+import BaseInstructions from './BaseInstructions'
 
 interface UsageProps {
   usage?: EntryUsage
@@ -508,7 +509,11 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
         <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} thin={thin} dim>
-          <MaybeJson text={item.text} className={preClass} />
+          {entry.source === 'codex' && (item as ContextBlock).name === 'base_instructions' ? (
+            <BaseInstructions text={item.text} />
+          ) : (
+            <MaybeJson text={item.text} className={preClass} />
+          )}
         </Row>
       )
     }

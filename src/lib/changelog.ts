@@ -19,6 +19,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.114',
+    title: 'Base instructions split',
+    summary: 'Long Codex base instructions now split by Markdown headings into individually collapsible sections.',
+    detail:
+      'The base_instructions context is often a JSON-encoded Markdown document, so showing it as one expanded value made ' +
+      'the surrounding transcript hard to navigate. Karin now unwraps that payload, detects Markdown headings programmatically, ' +
+      'and renders each title as its own closed disclosure. Nested headings stay separate, heading-looking lines inside fenced ' +
+      'code are ignored, and older plain-text feeds still fall back to one readable section.',
+  },
+  {
     version: 'v.113',
     title: 'Session menu scrolls away',
     summary: 'The session header and usage controls now scroll with the transcript instead of staying pinned.',
