@@ -24,6 +24,25 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+// A LOT of the payload arrives as JSON stuffed inside a string — hook stdout,
+// tool arguments, context attachments. Left alone it renders as one unbroken
+// wall of braces and `\n` escapes, which is the least readable thing on screen.
+// Parse it so it becomes a normal branch of the tree.
+function asJson(v: unknown): unknown | null {
+  if (typeof v !== 'string') return null
+  const t = v.trim()
+  if (t.length < 2) return null
+  const open = t[0]
+  const close = t[t.length - 1]
+  if (!((open === '{' && close === '}') || (open === '[' && close === ']'))) return null
+  try {
+    const parsed = JSON.parse(t) as unknown
+    return isObj(parsed) || Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 // A key whose value is an ISO instant reads better with the wall-clock beside it.
 function clockHint(key: string, v: string): string | null {
   if (!/(^|_)(timestamp|time|at)$/i.test(key)) return null
@@ -106,7 +125,13 @@ function branchLabel(v: unknown): string {
 
 // One key → value line. Branches nest; scalars sit on the line; long strings drop
 // to a block underneath the key.
-function Node({ k, v }: { k: string; v: unknown }) {
+function Node({ k, v: raw }: { k: string; v: unknown }) {
+  // JSON-in-a-string is unwrapped and rendered as a real branch, tagged so it's
+  // clear the nesting came from a string.
+  const embedded = asJson(raw)
+  const v = embedded ?? raw
+  const tag = embedded !== null ? <span className="text-[0.58rem] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">json</span> : null
+
   const branch = Array.isArray(v) || isObj(v)
   const empty = branch && (Array.isArray(v) ? v.length === 0 : Object.keys(v as object).length === 0)
 
@@ -118,6 +143,7 @@ function Node({ k, v }: { k: string; v: unknown }) {
         <div className="flex items-baseline gap-2">
           <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
           <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
+          {tag}
         </div>
         <div className="ml-[0.4rem] border-l border-neutral-200 pl-2.5 dark:border-neutral-800">
           {v.map((item, i) => (
@@ -140,6 +166,7 @@ function Node({ k, v }: { k: string; v: unknown }) {
         <div className="flex items-baseline gap-2">
           <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
           <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
+          {tag}
         </div>
         <div className="ml-[0.4rem] border-l border-neutral-200 pl-2.5 dark:border-neutral-800">
           {entries.map(([ck, cv]) => (

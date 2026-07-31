@@ -19,6 +19,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.111',
+    title: 'Nested JSON unwraps too',
+    summary: 'JSON stuffed inside a string value now renders as a tree instead of a wall of braces and \\n escapes.',
+    detail:
+      'Hook stdout, tool arguments and context attachments arrive as JSON encoded into a string field. The tree only ' +
+      'parsed the outer record, so those landed as one unbroken paragraph — braces, quotes and literal \\n, the least ' +
+      'readable thing on the page. Any string value that parses as an object or array is now unwrapped into a normal ' +
+      'branch, tagged "json" so the nesting\'s origin stays visible, and its multi-line text keeps real line breaks.',
+  },
+  {
     version: 'v.110',
     title: 'Context rows are readable',
     summary: 'Three stacked dimmings made expanded context text nearly invisible; the tree palette got brighter too.',
