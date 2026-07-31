@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.113',
+    title: 'Session menu scrolls away',
+    summary: 'The session header and usage controls now scroll with the transcript instead of staying pinned.',
+  },
+  {
     version: 'v.112',
     title: 'A local model summarizes',
     summary: 'qwen3.5:9b runs on this PC via Ollama and writes a session summary — nothing leaves localhost.',

@@ -170,7 +170,7 @@ export default function SessionDetail() {
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
+    <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <div className="shrink-0 border-b border-neutral-200/80 bg-white/90 p-3 shadow-sm shadow-neutral-950/[0.03] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -402,7 +402,7 @@ export default function SessionDetail() {
         )}
       </div>
 
-      <div ref={bodyRef} className="flex-1 overflow-y-auto p-3 md:p-4">
+      <div ref={bodyRef} className="p-3 md:p-4">
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
         {mode === 'raw' ? (
