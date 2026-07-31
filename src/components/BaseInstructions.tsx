@@ -37,6 +37,24 @@ function headingFrom(line: string): { level: number; title: string } | null {
   }
 }
 
+const STRUCTURED_TAGS: Record<string, string> = {
+  recommended_plugins: 'Recommended plugins',
+  environment_context: 'Environment context',
+}
+
+function contextTagFrom(line: string): { name: string; closing: boolean } | null {
+  const match = /^\s*<\/?([a-z][a-z0-9_-]*)>\s*$/.exec(line)
+  if (!match || !(match[1] in STRUCTURED_TAGS)) return null
+  return { name: match[1], closing: line.includes('</') }
+}
+
+// Startup payloads can combine XML blocks with Markdown (recommended plugins →
+// AGENTS.md → environment). Keep the same disclosure UI as base instructions while
+// treating the known XML blocks as section boundaries too.
+export function looksLikeStructuredContext(text: string): boolean {
+  return Object.keys(STRUCTURED_TAGS).some((tag) => text.includes(`<${tag}>`)) || text.includes('# AGENTS.md instructions')
+}
+
 // Split Markdown headings without treating a # inside a fenced code sample as a
 // section title. Every heading becomes its own disclosure, including nested levels.
 export function splitInstructions(raw: string): InstructionSection[] {
@@ -47,6 +65,7 @@ export function splitInstructions(raw: string): InstructionSection[] {
   let title = ''
   let body: string[] = []
   let fence: { char: string; length: number } | null = null
+  let contextTag: string | null = null
 
   const push = () => {
     const content = body.join('\n').replace(/^\n+|\n+$/g, '')
@@ -66,7 +85,25 @@ export function splitInstructions(raw: string): InstructionSection[] {
       continue
     }
 
-    const heading = headingFrom(line)
+    const tagged = contextTagFrom(line)
+    if (tagged && !contextTag && !tagged.closing) {
+      push()
+      level = 1
+      title = STRUCTURED_TAGS[tagged.name]
+      body = []
+      contextTag = tagged.name
+      continue
+    }
+    if (tagged && contextTag === tagged.name && tagged.closing) {
+      push()
+      level = 0
+      title = ''
+      body = []
+      contextTag = null
+      continue
+    }
+
+    const heading = contextTag ? null : headingFrom(line)
     if (heading) {
       push()
       level = heading.level

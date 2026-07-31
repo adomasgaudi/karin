@@ -19,6 +19,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.115',
+    title: 'Startup context splits',
+    summary: 'Injected startup payloads now split into collapsible plugin, instruction, and environment sections.',
+    detail:
+      'The section renderer now recognizes the XML blocks that wrap injected startup context, alongside its existing Markdown heading split. ' +
+      'Long Codex user/context payloads can therefore be opened one part at a time: recommended plugins, AGENTS.md instructions, environment context, ' +
+      'and any nested Markdown sections. Ordinary user messages still render unchanged unless they carry those known context markers.',
+  },
+  {
     version: 'v.114',
     title: 'Base instructions split',
     summary: 'Long Codex base instructions now split by Markdown headings into individually collapsible sections.',
