@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.213',
+    title: 'Stable centered navigation',
+    summary: 'The burger menu no longer shifts layout, scrollbars disappear, and freshness stays centered in the nav.',
+  },
+  {
     version: 'v.212',
     title: 'Source coverage parity',
     summary: 'Codex and Claude now share raw step fidelity, duplicate-edit suppression, line-level audits, and stable stream identities.',

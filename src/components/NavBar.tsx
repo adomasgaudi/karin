@@ -30,6 +30,8 @@ interface NavBarProps<T extends string> {
   versionTitle: string
   /** Optional action for the Karin glasses mark. */
   onLogoClick?: () => void
+  /** Optional centered status slot, independent of the left and right controls. */
+  center?: ReactNode
   /** Right-hand slot — each version's own settings/status. */
   right?: ReactNode
 }
@@ -42,6 +44,7 @@ export function NavBarShell<T extends string>({
   onVersionClick,
   versionTitle,
   onLogoClick,
+  center,
   right,
 }: NavBarProps<T>) {
   // The bar must NOT be overflow-hidden: the settings popover is absolutely positioned
@@ -92,6 +95,11 @@ export function NavBarShell<T extends string>({
           </button>
         )
       })}
+      {center && (
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap">
+          {center}
+        </div>
+      )}
       {right && <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>}
     </nav>
   )
@@ -120,8 +128,8 @@ function ViewMenu({ active, onSelect }: { active: View; onSelect: (view: View) =
       </button>
       {open && (
         <>
-          <button type="button" aria-label="Close page navigation" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-50 mt-1 w-44 rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+          <div aria-hidden="true" className="fixed inset-0 z-40" onMouseDown={() => setOpen(false)} />
+          <div className="absolute left-0 z-50 mt-1 max-h-[calc(100dvh-3rem)] w-44 overflow-y-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
             {tabs.map(({ id, label, icon: Icon, title }) => (
               <button
                 key={id}
@@ -163,11 +171,11 @@ export default function NavBar() {
       onVersionClick={() => setView('v2')}
       versionTitle="Open Karin v.2.0 (work in progress)"
       onLogoClick={() => useKarin.getState().select(null)}
+      center={<AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />}
       right={
         <>
           <ViewMenu active={view} onSelect={setView} />
           <WatcherStatus />
-          <AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />
           <SettingsMenu />
         </>
       }

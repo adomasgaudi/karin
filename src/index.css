@@ -22,6 +22,22 @@ body,
   height: 100%;
 }
 
+/* Keep every pane scrollable without exposing a scrollbar that shifts the layout
+   when a menu or a newly-loaded session changes the overflow state. */
+html {
+  scrollbar-width: none;
+  scrollbar-gutter: stable;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 body {
   margin: 0;
   font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
