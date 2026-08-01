@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
+import { ArrowUpLeft, ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
 import type { FeedRecord, Session, TokenUsage } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
 import type { ClaudeSession } from '../lib/claudeRaw'
@@ -163,6 +163,13 @@ export default function SessionDetail() {
   const [typeFilter, setTypeFilter] = useState('all')
 
   const s = sessions.find((x) => x.uid === selectedUid)
+  const parentSession = s?.parentId
+    ? sessions.find((candidate) =>
+        candidate.source === s.source &&
+        !candidate.isSubagent &&
+        (candidate.id === s.parentId || candidate.logicalId === s.parentId),
+      )
+    : null
   const cycles = useMemo(() => (s ? buildCycles(s) : []), [s])
   // apiRates = published API list rates (shown verbatim in the pricing panel for tracing);
   // rates = those rates after the active price basis (÷divisor for the plan estimate), used
@@ -242,6 +249,24 @@ export default function SessionDetail() {
               <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
             </div>
             <SourceBadge source={s.source} className="mt-0.5 px-1 py-0.5 text-[0.5rem]" />
+            {s.isSubagent && (
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.68rem] text-neutral-500 dark:text-neutral-400">
+                <span className="shrink-0">Parallel child · inherited fork context hidden</span>
+                {parentSession ? (
+                  <button
+                    type="button"
+                    onClick={() => useKarin.getState().select(parentSession.uid)}
+                    className="inline-flex min-w-0 items-center gap-0.5 truncate font-medium text-sky-700 hover:underline dark:text-sky-300"
+                    title={`Open original session: ${parentSession.title || parentSession.id}`}
+                  >
+                    <ArrowUpLeft className="h-3 w-3 shrink-0" />
+                    <span className="truncate">Open original · {parentSession.title || parentSession.id}</span>
+                  </button>
+                ) : (
+                  <span className="text-neutral-400 dark:text-neutral-500">original session unavailable</span>
+                )}
+              </div>
+            )}
           </div>
 
           {hasRaw && (

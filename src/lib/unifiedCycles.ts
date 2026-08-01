@@ -71,22 +71,25 @@ const KIND_ORDER: Record<EntryKind, number> = {
 
 function codexEntries(s: Session): UnifiedEntry[] {
   const src: SessionSource = 'codex'
+  const boundary = s.fork_boundary_line ?? null
+  const unique = <T extends { line?: number }>(items: T[]): T[] =>
+    boundary == null ? items : items.filter((item) => (item.line || 0) >= boundary)
   // Before the lazy body arrives, render the call-only index records. Once hydrated,
   // `merge()` combines these with full tools so previews only fill genuinely missing rows.
-  const tools = s.tools?.length ? s.tools : (s.tool_previews || [])
+  const tools = unique(s.tools?.length ? s.tools : (s.tool_previews || []))
   // Codex's apply_patch path produces both a tool call and a richer code_edit entry.
   // Claude already suppresses the duplicate edit row; make the same choice here while
   // keeping the edit representation, which is the one that can show the patch/result.
   const editCallIds = new Set((s.code_edits || []).map((edit) => edit.call_id).filter(Boolean))
   const visibleTools = tools.filter((tool) => !tool.call_id || !editCallIds.has(tool.call_id))
   const entries: UnifiedEntry[] = [
-    ...(s.contexts || []).map((item, index): UnifiedEntry => ({ kind: 'context', source: src, line: item.line || 0, index, item })),
-    ...(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
-    ...(s.reasoning || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
-    ...(s.runtime_events || []).map((item, index): UnifiedEntry => ({ kind: 'runtime', source: src, line: item.line || 0, index, item })),
+    ...unique(s.contexts || []).map((item, index): UnifiedEntry => ({ kind: 'context', source: src, line: item.line || 0, index, item })),
+    ...unique(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
+    ...unique(s.reasoning || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
+    ...unique(s.runtime_events || []).map((item, index): UnifiedEntry => ({ kind: 'runtime', source: src, line: item.line || 0, index, item })),
     ...visibleTools.map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
-    ...(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
-    ...(s.token_events || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
+    ...unique(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
+    ...unique(s.token_events || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
   ]
   return attachRaw(entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]), s.records)
 }

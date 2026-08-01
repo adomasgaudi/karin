@@ -148,6 +148,7 @@ export interface Session {
   parent_id?: string | null
   is_subagent?: boolean
   agent_nickname?: string | null
+  fork_boundary_line?: number | null
   usage_clone_baseline?: TokenUsage & { source_line?: number | null }
   title: string
   path: string
@@ -240,6 +241,7 @@ export interface UnifiedSession {
   parentId?: string | null
   isSubagent?: boolean
   agentNickname?: string | null
+  forkBoundaryLine?: number | null
   title: string
   subtitle: string | null // Claude first_prompt; null for Codex
   cwd: string | null

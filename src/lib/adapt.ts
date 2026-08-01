@@ -109,6 +109,7 @@ export function adaptCodexSession(s: Session): UnifiedSession {
     parentId: s.parent_id ?? null,
     isSubagent: Boolean(s.is_subagent || s.parent_id),
     agentNickname: s.agent_nickname ?? null,
+    forkBoundaryLine: s.fork_boundary_line ?? null,
     title: s.title,
     subtitle: null,
     cwd: s.cwd,

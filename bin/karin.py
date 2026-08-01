@@ -255,6 +255,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
         "parent_id": None,
         "is_subagent": False,
         "agent_nickname": None,
+        "fork_boundary_line": None,
         "messages": [],
         "records": [],
         "tools": [],
@@ -444,6 +445,15 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
                             "text": text,
                         }
                     )
+                    if (
+                        session.get("is_subagent")
+                        and role == "user"
+                        and context_kind is None
+                        and session.get("fork_boundary_line") is None
+                    ):
+                        # The first non-injected user message is the child task. Everything
+                        # before it is the parent/startup context cloned into this stream.
+                        session["fork_boundary_line"] = line_no
                     if role == "user":
                         session["counts"]["user"] += 1
                     elif role == "assistant":
@@ -514,6 +524,11 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
         match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", path.name)
         session["id"] = match.group(1) if match else path.stem
         session["title"] = names.get(session["id"], session["title"])
+    if session.get("is_subagent") and session.get("fork_boundary_line") is None:
+        # Keep malformed/older child transcripts usable: if no clean task marker exists,
+        # start at the first user message rather than rendering the whole inherited prefix.
+        first_user = next((m.get("line") for m in session["messages"] if m.get("role") == "user"), None)
+        session["fork_boundary_line"] = first_user
     session["counts"]["code_edits"] = len(session["code_edits"])
     session["counts"]["contexts"] = len(session["contexts"])
     session["counts"]["reasoning"] = len(session["reasoning"])

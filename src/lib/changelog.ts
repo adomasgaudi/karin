@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.218',
+    title: 'Focused child sessions',
+    summary: 'Child views hide inherited fork context and link directly back to the original parent session.',
+  },
+  {
     version: 'v.217',
     title: 'Nested agent usage',
     summary: 'Parallel child sessions now sit under their parent and exclude cloned context from token totals.',
