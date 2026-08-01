@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.226',
+    title: 'Claude feed 10x faster',
+    summary: 'An unchanged-session cache that was too small to work now holds the corpus: a watch tick drops from 62s to 6.5s.',
+    detail:
+      'The Claude indexer cached parsed sessions so a tick would only re-parse the file that changed. But the cache held 200 entries against ~1700 session files and wiped itself completely on overflow, so it was cleared a dozen times per tick and every tick re-parsed everything — 62 seconds, which is why the feed ran minutes behind. Both caches are now bounded by bytes with oldest-first eviction and sized to the real corpus (765 MB parsed, 726 MB of bodies). A cache that hits its budget now says so on stderr instead of silently going slow, which is how the first attempt at this fix was caught still thrashing.',
+  },
+  {
     version: 'v.225',
     title: 'Repeated tools fold up',
     summary: 'Same-tool runs collapse into one row, token squares stop doubling, points measure 0.1c, char counts are gone.',

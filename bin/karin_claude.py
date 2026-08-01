@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -755,8 +756,52 @@ def parse_subagents(path: Path, slug: str,
 # is ~95% of the run (regex redaction over every string). Callers mutate what they
 # get back (split_payload empties the body fields), so the cache holds text and
 # hands out a fresh object per call — json.loads is ~10x cheaper than a re-parse.
-_PARSE_CACHE: dict[tuple[str, float, int], str] = {}
-PARSE_CACHE_MAX = 200
+#
+# A 200-entry cap that .clear()ed on overflow made this cache useless: with ~2500
+# session files it was wiped a dozen times per tick, so every tick re-parsed the
+# whole corpus and took ~60s — the feed ran minutes behind. Budget by BYTES and
+# evict oldest-first, so the steady state stays warm and memory stays bounded
+# whichever way the corpus grows (many small files or a few huge ones).
+class TextCache:
+    """Key → serialized JSON, bounded by total characters, oldest evicted first.
+
+    Dicts keep insertion order, so `next(iter(...))` is the oldest key. Every key
+    carries its source's mtime+size, so the entry that ages out is a superseded one.
+
+    A budget SMALLER than the live working set is the failure mode to fear: the cache
+    then evicts entries it is about to need, every tick re-does the work, and nothing
+    looks broken — it is just slow. So the first eviction of a still-current entry
+    says so on stderr once, rather than degrading in silence.
+    """
+
+    def __init__(self, name: str, max_chars: int) -> None:
+        self.name = name
+        self.max_chars = max_chars
+        self._items: dict[Any, str] = {}
+        self._chars = 0
+        self._warned = False
+
+    def get(self, key: Any) -> str | None:
+        return self._items.get(key)
+
+    def put(self, key: Any, text: str) -> None:
+        old = self._items.pop(key, None)
+        if old is not None:
+            self._chars -= len(old)
+        self._items[key] = text
+        self._chars += len(text)
+        while self._chars > self.max_chars and len(self._items) > 1:
+            self._chars -= len(self._items.pop(next(iter(self._items))))
+            if not self._warned:
+                self._warned = True
+                print(f"WARN: {self.name} cache is at its {self.max_chars / 1e6:.0f}MB budget and is "
+                      f"evicting; ticks will re-do work. Raise the budget.", file=sys.stderr, flush=True)
+
+
+# ~765 MB of parsed session JSON on the owner's corpus (1708 files). Undersizing this
+# is what made the feed run minutes behind: at 600 MB the cache thrashed and a warm
+# tick cost the same 62s as a cold one; holding the whole corpus makes it 6.4s.
+_PARSE_CACHE = TextCache("parse", 1_400_000_000)
 
 # Session id → the source file's (mtime, size) that produced it, recorded here
 # rather than on the session dict so the payload shape is untouched. split_payload
@@ -771,9 +816,7 @@ def parse_session(path: Path, slug: str) -> dict[str, Any]:
     if blob is None:
         session = enrich_session(path, slug, include_subagents=True)
         blob = json.dumps(session, ensure_ascii=False)
-        if len(_PARSE_CACHE) >= PARSE_CACHE_MAX:
-            _PARSE_CACHE.clear()  # cheap eviction: entries are worthless once stale
-        _PARSE_CACHE[key] = blob
+        _PARSE_CACHE.put(key, blob)
     parsed = json.loads(blob)
     if parsed.get("id"):
         _SRC_KEY_BY_ID[str(parsed["id"])] = (stat.st_mtime, stat.st_size)
@@ -948,8 +991,9 @@ def build_haystack(session: dict[str, Any]) -> str:
 # too and an op can change while its parent file does not. A body whose sources have
 # not changed cannot have changed, so it is never re-dumped — that dump was ~40 MB of
 # JSON per watch tick.
-_BODY_TEXT_CACHE: dict[tuple[Any, ...], str] = {}
-BODY_TEXT_CACHE_MAX = 200
+# Budgeted the same way and for the same reason: 200 entries with a .clear() on
+# overflow could not hold ~880 sessions, so every body was re-serialized every tick.
+_BODY_TEXT_CACHE = TextCache("body", 1_200_000_000)
 
 
 def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
@@ -988,9 +1032,7 @@ def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
             if text is None:
                 text = json.dumps(body, ensure_ascii=False)
                 if cache_key:
-                    if len(_BODY_TEXT_CACHE) >= BODY_TEXT_CACHE_MAX:
-                        _BODY_TEXT_CACHE.clear()
-                    _BODY_TEXT_CACHE[cache_key] = text
+                    _BODY_TEXT_CACHE.put(cache_key, text)
             bodies.append((safe_file_stem(sid), text))
     payload["split"] = True
     return bodies
