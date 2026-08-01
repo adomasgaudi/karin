@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.128',
+    title: 'Project labels move up',
+    summary: 'Project names now sit beside every session title, leaving token bars purely visual and readable.',
+  },
+  {
     version: 'v.127',
     title: 'Show usage remaining',
     summary: 'The newest local Codex rate-limit snapshot now shows remaining weekly or secondary usage above sessions.',

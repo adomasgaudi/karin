@@ -238,10 +238,8 @@ export default function Sidebar({ className }: SidebarProps) {
           <ul className="flex flex-col gap-0.5">
             {rows.map(({ session: s, rates }) => {
               const selected = s.uid === selectedUid
-              // Claude groups by project; Warp has only a working directory — both read
-              // as the same trailing folder name. Codex is flat.
-              const project =
-                s.source === 'claude' || s.source === 'warp' ? projectLabel(s.projectCwd, s.projectSlug) : null
+              // Every source gets a compact project label from its project cwd or working cwd.
+              const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
               return (
                 <li key={s.uid}>
                   <button
@@ -255,34 +253,35 @@ export default function Sidebar({ className }: SidebarProps) {
                     )}
                   >
                     <span aria-hidden className={`absolute inset-y-1 left-1 w-1 rounded-full ${SOURCE_ACCENTS[s.source]}`} />
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 items-baseline gap-2">
                       <TurnDot state={s.turnState} />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
-                        {s.title || s.id}
-                      </span>
-                    </div>
-                    {/* The bar is intentionally visual-only; project names remain available
-                        for Claude/Warp without overlaying hard-to-read numeric labels. */}
-                    <div className="relative">
-                      <UsageBar
-                        usage={s.latest_total_usage || {}}
-                        rates={rates}
-                        mode={unitMode}
-                        currency={currency}
-                        tokenRef={tokenRef}
-                        tokenMult={tokenMult}
-                        compact
-                        inlineLabels
-                        hideSegmentLabels
-                        showLegend={false}
-                        scaleMax={scaleMax}
-                      />
-                      {project && (
-                        <span className="pointer-events-none absolute inset-0 flex items-center truncate px-1.5 text-[0.65rem] leading-none text-neutral-700 dark:text-neutral-200">
-                          {project}
+                      <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+                          {s.title || s.id}
                         </span>
-                      )}
+                        {project && (
+                          <span
+                            className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
+                            title={s.projectCwd || s.cwd || project}
+                          >
+                            · {project}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <UsageBar
+                      usage={s.latest_total_usage || {}}
+                      rates={rates}
+                      mode={unitMode}
+                      currency={currency}
+                      tokenRef={tokenRef}
+                      tokenMult={tokenMult}
+                      compact
+                      inlineLabels
+                      hideSegmentLabels
+                      showLegend={false}
+                      scaleMax={scaleMax}
+                    />
                   </button>
                 </li>
               )
