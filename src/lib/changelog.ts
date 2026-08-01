@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.210',
+    title: 'Collapsible folder groups',
+    summary: 'Folder sections can collapse, and matching Codex and Claude Windows project paths share one group.',
+  },
+  {
     version: 'v.209',
     title: 'Resilient watcher handoff',
     summary: 'Codex and Claude watchers now survive preview-held feed files during live updates on Windows.',

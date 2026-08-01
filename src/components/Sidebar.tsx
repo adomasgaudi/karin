@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Folder, List, Search } from 'lucide-react'
+import { ChevronRight, Folder, List, Search } from 'lucide-react'
 import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
@@ -47,6 +47,14 @@ function sessionFolder(session: { projectCwd: string | null; cwd: string | null;
 
 function folderLabel(folder: string | null): string {
   return folder ? projectLabel(folder, null) || folder : 'No folder'
+}
+
+// Codex and Claude can report the same Windows project with different drive-letter
+// casing or slash styles. Canonicalize only Windows paths so those rows share a group.
+function folderGroupKey(folder: string | null): string {
+  if (!folder) return 'no-folder'
+  const normalized = folder.replace(/[\\/]+/g, '/')
+  return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized
 }
 
 function windowName(minutes: number | null): string {
@@ -104,6 +112,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const subDivisors = useKarin((s) => s.subDivisors)
   const setSubDivisor = useKarin((s) => s.setSubDivisor)
   const [priceInfoOpen, setPriceInfoOpen] = useState(false)
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
 
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
@@ -119,13 +128,13 @@ export default function Sidebar({ className }: SidebarProps) {
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
   const folderGroups = (() => {
-    const groups = new Map<string, { folder: string | null; rows: typeof rows }>()
+    const groups = new Map<string, { key: string; folder: string | null; rows: typeof rows }>()
     rows.forEach((row) => {
       const folder = sessionFolder(row.session)
-      const key = folder || '__no-folder__'
+      const key = `folder:${folderGroupKey(folder)}`
       const group = groups.get(key)
       if (group) group.rows.push(row)
-      else groups.set(key, { folder, rows: [row] })
+      else groups.set(key, { key, folder, rows: [row] })
     })
     return [...groups.values()]
   })()
@@ -267,72 +276,78 @@ export default function Sidebar({ className }: SidebarProps) {
           <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No sessions match.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {(groupByFolder ? folderGroups : [{ folder: null, rows }]).map(({ folder, rows: groupRows }) => (
-              <section key={groupByFolder ? folder || '__no-folder__' : 'all-sessions'}>
+            {(groupByFolder ? folderGroups : [{ key: 'all-sessions', folder: null, rows }]).map(({ key, folder, rows: groupRows }) => (
+              <section key={key}>
                 {groupByFolder && (
-                  <div
-                    className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[0.65rem] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedFolders((current) => ({ ...current, [key]: !current[key] }))}
+                    aria-expanded={!collapsedFolders[key]}
+                    className="flex w-full items-center gap-1.5 px-2 pb-1 pt-1 text-left text-[0.65rem] font-semibold uppercase tracking-wide text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
                     title={folder || 'Sessions without a folder'}
                   >
+                    <ChevronRight className={cn('h-3 w-3 shrink-0 transition-transform', !collapsedFolders[key] && 'rotate-90')} />
                     <Folder className="h-3 w-3 shrink-0" />
                     <span className="min-w-0 truncate">{folderLabel(folder)}</span>
                     <span className="ml-auto shrink-0 font-normal tabular-nums text-neutral-400 dark:text-neutral-500">{groupRows.length}</span>
-                  </div>
+                  </button>
                 )}
-                <ul className="flex flex-col gap-0.5">
-                  {groupRows.map(({ session: s, rates }) => {
-                    const selected = s.uid === selectedUid
-                    // Every source gets a compact project label from its project cwd or working cwd.
-                    const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
-                    return (
-                      <li key={s.uid}>
-                        <button
-                          type="button"
-                          onClick={() => useKarin.getState().select(s.uid)}
-                          className={cn(
-                            'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
-                            selected
-                              ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
-                              : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
-                          )}
-                        >
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <SourceMark source={s.source} state={s.turnState} />
-                            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                              <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
-                                {s.title || s.id}
-                              </span>
-                              {project && (
-                                <span
-                                  className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
-                                  title={s.projectCwd || s.cwd || project}
-                                >
-                                  · {project}
+                {!groupByFolder || !collapsedFolders[key] ? (
+                  <ul className="flex flex-col gap-0.5">
+                    {groupRows.map(({ session: s, rates }) => {
+                      const selected = s.uid === selectedUid
+                      // Every source gets a compact project label from its project cwd or working cwd.
+                      const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
+                      return (
+                        <li key={s.uid}>
+                          <button
+                            type="button"
+                            onClick={() => useKarin.getState().select(s.uid)}
+                            className={cn(
+                              'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
+                              selected
+                                ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
+                                : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
+                            )}
+                          >
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <SourceMark source={s.source} state={s.turnState} />
+                              <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                                <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+                                  {s.title || s.id}
                                 </span>
-                              )}
+                                {project && (
+                                  <span
+                                    className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
+                                    title={s.projectCwd || s.cwd || project}
+                                  >
+                                    · {project}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div className="ml-[22px] -mt-px min-w-0">
-                            <UsageBar
-                              usage={s.latest_total_usage || {}}
-                              rates={rates}
-                              mode={unitMode}
-                              currency={currency}
-                              tokenRef={tokenRef}
-                              tokenMult={tokenMult}
-                              compact
-                              bare
-                              inlineLabels
-                              hideSegmentLabels
-                              showLegend={false}
-                              scaleMax={scaleMax}
-                            />
-                          </div>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
+                            <div className="ml-[22px] -mt-px min-w-0">
+                              <UsageBar
+                                usage={s.latest_total_usage || {}}
+                                rates={rates}
+                                mode={unitMode}
+                                currency={currency}
+                                tokenRef={tokenRef}
+                                tokenMult={tokenMult}
+                                compact
+                                bare
+                                inlineLabels
+                                hideSegmentLabels
+                                showLegend={false}
+                                scaleMax={scaleMax}
+                              />
+                            </div>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
               </section>
             ))}
           </div>
