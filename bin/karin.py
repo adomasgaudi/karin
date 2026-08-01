@@ -65,8 +65,9 @@ def load_thread_names() -> dict[str, str]:
             except json.JSONDecodeError:
                 continue
             session_id = item.get("id")
-            if session_id:
-                names[session_id] = item.get("thread_name") or session_id
+            thread_name = item.get("thread_name")
+            if session_id and isinstance(thread_name, str) and thread_name.strip():
+                names[str(session_id)] = thread_name.strip()
     return names
 
 
@@ -557,6 +558,20 @@ def latest_session_mtime() -> float:
     return max(path.stat().st_mtime for path in files)
 
 
+def latest_source_mtime(files: list[Path] | None = None) -> float:
+    """Return the newest timestamp that can change the Codex feed.
+
+    Chat renames update session_index.jsonl without touching the transcript, so
+    the watcher must treat that index as a source alongside the session files.
+    """
+    session_files = files if files is not None else iter_session_files()
+    mtimes = [path.stat().st_mtime for path in session_files]
+    index_path = CODEX_HOME / "session_index.jsonl"
+    if index_path.exists():
+        mtimes.append(index_path.stat().st_mtime)
+    return max(mtimes, default=0.0)
+
+
 def index_once(limit: int | None) -> dict[str, Any]:
     payload = build_payload(limit)
     write_data(payload)
@@ -575,14 +590,14 @@ def main() -> int:
     print(f"JSON: {DATA_JSON}")
     print(f"JS:   {DATA_JS}")
     if args.watch:
-        last_mtime = latest_session_mtime()
+        last_mtime = latest_source_mtime()
         try:
             while True:
                 time.sleep(max(args.interval, 1.0))
                 files = iter_session_files()
                 status = build_status(files)
                 write_status(status)
-                current_mtime = max((path.stat().st_mtime for path in files), default=0.0)
+                current_mtime = latest_source_mtime(files)
                 if current_mtime <= last_mtime:
                     continue
                 payload = index_once(args.limit)

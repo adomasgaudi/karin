@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.125',
+    title: 'Rename syncs live',
+    summary: 'Codex chat title changes now refresh Karin when the local session index updates.',
+  },
+  {
     version: 'v.124',
     title: 'Simpler session cards',
     summary: 'Session cards now use source accents and clean visual bars without ambiguous numeric overlays.',
