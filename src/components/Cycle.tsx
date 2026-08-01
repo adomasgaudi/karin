@@ -164,7 +164,7 @@ export default function Cycle({
   // is defined by its fill alone, and lifts on hover or once opened.
   return (
     <details
-      className={`cycle group mb-[3px] rounded-md transition-[margin,box-shadow] open:mb-[11px] hover:shadow-md open:shadow-md open:ring-1 open:ring-neutral-200 dark:open:ring-neutral-800 ${
+      className={`cycle group mb-[3px] rounded-md transition-[margin,box-shadow] open:mt-3 open:mb-6 hover:shadow-md open:shadow-md open:ring-1 open:ring-neutral-200 dark:open:ring-neutral-800 ${
         contextOnly ? 'bg-white dark:bg-neutral-900' : 'bg-white dark:bg-neutral-900/80'
       }`}
     >
@@ -232,12 +232,6 @@ export default function Cycle({
             {eventNodes}
           </div>
         )}
-        {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}
-        <div className="mt-[3px] flex items-center gap-[3px] px-[1px] text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
-          <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-          end of cycle
-          <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-        </div>
       </div>
     </details>
   )
