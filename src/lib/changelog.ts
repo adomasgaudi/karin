@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.180',
+    title: 'Assignments and short paths',
+    summary: 'A third simplifier example teaches it to keep variable assignments and cut in-project paths down.',
+    detail:
+      'Qwen simplified a Measure-Command line but dropped the "$t =" assignment, hiding that the result is stored and used later, and kept the full absolute path. The prompt now shows that answer as WRONG beside the right one, with four rules: never drop an assignment and keep the $ sigil, rename a cryptic one-letter name to a readable one, cut a path inside the project down to the tail that names the file while paths outside it keep their location, and drop an interpreter the filename already implies.',
+  },
+  {
     version: 'v.179',
     title: 'Booleans and shorter paths',
     summary: 'true/false are shown as written, and paths inside the project drop the project prefix.',

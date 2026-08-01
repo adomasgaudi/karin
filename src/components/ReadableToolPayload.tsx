@@ -30,6 +30,20 @@ Never describe or summarise a literal argument. The search pattern is kept verba
 Never drop a target. The command searches src, package.json and CLAUDE.md; naming only src silently loses two of the three.
 Drop the obvious noise instead. Excluding node_modules and dist is the default expectation, not the point of the command, so it is removed entirely rather than spelled out. Same for a trailing output limit like Select-Object -First 240 when it does not change what the command is for.
 Shorter is not the goal; keeping every real detail while removing ceremony is.
+
+Third example, again WRONG and RIGHT for the same command.
+Command:
+$t = Measure-Command { python "c:\\Users\\adoma\\Desktop\\Coding\\Meta apps\\GIT\\karin\\bin\\karin_claude.py" --help | Out-Null }
+WRONG:
+Measure time to run \`python c:\\Users\\adoma\\Desktop\\Coding\\Meta apps\\GIT\\karin\\bin\\karin_claude.py\` with \`--help\`, then discard output.
+RIGHT:
+$time = Measure time to run \\bin\\karin_claude.py with \`--help\`, discard output.
+
+Why the wrong one is wrong, and the rules it adds:
+Never drop an assignment. "$t =" means this result is STORED and used by a later command; losing it hides the whole reason the command exists. Keep the assignment and keep the "$" so it still reads as a variable.
+Rename a cryptic short name to a readable one. "$t" becomes "$time". This is the one place renaming is allowed, because a one-letter name carries no meaning to preserve.
+Cut a path down to the part that identifies the file. Inside the current project, keep only the tail that names it — "\\bin\\karin_claude.py", not the full absolute path. Only a path OUTSIDE the project keeps its full location, because there the location is the point.
+Drop an interpreter the filename already implies. A ".py" file is obviously run by python, so the word "python" adds nothing.
 `.trim()
 
 const SIMPLE_PROVIDER_GUIDANCE: Record<SimplifierProvider, string> = {
