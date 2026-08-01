@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.188',
+    title: 'Quieter, clearer tool rows',
+    summary: 'File tools name the file they touched, the yellow strip is gone, and "0s" durations no longer print.',
+    detail:
+      'Read/Edit/Write rows used to say "Inspect project file" for everything — the label sniffed an action field those tools never send. They now show the file itself (last two path segments), while shell rows keep their guessed purpose. The amber left border on tool rows is transparent, so only the assistant\'s green line marks the column. A step whose duration rounds to 0s prints nothing instead of a meaningless zero.',
+  },
+  {
     version: 'v.187',
     title: 'Roomier session footer',
     summary: 'The space below the last cycle is three times larger, so the end of a session can scroll clear of the bottom edge.',

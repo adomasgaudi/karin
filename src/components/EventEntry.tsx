@@ -58,7 +58,9 @@ function tintFor(entry: Entry): string {
     case 'thinking':
       return 'border-l-slate-400'
     case 'tool':
-      return 'border-l-amber-400'
+      // No accent: tool rows are the bulk of a cycle, so an amber strip on each one
+      // painted the whole column yellow. Only the assistant's green line stays loud.
+      return 'border-l-transparent'
     case 'edit':
       return 'border-l-rose-400'
     case 'usage':
@@ -169,6 +171,8 @@ function Pill({ children }: { children: ReactNode }) {
 // `wait` and reads "waiting on you", not counted as AI work.
 function StepDur({ step }: { step?: StepDuration }) {
   if (!step || step.ms == null) return null
+  // A step that rounds to "0s" says nothing — the column is noise on every fast row.
+  if (fmtDuration(step.ms) === '0s') return null
   if (step.wait) {
     return (
       <span
@@ -333,16 +337,18 @@ function KindTitle({ kind, name }: { kind: string; name: string }) {
 
 // The most informative one-liner for a tool call: its key argument (the command it ran, the
 // file it touched, the pattern it searched) instead of the opaque call id.
-function toolSummary(input: Record<string, unknown>): string {
+function toolSummary(input: Record<string, unknown>, toolName = ''): string {
   const str = (k: string): string => (typeof input[k] === 'string' ? (input[k] as string) : '')
   if (str('command')) return conciseToolPurpose(str('command'))
   const path = str('file_path') || str('path') || str('notebook_path')
   if (path) {
-    const lower = `${str('action')} ${str('operation')}`.toLowerCase()
-    if (/read|open|load|cat/.test(lower)) return 'Read project file'
-    if (/write|create|save/.test(lower)) return 'Write project file'
-    if (/edit|patch|update|replace/.test(lower)) return 'Edit source file'
-    return 'Inspect project file'
+    // File tools (Read/Edit/Write) aren't shell calls, and the row already names the
+    // tool — so the useful half is WHICH file, not a re-worded verb. The old
+    // action/operation sniff never matched these inputs and labelled every one
+    // "Inspect project file".
+    const lower = `${toolName} ${str('action')} ${str('operation')}`.toLowerCase()
+    const tail = path.replace(/\\/g, '/').split('/').slice(-2).join('/')
+    return /write|create|save/.test(lower) ? `wrote ${tail}` : tail
   }
   const pattern = str('pattern')
   if (pattern) return 'Search project text'
@@ -693,7 +699,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
         return (
           <Row
             title={<KindTitle kind="tool" name={item.name} />}
-            meta={toolSummary(item.input) || undefined}
+            meta={toolSummary(item.input, item.name) || undefined}
             badge={
               item.is_error ? (
                 <span className="shrink-0 rounded-sm bg-rose-200/80 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">

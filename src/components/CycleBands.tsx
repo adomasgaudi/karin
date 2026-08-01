@@ -82,6 +82,40 @@ function contextChars(entry: UnifiedEntry): number {
   return entry.kind === 'context' ? (entry.item as ContextBlock | ClaudeContext).chars || 0 : 0
 }
 
+// A band header carries the same thin token markers its rows do, summed over the band —
+// otherwise a collapsed band hides its whole cost and only the leaf rows show weight.
+function BandTokens({ usage, estimated, d }: { usage: TokenUsage; estimated: boolean; d: BandDisplay }) {
+  if (splitUsage(usage).total <= 0) return null
+  return (
+    <UsageBar
+      usage={usage}
+      rates={d.rates}
+      mode={d.unitMode}
+      currency={d.currency}
+      tokenRef={d.tokenRef}
+      tokenMult={d.tokenMult}
+      scaleMax={d.scaleMax}
+      estimated={estimated}
+      thin
+      compact
+      showLegend={false}
+    />
+  )
+}
+
+// Total of whatever usage the cycle attributed to this band's own entries.
+function bandUsage(entries: UnifiedEntry[], d: BandDisplay): { usage: TokenUsage; estimated: boolean } {
+  let usage: TokenUsage = {}
+  let estimated = false
+  for (const entry of entries) {
+    const entryUsage = d.entryUsage.get(entry)
+    if (!entryUsage) continue
+    usage = addUsage(usage, entryUsage.usage)
+    if (entryUsage.estimated) estimated = true
+  }
+  return { usage, estimated }
+}
+
 // --- Hooks band: injected context the AI did not choose --------------------
 // Collapsed by default (low signal). Consecutive session-state blocks fold into one
 // SessionMetaGroup; the rest render as their normal (dimmed) context rows.
