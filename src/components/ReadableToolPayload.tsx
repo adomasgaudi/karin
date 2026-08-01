@@ -102,6 +102,11 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
   if (!raw.trim()) return <>{original}</>
 
   const shown = mode === 'simple' && (simple || draft) ? simple || draft : ''
+  const annotation = mode === 'simple' && (shown || busy) ? (
+    <div className="border-t border-neutral-200/70 pt-1 font-sans text-[0.68rem] leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+      {shown || 'Simplifying…'}{busy && shown && <span className="animate-pulse text-neutral-400">▍</span>}
+    </div>
+  ) : null
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-end gap-1">
@@ -121,11 +126,7 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
           {busy ? 'Simplifying…' : 'Simple'}
         </button>
       </div>
-      {mode === 'simple' && shown ? (
-        <pre className={`${preClass} whitespace-pre-wrap`}>{shown}{busy && <span className="animate-pulse text-neutral-400">▍</span>}</pre>
-      ) : (
-        original
-      )}
+      {mode === 'simple' ? <div className="space-y-2">{original}{annotation}</div> : original}
       {mode === 'simple' && error && <div className="text-[0.65rem] text-red-600 dark:text-red-400">{error}</div>}
     </div>
   )

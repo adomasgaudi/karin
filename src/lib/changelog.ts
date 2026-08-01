@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.151',
+    title: 'Keep original tool input',
+    summary: 'Simple mode now keeps the original payload and places Qwen’s smaller gray annotation underneath.',
+  },
+  {
     version: 'v.150',
     title: 'Hide cycle timing',
     summary: 'Expanded cycles no longer show the working, total, or waiting-on-you timing line.',
