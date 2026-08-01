@@ -141,7 +141,9 @@ export default function UsageBar({
   const total = valuedSegments.reduce((sum, segment) => sum + segment.value, 0)
   const blockTotal = valuedSegments.reduce((sum, segment) => sum + segment.blockValue, 0)
   const tokenTotal = parts.total || usage?.total_tokens || 0
-  const stretch = mode === 'tokens'
+  // Thin row indicators are a run of cent markers, not a miniature full-width
+  // proportional bar. The surrounding track belonged to the old visualization.
+  const stretch = mode === 'tokens' && !thin
   const tokenDenom = scaleMax && scaleMax > 0 ? scaleMax : tokenTotal
   // Short bars use one small dot per cent. Once a cycle/prompt/session crosses 50 cents,
   // switch that bar to ten-cent boxes so a large total does not become visual noise.
@@ -152,16 +154,22 @@ export default function UsageBar({
   const isMoney = mode === 'money' && rates != null
   const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
   const fmtSeg = (segment: { value: number }) => (isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value))
-  const blockHeight = thin ? 'h-0.5' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-1.5' : 'h-1.5'
+  const blockHeight = thin ? 'h-[3px]' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-1.5' : 'h-1.5'
+  const hasBlocks = valuedSegments.length > 0 && blockTotal > 0
+  if (thin && !hasBlocks) return null
 
   return (
     <div className={compact ? 'min-w-0' : 'max-w-4xl'}>
       <div
-        className={`flex min-w-0 items-center gap-px overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
-          estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
-        }`}
+        className={
+          thin
+            ? `inline-flex min-w-0 items-center gap-px ${blockHeight}`
+            : `flex min-w-0 items-center gap-px overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
+                estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
+              }`
+        }
       >
-        {valuedSegments.length > 0 && blockTotal > 0 ? (
+        {hasBlocks ? (
           valuedSegments.map((segment) => (
             <SegmentBlocks
               key={segment.key}

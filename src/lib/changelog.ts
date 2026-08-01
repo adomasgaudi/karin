@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.140',
+    title: 'Show cent markers',
+    summary: 'Compact usage indicators now show only full-height cent markers without the obsolete empty track.',
+    detail:
+      'The small usage line beneath event rows used to reserve a full-width background and render its markers at half the height of the main one-cent display. It now collapses to the actual marker run, uses the same three-pixel thickness as the cent markers, and keeps proportional full-width tracks only for the larger session, sidebar, and cycle bars.',
+  },
+  {
     version: 'v.139',
     title: 'Give prompts room',
     summary: 'Cycle titles use available width, while expanded prompts show three lines before optional full text.',
