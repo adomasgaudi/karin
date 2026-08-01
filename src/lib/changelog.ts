@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.142',
+    title: 'Count cycle steps',
+    summary: 'Cycle headers show meaningful AI work-step counts, with timing retained inside the expanded cycle.',
+    detail:
+      'The right side of each cycle header now says “N steps”, counting visible assistant replies, thinking, tools, edits, and subagents. Owner prompts, injected context, runtime hooks, empty merged records, and token-accounting frames stay out of that count. Expanding a cycle still exposes working time, total elapsed time, and any wait for the owner.',
+  },
+  {
     version: 'v.141',
     title: 'Name tool purposes',
     summary: 'Collapsed tool rows now show concise purposes such as Read project instructions or Search project code.',

@@ -207,6 +207,18 @@ export function cycleCounts(cycle: Cycle): string {
     .join(' · ')
 }
 
+// One visible AI work item = one step in the cycle header. Human touchpoints,
+// injected context/runtime hooks, and token-accounting frames are metadata rather
+// than work. Empty assistant/thinking records are omitted because the structured
+// view merges them into the next real action instead of rendering a row.
+export function cycleStepCount(cycle: Cycle): number {
+  return cycle.items.filter((entry) => {
+    if (entry.kind === 'usage') return false
+    if (entryBand(entry) !== 'claude') return false
+    return !isEmptyMessage(entry) && !isEmptyThinking(entry)
+  }).length
+}
+
 // A cycle's usage = the exact sum of its measured usage frames' `last` totals. Uniform:
 // both Codex TokenEvent.last and Claude ClaudeUsageFrame.last are TokenUsage.
 export function cycleUsage(cycle: Cycle): TokenUsage {

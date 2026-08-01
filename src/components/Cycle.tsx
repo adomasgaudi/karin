@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
-import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
+import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import { fmtDuration } from '../lib/format'
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageUnitTotal } from '../lib/pricing'
@@ -55,6 +55,7 @@ export default function Cycle({
   // total (incl.) spans; per-card step durations feed each event's own chip.
   const timing = useMemo(() => cycleTiming(cycle), [cycle])
   const steps = useMemo(() => stepDurations(cycle), [cycle])
+  const stepCount = useMemo(() => cycleStepCount(cycle), [cycle])
   const hasWait = timing.waitMs != null && timing.waitMs > 1000
   // Each card's bar scales against the cycle total, so a card's fill = its fraction of the cycle.
   const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef, tokenMult)
@@ -158,20 +159,27 @@ export default function Cycle({
           >
             {cyclePrompt(cycle)}
           </span>
-          {timing.workingMs != null && (
-            <span
-              className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
-              title={`Working time (AI churning, excludes waiting on you)${hasWait ? ` · ${fmtDuration(timing.totalMs)} total incl. your ${fmtDuration(timing.waitMs)} to answer` : ''}`}
-            >
-              ⏱ {fmtDuration(timing.workingMs)}
-            </span>
-          )}
+          <span
+            className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
+            title="Meaningful AI work entries in this cycle"
+          >
+            {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+          </span>
         </div>
         {hasUsage && (
           <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact showLegend={false} scaleMax={scaleMax} />
         )}
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
+        {timing.workingMs != null && (
+          <div
+            className="mb-[3px] px-1 text-[0.62rem] text-neutral-500 dark:text-neutral-400"
+            title="Working excludes time spent waiting for the owner to answer"
+          >
+            ⏱ working {fmtDuration(timing.workingMs)} · total {fmtDuration(timing.totalMs)}
+            {hasWait ? ` · waiting on you ${fmtDuration(timing.waitMs)}` : ''}
+          </div>
+        )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}
