@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
-import type { RateLimits, SessionSource } from '../types'
+import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -21,7 +21,7 @@ import {
 import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
 import SourceCycle from './SourceCycle'
-import TurnDot from './TurnDot'
+import SourceMark from './SourceMark'
 
 interface SidebarProps {
   className?: string
@@ -35,12 +35,6 @@ function projectLabel(cwd: string | null, slug: string | null): string | null {
     if (parts.length) return parts[parts.length - 1]
   }
   return slug
-}
-
-const SOURCE_ACCENTS: Record<SessionSource, string> = {
-  codex: 'bg-sky-500',
-  claude: 'bg-orange-500',
-  warp: 'bg-violet-500',
 }
 
 function windowName(minutes: number | null): string {
@@ -245,15 +239,14 @@ export default function Sidebar({ className }: SidebarProps) {
                     type="button"
                     onClick={() => useKarin.getState().select(s.uid)}
                     className={cn(
-                      'relative grid w-full gap-0.5 rounded-md border px-2 py-1 pl-3 text-left transition-colors',
+                      'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
                       selected
                         ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
                         : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
                     )}
                   >
-                    <span aria-hidden className={`absolute inset-y-1 left-1 w-1 rounded-full ${SOURCE_ACCENTS[s.source]}`} />
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <TurnDot state={s.turnState} />
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <SourceMark source={s.source} state={s.turnState} />
                       <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
                           {s.title || s.id}
@@ -268,20 +261,22 @@ export default function Sidebar({ className }: SidebarProps) {
                         )}
                       </div>
                     </div>
-                    <UsageBar
-                      usage={s.latest_total_usage || {}}
-                      rates={rates}
-                      mode={unitMode}
-                      currency={currency}
-                      tokenRef={tokenRef}
-                      tokenMult={tokenMult}
-                      compact
-                      bare
-                      inlineLabels
-                      hideSegmentLabels
-                      showLegend={false}
-                      scaleMax={scaleMax}
-                    />
+                    <div className="ml-[22px] -mt-px min-w-0">
+                      <UsageBar
+                        usage={s.latest_total_usage || {}}
+                        rates={rates}
+                        mode={unitMode}
+                        currency={currency}
+                        tokenRef={tokenRef}
+                        tokenMult={tokenMult}
+                        compact
+                        bare
+                        inlineLabels
+                        hideSegmentLabels
+                        showLegend={false}
+                        scaleMax={scaleMax}
+                      />
+                    </div>
                   </button>
                 </li>
               )

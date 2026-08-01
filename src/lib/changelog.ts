@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.203',
+    title: 'Branded activity marks',
+    summary: 'Session rows now use one source logo marker, with tighter tokens and more comfortable left padding.',
+  },
+  {
     version: 'v.202',
     title: 'Faster live feeds',
     summary: 'Codex and Claude watchers cache unchanged sessions and write only feeds that actually changed.',
