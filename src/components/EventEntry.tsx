@@ -236,7 +236,9 @@ function Row({
     return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>{summary}</div>
   }
   return (
-    <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>
+    // data-step-row lets the cycle's accordion listener tell step rows apart from
+    // nested disclosure widgets (raw toggles, "Raw payload" details) inside bodies.
+    <details data-step-row="" className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>
       <summary className="flex cursor-pointer select-none list-none flex-col gap-px px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
         {summary}
       </summary>

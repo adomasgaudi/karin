@@ -10,6 +10,8 @@ export default function SettingsMenu() {
   const sessions = useKarin((s) => s.sessions)
   const theme = useKarin((s) => s.theme)
   const toggleTheme = useKarin((s) => s.toggleTheme)
+  const keepStepsOpen = useKarin((s) => s.keepStepsOpen)
+  const setKeepStepsOpen = useKarin((s) => s.setKeepStepsOpen)
   const [open, setOpen] = useState(false)
 
   return (
@@ -61,6 +63,20 @@ export default function SettingsMenu() {
               <Upload className="h-3.5 w-3.5" />
               Load
             </button>
+            {/* Accordion: expanding a step auto-closes the cycle's other steps; this keeps them open instead. */}
+            <div className="flex items-center justify-between gap-1.5 px-2 py-1">
+              <span className="text-neutral-700 dark:text-neutral-300" title="When off, expanding a step inside a cycle auto-closes the other open steps">
+                Keep steps open
+              </span>
+              <Switch.Root
+                aria-label="Keep expanded steps open"
+                checked={keepStepsOpen}
+                onCheckedChange={setKeepStepsOpen}
+                className="relative h-5 w-9 rounded-md bg-neutral-200 outline-none data-[state=checked]:bg-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:bg-neutral-200"
+              >
+                <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-sm bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px] dark:bg-neutral-950" />
+              </Switch.Root>
+            </div>
             <div className="flex items-center gap-1.5 px-2 py-1">
               <Sun className="h-3.5 w-3.5 text-neutral-400" />
               <Switch.Root

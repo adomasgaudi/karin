@@ -1,4 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useKarin } from '../store/karin'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
 import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
@@ -58,6 +59,24 @@ export default function Cycle({
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
+  // Accordion: expanding a step row closes this cycle's other open steps, unless the
+  // owner opted out in settings. `toggle` doesn't bubble, so listen in capture phase.
+  const keepStepsOpen = useKarin((s) => s.keepStepsOpen)
+  const eventsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const node = eventsRef.current
+    if (!node || keepStepsOpen) return
+    const onToggle = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof HTMLDetailsElement) || !target.open || !target.hasAttribute('data-step-row')) return
+      for (const other of node.querySelectorAll<HTMLDetailsElement>('details[data-step-row][open]')) {
+        // Leave ancestors/descendants alone (a subagent's inner steps live inside a row).
+        if (other !== target && !other.contains(target) && !target.contains(other)) other.open = false
+      }
+    }
+    node.addEventListener('toggle', onToggle, true)
+    return () => node.removeEventListener('toggle', onToggle, true)
+  }, [keepStepsOpen])
   // What human touchpoint opened this cycle: a fresh prompt, a mid-turn interjection,
   // or the owner's answer to an AI question. A small tag makes the shape legible.
   const origin = cycleOrigin(cycle)
@@ -182,7 +201,7 @@ export default function Cycle({
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
-        <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
+        <div ref={eventsRef} className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}
         </div>
         {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}

@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.169',
+    title: 'Steps auto-close',
+    summary: 'Expanding a step inside a cycle closes its other open steps; a setting keeps them open instead.',
+    detail:
+      'Step rows in a cycle now behave as an accordion: opening one collapses the cycle’s other expanded steps, so long cycles stay readable. Nested disclosures (raw toggles, subagent steps) are untouched. A new "Keep steps open" switch in settings disables the accordion, and the choice persists.',
+  },
+  {
     version: 'v.168',
     title: 'Faint original above steps',
     summary: 'Simplified steps show the original command faintly above, with an orig toggle to hide it.',

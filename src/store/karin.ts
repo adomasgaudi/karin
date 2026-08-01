@@ -54,6 +54,12 @@ function initialTokenMult(): number {
   return DEFAULT_TOKEN_MULT
 }
 
+// Whether expanding a step inside a cycle keeps the other steps open (accordion off).
+// Default: auto-close, so one step at a time stays readable.
+function initialKeepStepsOpen(): boolean {
+  return localStorage.getItem('karin-keep-steps-open') === '1'
+}
+
 function initialCurrency(): CurrencyMode {
   const saved = localStorage.getItem('karin-currency')
   if (saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents') return saved
@@ -100,6 +106,7 @@ interface KarinStore {
   currency: CurrencyMode
   priceBasis: PriceBasis
   subDivisors: Record<SessionSource, number>
+  keepStepsOpen: boolean
   theme: Theme
   view: View
   error: string | null
@@ -121,6 +128,7 @@ interface KarinStore {
   setCurrency: (c: CurrencyMode) => void
   setPriceBasis: (b: PriceBasis) => void
   setSubDivisor: (source: SessionSource, n: number) => void
+  setKeepStepsOpen: (keep: boolean) => void
   setError: (msg: string | null) => void
   setView: (v: View) => void
   toggleTheme: () => void
@@ -231,6 +239,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
     claude: initialSubDivisor('karin-subdiv-claude', SUB_DIVISOR_DEFAULTS.claude),
     warp: initialSubDivisor('karin-subdiv-warp', SUB_DIVISOR_DEFAULTS.warp),
   },
+  keepStepsOpen: initialKeepStepsOpen(),
   theme: initialTheme(),
   view: 'sessions',
   error: null,
@@ -459,6 +468,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setSubDivisor: (source, n) => {
     localStorage.setItem(`karin-subdiv-${source}`, String(n))
     set((st) => ({ subDivisors: { ...st.subDivisors, [source]: n } }))
+  },
+  setKeepStepsOpen: (keep) => {
+    localStorage.setItem('karin-keep-steps-open', keep ? '1' : '0')
+    set({ keepStepsOpen: keep })
   },
   setError: (msg) => set({ error: msg }),
   setView: (v) => set({ view: v }),
