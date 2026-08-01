@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.127',
+    title: 'Show usage remaining',
+    summary: 'The newest local Codex rate-limit snapshot now shows remaining weekly or secondary usage above sessions.',
+  },
+  {
     version: 'v.126',
     title: 'Compact detail controls',
     summary: 'The glasses mark now returns to sessions, while source and pricing controls move into a tighter header layout.',

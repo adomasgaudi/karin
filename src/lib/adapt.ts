@@ -3,7 +3,7 @@
 // builder reads the enriched source session carried verbatim on `raw`. This is the ONE
 // seam where the data pipelines meet — everything downstream sees one shape.
 
-import type { KarinData, Session, UnifiedSession, UnifiedMetaRow } from '../types'
+import type { KarinData, RateLimitWindow, RateLimits, Session, UnifiedSession, UnifiedMetaRow } from '../types'
 import type { ClaudeProject, ClaudeRawData, ClaudeSession } from './claudeRaw'
 import type { ClaudeDetailSession } from './claudeModel'
 import type { WarpRawData, WarpSession } from './warpRaw'
@@ -11,6 +11,54 @@ import { claudeTurnState, codexTurnState, warpTurnState } from './turnState'
 
 function metaRow(label: string, value: string | number | null | undefined): UnifiedMetaRow {
   return { label, value: value === null || value === undefined || value === '' ? null : String(value) }
+}
+
+function recordOf(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function rateLimitWindow(value: unknown): RateLimitWindow | null {
+  const row = recordOf(value)
+  if (!row) return null
+  if (row.used_percent == null) return null
+  const used = Number(row.used_percent)
+  if (!Number.isFinite(used)) return null
+  const window = Number(row.window_minutes)
+  const reset = Number(row.resets_at)
+  return {
+    used_percent: Math.max(0, Math.min(100, used)),
+    window_minutes: Number.isFinite(window) ? window : null,
+    resets_at: Number.isFinite(reset) ? reset : null,
+  }
+}
+
+function rateLimitsOf(value: unknown): RateLimits | null {
+  const row = recordOf(value)
+  if (!row) return null
+  const primary = rateLimitWindow(row.primary)
+  const secondary = rateLimitWindow(row.secondary)
+  const credits = recordOf(row.credits)
+  if (!primary && !secondary && !credits) return null
+  return {
+    primary,
+    secondary,
+    credits: credits
+      ? {
+          has_credits: typeof credits.has_credits === 'boolean' ? credits.has_credits : undefined,
+          unlimited: typeof credits.unlimited === 'boolean' ? credits.unlimited : undefined,
+          balance: typeof credits.balance === 'string' ? credits.balance : null,
+        }
+      : null,
+    plan_type: typeof row.plan_type === 'string' ? row.plan_type : null,
+  }
+}
+
+function latestRateLimits(session: Session): RateLimits | null {
+  for (let i = session.token_events.length - 1; i >= 0; i--) {
+    const limits = rateLimitsOf(session.token_events[i].rate_limits)
+    if (limits) return limits
+  }
+  return null
 }
 
 // --- Codex -----------------------------------------------------------------
@@ -58,6 +106,7 @@ export function adaptCodexSession(s: Session): UnifiedSession {
       contexts: s.counts.contexts,
     },
     latest_total_usage: s.latest_total_usage,
+    rateLimits: latestRateLimits(s),
     turnState: codexTurnState(s),
     projectSlug: null,
     projectCwd: null,

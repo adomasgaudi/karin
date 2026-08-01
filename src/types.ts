@@ -69,6 +69,23 @@ export interface TokenEvent {
   rate_limits?: unknown
 }
 
+export interface RateLimitWindow {
+  used_percent: number
+  window_minutes: number | null
+  resets_at: number | null
+}
+
+export interface RateLimits {
+  primary: RateLimitWindow | null
+  secondary: RateLimitWindow | null
+  credits?: {
+    has_credits?: boolean
+    unlimited?: boolean
+    balance?: string | null
+  } | null
+  plan_type?: string | null
+}
+
 export interface PatchResult {
   timestamp: string | null
   line: number
@@ -200,6 +217,8 @@ export interface UnifiedSession {
   updated_at: string | null
   counts: UnifiedCounts
   latest_total_usage: TokenUsage | null
+  // Codex's latest account-level rate-limit snapshot, when the feed provides one.
+  rateLimits?: RateLimits | null
   // Turn state deduced from the last record (see lib/turnState.ts): whether the AI is
   // mid-turn ('working'), idle awaiting the human ('waiting'), or cut off ('interrupted').
   // Reflects the last INDEX, not live process state.

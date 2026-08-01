@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
-import type { SessionSource } from '../types'
+import type { RateLimits, SessionSource } from '../types'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -43,6 +43,39 @@ const SOURCE_ACCENTS: Record<SessionSource, string> = {
   warp: 'bg-violet-500',
 }
 
+function windowName(minutes: number | null): string {
+  if (minutes == null) return 'window'
+  if (minutes >= 10080) return 'week'
+  if (minutes >= 1440) return 'day'
+  if (minutes >= 60) return `${Math.round(minutes / 60)}h`
+  return `${Math.round(minutes)}m`
+}
+
+function resetLabel(epochSeconds: number | null): string {
+  if (!epochSeconds) return 'reset unknown'
+  return `resets ${new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(epochSeconds * 1000)}`
+}
+
+function RemainingUsage({ limits }: { limits: RateLimits | null }) {
+  if (!limits) return null
+  const windows = [limits.primary, limits.secondary].filter(Boolean)
+  if (windows.length === 0 && limits.credits?.unlimited) {
+    return <div className="border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400">unlimited usage</div>
+  }
+  if (windows.length === 0) return null
+  const label = windows
+    .map((window) => `${Math.max(0, 100 - window!.used_percent).toFixed(window!.used_percent % 1 ? 1 : 0)}% ${windowName(window!.window_minutes)}`)
+    .join(' · ')
+  const title = windows.map((window) => resetLabel(window!.resets_at)).join(' · ')
+  return (
+    <div className="flex items-center gap-1 border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400" title={title}>
+      <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+      <span className="font-semibold text-neutral-700 dark:text-neutral-200">{label}</span>
+      <span>usage left</span>
+    </div>
+  )
+}
+
 export default function Sidebar({ className }: SidebarProps) {
   const sessions = useKarin((s) => s.sessions)
   const selectedUid = useKarin((s) => s.selectedUid)
@@ -78,6 +111,9 @@ export default function Sidebar({ className }: SidebarProps) {
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
+  // Sessions are merged newest-first, so the first snapshot is the freshest account-level
+  // Codex rate-limit response available in the local feed.
+  const rateLimits = sessions.find((s) => s.rateLimits)?.rateLimits ?? null
 
   return (
     <aside
@@ -192,6 +228,8 @@ export default function Sidebar({ className }: SidebarProps) {
           )}
         </div>
       </div>
+
+      <RemainingUsage limits={rateLimits} />
 
       <div className="flex-1 overflow-y-auto p-1">
         {list.length === 0 ? (
