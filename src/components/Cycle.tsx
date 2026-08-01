@@ -1,10 +1,10 @@
 import { useMemo, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
-import { attributeCycleUsage, cycleCounts, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
-import { fmtClock, fmtCompact, fmtCurrency, fmtDuration } from '../lib/format'
+import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
+import { fmtDuration } from '../lib/format'
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
-import { splitUsage, usageCost, usageUnitTotal } from '../lib/pricing'
+import { splitUsage, usageUnitTotal } from '../lib/pricing'
 import EventEntry from './EventEntry'
 import { HooksBand, ClaudeBlock, type BandDisplay } from './CycleBands'
 import UsageBar from './UsageBar'
@@ -47,9 +47,7 @@ export default function Cycle({
   singleModel?: boolean
 }) {
   const usage = cycleUsage(cycle)
-  const parts = splitUsage(usage)
-  const hasUsage = parts.total > 0
-  const cost = usageCost(parts, rates)
+  const hasUsage = splitUsage(usage).total > 0
   // Per-entry token usage: Codex → estimates (share of the turn's measured total, weighted
   // by text length); Claude → measured usage frames only.
   const entryUsage = useMemo(() => attributeCycleUsage(cycle, source), [cycle, source])
@@ -167,32 +165,6 @@ export default function Cycle({
         )}
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
-        <div className="mb-[3px] flex flex-wrap gap-x-[3px] gap-y-px px-[1px] text-[0.68rem] text-neutral-500 dark:text-neutral-400">
-          <span>line {cycle.startLine}</span>
-          {timing.startMs != null && (
-            <span title="When this cycle started → when it ended (wall clock)">
-              {fmtClock(timing.workStartMs ?? timing.startMs)} → {fmtClock(timing.endMs)}
-            </span>
-          )}
-          {timing.workingMs != null && (
-            <span className="font-medium text-neutral-600 dark:text-neutral-300" title="AI working time — excludes any time waiting on you">
-              working {fmtDuration(timing.workingMs)}
-            </span>
-          )}
-          {timing.totalMs != null && (
-            <span title="Total wall-clock span, including any time you spent answering">
-              total {fmtDuration(timing.totalMs)}
-            </span>
-          )}
-          {hasWait && (
-            <span className="text-violet-500 dark:text-violet-400" title="Time you spent answering the AI's question — not counted as working time">
-              {fmtDuration(timing.waitMs)} waiting on you
-            </span>
-          )}
-          <span>{cycleCounts(cycle) || 'empty'}</span>
-          {hasUsage && <span>{fmtCompact(parts.total)} tokens</span>}
-          {cost != null && <span>{fmtCurrency(cost, currency)}</span>}
-        </div>
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}

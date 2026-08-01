@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.136',
+    title: 'Clear cycle header',
+    summary: 'Expanded cycles no longer show timing, counts, token totals, or cost metadata above their contents.',
+  },
+  {
     version: 'v.135',
     title: 'Remove duplicate usage',
     summary: 'Cycle token usage now appears once in the summary, not again inside expanded details.',
