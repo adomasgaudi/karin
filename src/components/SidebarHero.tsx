@@ -2,7 +2,7 @@ import { ArrowUpRight, Orbit } from 'lucide-react'
 
 export default function SidebarHero({ sessionCount }: { sessionCount: number }) {
   return (
-    <section className="relative mx-2 mt-2 overflow-hidden rounded-2xl border border-neutral-200/80 bg-neutral-50 px-4 py-4 dark:border-white/10 dark:bg-white/[0.035]">
+    <section className="relative mx-1 mb-2 overflow-hidden rounded-2xl border border-neutral-200/80 bg-neutral-50 px-4 py-4 dark:border-white/10 dark:bg-white/[0.035]">
       {/* A deliberately quiet atmosphere: the highlight only reveals itself as the eye moves. */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_92%_8%,rgba(115,115,115,0.15),transparent_31%),linear-gradient(132deg,transparent_50%,rgba(255,255,255,0.45))] dark:bg-[radial-gradient(circle_at_92%_8%,rgba(255,255,255,0.12),transparent_31%),linear-gradient(132deg,transparent_50%,rgba(255,255,255,0.035))]" />
       <div className="relative">

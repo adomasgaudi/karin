@@ -391,9 +391,9 @@ export default function Sidebar({ className }: SidebarProps) {
         </div>
       </div>
 
-      <SidebarHero sessionCount={list.length} />
-
+      {/* Inside the scroll container so the hero scrolls away with the list, not pinned above it. */}
       <div className="flex-1 overflow-y-auto px-1 pt-1 pb-16">
+        <SidebarHero sessionCount={list.length} />
         {list.length === 0 ? (
           <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No sessions match.</p>
         ) : (

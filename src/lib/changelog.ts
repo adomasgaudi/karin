@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.221',
+    title: 'Hero scrolls with the list',
+    summary: 'The sidebar hero card moved inside the scroll area, so it no longer stays pinned above the sessions.',
+  },
+  {
     version: 'v.220',
     title: 'Quieter session header',
     summary: 'Squares replace token bars, unit controls move into the ⋮ menu, and Summarize picks its own model.',
