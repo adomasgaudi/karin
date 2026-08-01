@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.150',
+    title: 'Hide cycle timing',
+    summary: 'Expanded cycles no longer show the working, total, or waiting-on-you timing line.',
+  },
+  {
     version: 'v.149',
     title: 'Short prompt titles',
     summary: 'Long user prompt steps now get local Qwen titles capped below seven words; short prompts keep their original text.',

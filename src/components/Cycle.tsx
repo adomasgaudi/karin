@@ -1,8 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
-import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
-import { fmtDuration } from '../lib/format'
+import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageUnitTotal } from '../lib/pricing'
 import EventEntry from './EventEntry'
@@ -51,12 +50,9 @@ export default function Cycle({
   // Per-entry token usage: Codex → estimates (share of the turn's measured total, weighted
   // by text length); Claude → measured usage frames only.
   const entryUsage = useMemo(() => attributeCycleUsage(cycle, source), [cycle, source])
-  // Per-cycle wall-clock: start/end plus working (excl. owner deliberation) and
-  // total (incl.) spans; per-card step durations feed each event's own chip.
-  const timing = useMemo(() => cycleTiming(cycle), [cycle])
+  // Per-card step durations feed each event's own chip.
   const steps = useMemo(() => stepDurations(cycle), [cycle])
   const stepCount = useMemo(() => cycleStepCount(cycle), [cycle])
-  const hasWait = timing.waitMs != null && timing.waitMs > 1000
   // Each card's bar scales against the cycle total, so a card's fill = its fraction of the cycle.
   const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef, tokenMult)
   // A context-only cycle carries no owner prompt — gray it down so the real
@@ -185,15 +181,6 @@ export default function Cycle({
         )}
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
-        {timing.workingMs != null && (
-          <div
-            className="mb-[3px] px-1 text-[0.62rem] text-neutral-500 dark:text-neutral-400"
-            title="Working excludes time spent waiting for the owner to answer"
-          >
-            ⏱ working {fmtDuration(timing.workingMs)} · total {fmtDuration(timing.totalMs)}
-            {hasWait ? ` · waiting on you ${fmtDuration(timing.waitMs)}` : ''}
-          </div>
-        )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}
