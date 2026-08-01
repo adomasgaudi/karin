@@ -93,15 +93,13 @@ function groupProjects(sessions: UnifiedSession[]): ProjectSummary[] {
   }
   const total = sessions.reduce((sum, s) => sum + sessionTokens(s), 0) || 1
   return [...map.entries()]
-    .map(([name, list]) => ({
-      name,
-      sessions: list,
-      tokens: list.reduce((sum, s) => sum + sessionTokens(s), 0),
-      share: list.reduce((sum, s) => sum + sessionTokens(s), 0) / total,
-      wallMs: list.reduce((sum, s) => sum + sessionWallMs(s), 0),
-      edits: list.reduce((sum, s) => sum + s.counts.code_edits, 0),
-      prompts: list.reduce((sum, s) => sum + s.counts.user, 0),
-    }))
+    .map(([name, list]) => {
+      const tokens = list.reduce((sum, s) => sum + sessionTokens(s), 0)
+      const wallMs = list.reduce((sum, s) => sum + sessionWallMs(s), 0)
+      const edits = list.reduce((sum, s) => sum + s.counts.code_edits, 0)
+      const prompts = list.reduce((sum, s) => sum + s.counts.user, 0)
+      return { name, sessions: list, tokens, share: tokens / total, wallMs, edits, prompts }
+    })
     .sort((a, b) => b.tokens - a.tokens)
 }
 

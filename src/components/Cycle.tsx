@@ -28,9 +28,6 @@ export default function Cycle({
   tokenRef,
   tokenMult,
   scaleMax,
-  model,
-  effort,
-  showModel,
   singleModel,
 }: {
   cycle: CycleData
@@ -41,9 +38,6 @@ export default function Cycle({
   tokenRef: TokenUnitRef
   tokenMult?: number
   scaleMax?: number
-  model?: string | null
-  effort?: string | null
-  showModel?: boolean
   singleModel?: boolean
 }) {
   const usage = cycleUsage(cycle)
@@ -130,7 +124,7 @@ export default function Cycle({
       hooksBuf = []
     }
     if (claudeBuf.length) {
-      eventNodes.push(<ClaudeBlock key={`claude-${seg}`} entries={claudeBuf} sourceLabel={source} model={model} d={display} />)
+      eventNodes.push(<ClaudeBlock key={`claude-${seg}`} entries={claudeBuf} sourceLabel={source} d={display} />)
       claudeBuf = []
     }
     seg++
@@ -165,17 +159,11 @@ export default function Cycle({
   // is defined by its fill alone, and lifts on hover or once opened.
   return (
     <details
-      className={`cycle group mb-[3px] rounded-md transition-[margin,box-shadow] open:mb-[11px] hover:shadow-md open:shadow-md ${
-        contextOnly ? 'bg-neutral-50/50 dark:bg-neutral-900/40' : 'bg-white dark:bg-neutral-900/80'
+      className={`cycle group mb-[3px] rounded-md transition-[margin,box-shadow] open:mb-[11px] hover:shadow-md open:shadow-md open:ring-1 open:ring-neutral-200 dark:open:ring-neutral-800 ${
+        contextOnly ? 'bg-white dark:bg-neutral-900' : 'bg-white dark:bg-neutral-900/80'
       }`}
     >
       <summary className="flex cursor-pointer select-none flex-col gap-[3px] rounded-t-md px-1 py-[3px] text-xs [&::-webkit-details-marker]:hidden hover:bg-neutral-50 group-open:sticky group-open:top-0 group-open:z-10 group-open:border-b group-open:border-neutral-200 group-open:bg-white/95 group-open:backdrop-blur dark:hover:bg-neutral-800/60 dark:group-open:border-neutral-800 dark:group-open:bg-neutral-900/95">
-        {showModel && (model || effort) && (
-          <div className="flex items-center gap-1 px-1 text-[0.6rem] text-neutral-400 dark:text-neutral-500">
-            <span>{model || 'model n/a'}</span>
-            {effort && <span>· {effort}</span>}
-          </div>
-        )}
         {/* No ordinal badge: the cycles are already in order down the page, so a number
             on each one was a column of noise beside every prompt. */}
         <div className="flex min-w-0 items-center gap-1">
@@ -209,7 +197,9 @@ export default function Cycle({
           )}
         </div>
       </summary>
-      <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
+      {/* This remains part of the cycle card: opening the title grows its original
+          surface rather than revealing a second, separately tinted content card. */}
+      <div className="rounded-b-md px-[3px] pb-[3px] pt-1">
         {/* The raw switch lives INSIDE the cycle, next to what it changes — in the header
             it sat on every collapsed row competing with the prompt for attention. */}
         <div className="mb-[3px] flex justify-end">
@@ -233,7 +223,7 @@ export default function Cycle({
             <RawJson value={rawItems} />
           </div>
         ) : (
-          <div ref={eventsRef} className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
+          <div ref={eventsRef} className="ml-[1px] pl-[3px]">
             {eventNodes}
           </div>
         )}

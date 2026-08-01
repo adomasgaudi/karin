@@ -502,26 +502,32 @@ export default function SessionDetail() {
               <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No structured cycles for this session.</p>
             ) : (
               cycleInfos.map(({ cycle, model, effort, rates: cycleRates }, i) => {
+                const modelChanged = i === 0 || model !== cycleInfos[i - 1]?.model || effort !== cycleInfos[i - 1]?.effort
                 return (
-                  <Cycle
-                    // Keyed by the cycle's first raw line, NOT its position: a cycle
-                    // appearing earlier in the transcript must not renumber the DOM and
-                    // collapse the cycle the owner is reading (<details> open state lives
-                    // on the element).
-                    key={`c${cycle.startLine}`}
-                    cycle={cycle}
-                    source={s.source}
-                    rates={cycleRates}
-                    unitMode={unitMode}
-                    currency={currency}
-                    tokenRef={tokenRef}
-                    tokenMult={tokenMult}
-                    scaleMax={scaleMax}
-                    model={model}
-                    effort={effort}
-                    showModel={i === 0 || model !== cycleInfos[i - 1]?.model || effort !== cycleInfos[i - 1]?.effort}
-                    singleModel={(s.models?.length ?? 0) <= 1}
-                  />
+                  <div key={`c${cycle.startLine}`}>
+                    {modelChanged && (model || effort) && (
+                      <div className="flex items-center gap-2 px-1 py-1 text-[0.65rem] text-neutral-400 dark:text-neutral-500">
+                        <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+                        <span className="shrink-0">{model || 'model n/a'}{effort && ` · ${effort}`}</span>
+                        <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+                      </div>
+                    )}
+                    <Cycle
+                      // Keyed by the cycle's first raw line, NOT its position: a cycle
+                      // appearing earlier in the transcript must not renumber the DOM and
+                      // collapse the cycle the owner is reading (<details> open state lives
+                      // on the element).
+                      cycle={cycle}
+                      source={s.source}
+                      rates={cycleRates}
+                      unitMode={unitMode}
+                      currency={currency}
+                      tokenRef={tokenRef}
+                      tokenMult={tokenMult}
+                      scaleMax={scaleMax}
+                      singleModel={(s.models?.length ?? 0) <= 1}
+                    />
+                  </div>
                 )
               })
             )}

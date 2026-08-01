@@ -148,7 +148,14 @@ def classify_context_message(text: str, role: str) -> tuple[str, str] | None:
     return None
 
 
-def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
+# Parsed sessions are cached by source-file signature. A watch tick normally changes
+# one transcript, so reparsing every historical JSONL is pure wasted work. The cache
+# stores serialized full sessions because split_payload mutates the heavy arrays.
+_PARSE_CACHE: dict[str, tuple[int, int, str]] = {}
+PARSE_CACHE_MAX = 200
+
+
+def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
     session: dict[str, Any] = {
         "id": None,
         "title": path.stem,
@@ -420,6 +427,31 @@ def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
     return session
 
 
+def parse_session(path: Path, names: dict[str, str]) -> dict[str, Any] | None:
+    """Parse one transcript, reusing the previous parse when its signature is stable."""
+    stat = path.stat()
+    path_key = str(path)
+    signature = (stat.st_mtime_ns, stat.st_size)
+    cached = _PARSE_CACHE.get(path_key)
+    if cached and cached[:2] == signature:
+        parsed = json.loads(cached[2])
+    else:
+        session = _parse_session_uncached(path, names)
+        if session is None:
+            return None
+        blob = json.dumps(session, ensure_ascii=False)
+        if len(_PARSE_CACHE) >= PARSE_CACHE_MAX and path_key not in _PARSE_CACHE:
+            _PARSE_CACHE.clear()
+        _PARSE_CACHE[path_key] = (signature[0], signature[1], blob)
+        parsed = json.loads(blob)
+
+    # session_index.jsonl can rename a chat without touching its transcript.
+    session_id = parsed.get("id")
+    if session_id:
+        parsed["title"] = names.get(str(session_id), parsed.get("title") or str(session_id))
+    return parsed
+
+
 def iso_from_mtime(mtime: float) -> str | None:
     if not mtime:
         return None
@@ -435,17 +467,77 @@ def build_status(files: list[Path]) -> dict[str, Any]:
     }
 
 
+# Cache the already-split light index and serialized body too. This is the important
+# second layer: unchanged sessions no longer need to load their 100+ MB of heavy arrays
+# just to throw them away again in split_payload.
+_SESSION_CACHE: dict[str, tuple[int, int, str, str, str]] = {}
+SESSION_CACHE_MAX = 200
+_PENDING_BODY_TEXTS: list[tuple[str, str]] = []
+
+
+def split_session(session: dict[str, Any]) -> tuple[str, str]:
+    """Return a filename stem and serialized body while leaving a light session index."""
+    session["haystack"] = build_haystack(session)
+    tools = session.get("tools") or []
+    session["tool_max_line"] = max((int(t.get("line") or 0) for t in tools), default=-1)
+    session["tool_previews"] = [
+        {
+            "timestamp": tool.get("timestamp"),
+            "line": tool.get("line") or 0,
+            "call_id": tool.get("call_id"),
+            "name": tool.get("name") or "tool",
+            "arguments": "",
+            "output": None,
+        }
+        for tool in tools
+    ]
+    body = {"id": session.get("id")}
+    for field in BODY_FIELDS:
+        body[field] = session.get(field) or []
+        session[field] = []
+    return safe_file_stem(session.get("id") or ""), json.dumps(body, ensure_ascii=False)
+
+
+def cached_split_session(path: Path, names: dict[str, str]) -> tuple[dict[str, Any], tuple[str, str]] | None:
+    """Return a cached light session/body pair when this transcript is unchanged."""
+    stat = path.stat()
+    path_key = str(path)
+    signature = (stat.st_mtime_ns, stat.st_size)
+    cached = _SESSION_CACHE.get(path_key)
+    if cached and cached[:2] == signature:
+        light = json.loads(cached[2])
+        session_id = cached[4]
+        light["title"] = names.get(session_id, light.get("title") or session_id)
+        return light, (safe_file_stem(session_id), cached[3])
+
+    session = parse_session(path, names)
+    if session is None:
+        return None
+    stem, body_text = split_session(session)
+    light_text = json.dumps(session, ensure_ascii=False)
+    session_id = str(session.get("id") or path.stem)
+    if len(_SESSION_CACHE) >= SESSION_CACHE_MAX and path_key not in _SESSION_CACHE:
+        _SESSION_CACHE.clear()
+    _SESSION_CACHE[path_key] = (signature[0], signature[1], light_text, body_text, session_id)
+    return session, (stem, body_text)
+
+
 def build_payload(limit: int | None) -> dict[str, Any]:
+    global _PENDING_BODY_TEXTS
     names = load_thread_names()
     files = iter_session_files()
     status = build_status(files)
     if limit:
         files = files[:limit]
     sessions = []
+    bodies: list[tuple[str, str]] = []
     for path in files:
-        parsed = parse_session(path, names)
-        if parsed:
+        cached = cached_split_session(path, names)
+        if cached:
+            parsed, body = cached
             sessions.append(parsed)
+            bodies.append(body)
+    _PENDING_BODY_TEXTS = bodies
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "codex_home": str(CODEX_HOME),
@@ -478,80 +570,87 @@ def build_haystack(session: dict[str, Any]) -> str:
     return "\n".join(parts).lower()
 
 
-def split_payload(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
     """Move each session's heavy arrays into a body dict, leaving a light index.
 
     Mutates the payload in place: heavy keys stay present but empty (so the TS types
     still hold), and the list-level fields the frontend can no longer derive
     (haystack, tool_max_line) are precomputed here.
     """
-    bodies: list[tuple[str, dict[str, Any]]] = []
+    bodies: list[tuple[str, str]] = []
     for session in payload.get("sessions") or []:
-        session["haystack"] = build_haystack(session)
-        tools = session.get("tools") or []
-        session["tool_max_line"] = max((int(t.get("line") or 0) for t in tools), default=-1)
-        # Keep tiny call-only records in the live index. Reasoning/messages already stay
-        # there, while full tools (especially outputs) live in the lazy body. Without
-        # these previews, an active session can show fresh reasoning beside a cached body
-        # that is a few calls behind, making those tool calls temporarily disappear.
-        session["tool_previews"] = [
-            {
-                "timestamp": tool.get("timestamp"),
-                "line": tool.get("line") or 0,
-                "call_id": tool.get("call_id"),
-                "name": tool.get("name") or "tool",
-                "arguments": "",
-                "output": None,
-            }
-            for tool in tools
-        ]
-        body = {"id": session.get("id")}
-        for field in BODY_FIELDS:
-            body[field] = session.get(field) or []
-            session[field] = []
-        bodies.append((safe_file_stem(session.get("id") or ""), body))
+        bodies.append(split_session(session))
     payload["split"] = True
     return bodies
 
 
-def write_bodies(bodies: list[tuple[str, dict[str, Any]]]) -> None:
+_LAST_BODY_TEXT: dict[str, str] = {}
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temp.write_text(text, encoding="utf-8")
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def atomic_copy(src: Path, dst: Path) -> None:
+    temp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
+    try:
+        shutil.copy2(src, temp)
+        os.replace(temp, dst)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def write_bodies(bodies: list[tuple[str, str]]) -> None:
     """Write one file per session under data/sessions/codex/, drop stale ones, and
     mirror the whole directory into dist/data/ when a built bundle exists."""
     BODIES_DIR.mkdir(parents=True, exist_ok=True)
     wanted = set()
+    changed: set[str] = set()
     for stem, body in bodies:
         name = f"{stem}.json"
         wanted.add(name)
-        (BODIES_DIR / name).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        target = BODIES_DIR / name
+        if _LAST_BODY_TEXT.get(name) == body and target.exists():
+            continue
+        atomic_write_text(target, body)
+        _LAST_BODY_TEXT[name] = body
+        changed.add(name)
     for stale in BODIES_DIR.glob("*.json"):
         if stale.name not in wanted:
             stale.unlink(missing_ok=True)
     if DIST_DATA_DIR.exists():
         dist_bodies = DIST_DATA_DIR / BODIES_REL
         dist_bodies.mkdir(parents=True, exist_ok=True)
+        for name in changed:
+            atomic_copy(BODIES_DIR / name, dist_bodies / name)
         for name in wanted:
-            shutil.copy2(BODIES_DIR / name, dist_bodies / name)
+            if not (dist_bodies / name).exists():
+                atomic_copy(BODIES_DIR / name, dist_bodies / name)
         for stale in dist_bodies.glob("*.json"):
             if stale.name not in wanted:
                 stale.unlink(missing_ok=True)
 
 
-def write_data(payload: dict[str, Any]) -> None:
+def write_data(payload: dict[str, Any], bodies: list[tuple[str, str]] | None = None) -> None:
     """Write the plain-JSON dataset. The old karin-data.js wrapper is no longer
     emitted — it was a byte-for-byte duplicate of a 60 MB+ file that nothing loads.
     Heavy per-session arrays go to their own body files so the app can lazy-load them."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    bodies = split_payload(payload)
-    write_bodies(bodies)
+    write_bodies(bodies if bodies is not None else split_payload(payload))
     text = json.dumps(payload, ensure_ascii=False)
-    DATA_JSON.write_text(text, encoding="utf-8")
+    atomic_write_text(DATA_JSON, text)
     DATA_JS.unlink(missing_ok=True)
-    DATA_STATUS.write_text(json.dumps(status_from_payload(payload), ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(DATA_STATUS, json.dumps(status_from_payload(payload), ensure_ascii=False))
     if DIST_DATA_DIR.exists():
         DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
+        atomic_copy(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
         (DIST_DATA_DIR / DATA_JS.name).unlink(missing_ok=True)
-        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+        atomic_copy(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
 
 
 def status_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -564,10 +663,10 @@ def status_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def write_status(status: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    DATA_STATUS.write_text(json.dumps(status, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(DATA_STATUS, json.dumps(status, ensure_ascii=False))
     if DIST_DATA_DIR.exists():
         DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+        atomic_copy(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
 
 
 def latest_session_mtime() -> float:
@@ -593,7 +692,7 @@ def latest_source_mtime(files: list[Path] | None = None) -> float:
 
 def index_once(limit: int | None) -> dict[str, Any]:
     payload = build_payload(limit)
-    write_data(payload)
+    write_data(payload, _PENDING_BODY_TEXTS)
     return payload
 
 
@@ -601,7 +700,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Index local Codex sessions for the Karin web app.")
     parser.add_argument("--limit", type=int, default=None, help="Index only the newest N sessions.")
     parser.add_argument("--watch", action="store_true", help="Keep indexing when Codex session files change.")
-    parser.add_argument("--interval", type=float, default=5.0, help="Watch polling interval in seconds.")
+    parser.add_argument("--interval", type=float, default=0.25, help="Watch polling interval in seconds.")
+    parser.add_argument("--status-interval", type=float, default=1.0, help="Status heartbeat interval in seconds.")
     args = parser.parse_args()
 
     lock = acquire_watch_lock(WATCH_LOCK)
@@ -615,17 +715,22 @@ def main() -> int:
         print(f"JS:   {DATA_JS}")
         if args.watch:
             last_mtime = latest_source_mtime()
+            last_status_write = 0.0
             while True:
-                time.sleep(max(args.interval, 1.0))
+                time.sleep(max(args.interval, 0.1))
                 files = iter_session_files()
-                status = build_status(files)
-                write_status(status)
+                now = time.monotonic()
+                if now - last_status_write >= max(args.status_interval, 0.25):
+                    write_status(build_status(files))
+                    last_status_write = now
                 current_mtime = latest_source_mtime(files)
                 if current_mtime <= last_mtime:
                     continue
+                started = time.perf_counter()
                 payload = index_once(args.limit)
                 last_mtime = current_mtime
-                print(f"Karin indexed {payload['session_count']} sessions at {payload['generated_at']}", flush=True)
+                elapsed = time.perf_counter() - started
+                print(f"Karin indexed {payload['session_count']} sessions at {payload['generated_at']} ({elapsed:.2f}s)", flush=True)
     except KeyboardInterrupt:
         return 0
     finally:

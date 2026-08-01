@@ -161,12 +161,10 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
 export function ClaudeBlock({
   entries,
   sourceLabel,
-  model,
   d,
 }: {
   entries: UnifiedEntry[]
   sourceLabel: string
-  model?: string | null
   d: BandDisplay
 }) {
   const groups = groupClaudeActions(entries)
@@ -188,11 +186,6 @@ export function ClaudeBlock({
         <Chevron />
         <BandTokens usage={total} estimated={groups.some((g) => !g.measured)} d={d} />
         <span className="shrink-0 font-semibold text-neutral-800 dark:text-neutral-100">{sourceLabel}:</span>
-        {model && (
-          <span className="shrink-0 rounded-sm bg-neutral-200/80 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-            {model}
-          </span>
-        )}
         {totalFig && (
           <span className="ml-auto shrink-0 whitespace-nowrap pl-2 font-mono text-[0.6rem] text-neutral-500 dark:text-neutral-400">
             {totalFig}

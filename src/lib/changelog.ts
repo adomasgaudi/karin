@@ -19,6 +19,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.200',
+    title: 'Expanded card outline',
+    summary: 'Expanded cycles get a thin gray outline, and the redundant left guide is removed.',
+  },
+  {
+    version: 'v.199',
+    title: 'Model divider',
+    summary: 'Model and effort labels now sit on understated divider lines between clean cycle cards.',
+  },
+  {
+    version: 'v.198',
+    title: 'Continuous cycle card',
+    summary: 'Opening a cycle now grows its original title card instead of showing a separate content surface.',
+  },
+  {
     version: 'v.197',
     title: 'White card canvas',
     summary: 'The session canvas is white so white cycle cards sit on a clean white background.',
@@ -27,6 +42,23 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: 'v.196',
     title: 'Context text readable',
     summary: 'Context-only prompts and step counts regain contrast on the light card background.',
+  },
+  {
+    version: 'v.195',
+    title: 'Readable derived values',
+    summary: 'Repeated aggregates, duration branches, metadata, and conditional display labels now expose their meaning before rendering.',
+    detail:
+      'The summary builder no longer repeats the same token reduction inside several fields. Date formatting reuses one padding helper, duration formatting names its branches, shell metadata resolves through explicit fallbacks, and tool-output labels are calculated before JSX. These changes preserve behavior while making each derived value easier to inspect and modify.',
+  },
+  {
+    version: 'v.194',
+    title: 'Squares without tracks',
+    summary: 'Sidebar usage keeps the colored token squares while removing the distracting gray background bars.',
+  },
+  {
+    version: 'v.193',
+    title: 'Hide empty context labels',
+    summary: 'Context-only cycles now blend into their background while real cycle prompts and step counts remain visible.',
   },
   {
     version: 'v.192',

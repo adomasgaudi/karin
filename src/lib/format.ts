@@ -37,8 +37,8 @@ export function dateParts(value: string | null | undefined): DateParts | null {
 
   return {
     date: `${MONTHS[d.getMonth()]} ${d.getDate()}`,
-    hour: d.getHours().toString().padStart(2, '0'),
-    minute: d.getMinutes().toString().padStart(2, '0'),
+    hour: twoDigits(d.getHours()),
+    minute: twoDigits(d.getMinutes()),
   }
 }
 
@@ -137,10 +137,14 @@ export function fmtDuration(ms: number | null | undefined): string {
   if (s < 60) return `${sigFig(s)}s`
   const m = Math.floor(s / 60)
   const rem = Math.round(s % 60)
-  if (m < 60) return rem ? `${m}m ${rem}s` : `${m}m`
+  if (m < 60) {
+    if (rem) return `${m}m ${rem}s`
+    return `${m}m`
+  }
   const h = Math.floor(m / 60)
   const mm = m % 60
-  return mm ? `${h}h ${mm}m` : `${h}h`
+  if (mm) return `${h}h ${mm}m`
+  return `${h}h`
 }
 
 export function fmtNum(n: number | null | undefined): string {

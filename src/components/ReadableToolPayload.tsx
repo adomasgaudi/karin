@@ -807,12 +807,16 @@ function shellPayloadFrom(value: unknown, raw: string): ShellCommandPayload | nu
   candidates.push(parseLoosePayload(raw))
   for (const candidate of candidates) {
     if (!isObj(candidate) || typeof candidate.command !== 'string' || !candidate.command.trim()) continue
-    const workdir = typeof candidate.workdir === 'string' ? candidate.workdir : typeof candidate.cwd === 'string' ? candidate.cwd : undefined
+    let workdir: string | undefined
+    if (typeof candidate.workdir === 'string') workdir = candidate.workdir
+    else if (typeof candidate.cwd === 'string') workdir = candidate.cwd
     const timeoutValue = candidate.timeout_ms ?? candidate.timeout
+    let timeout: string | undefined
+    if (timeoutValue !== undefined && timeoutValue !== null) timeout = String(timeoutValue)
     return {
       command: candidate.command,
       workdir,
-      timeout: timeoutValue === undefined || timeoutValue === null ? undefined : String(timeoutValue),
+      timeout,
     }
   }
 
@@ -909,6 +913,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
     // Local qwen answers one request at a time anyway — queue instead of piling onto
     // the GPU. The DeepSeek endpoints handle a small fan-out fine.
     const limit = nextProvider === 'qwen' ? 1 : 4
+    const workerCount = Math.min(limit, pending.length)
     let cursor = 0
     const worker = async () => {
       while (cursor < pending.length && !ac.signal.aborted) {
@@ -924,7 +929,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
         }
       }
     }
-    await Promise.all(Array.from({ length: Math.min(limit, pending.length) }, () => worker()))
+    await Promise.all(Array.from({ length: workerCount }, () => worker()))
   }
 
   const busy = states.some((s) => s.busy)
@@ -964,7 +969,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
         <div className={mode === 'simple' ? 'space-y-1 border-l-2 border-amber-300/80 pl-1.5 dark:border-amber-700/60' : 'space-y-1'}>
           {steps.map((step, index) => {
             const state = states[index]
-            const simple = mode === 'simple' && state ? state : null
+            const simple = mode === 'simple' ? state ?? null : null
             const simpleCode = simple ? extractSimplified(parseSimpleParts(simple.text || simple.draft).code) : ''
             return (
               <div key={`${index}-${step}`} className="flex items-start gap-2 px-1 py-1">
@@ -1051,6 +1056,7 @@ export function ReadableToolInput({ toolName, argumentsText, value }: { toolName
 
 export function ReadableToolOutput({ output }: { output: string | null | undefined }) {
   const parts = parseToolOutput(output)
+  const textLabel = parts.metadata.some(([key]) => key.toLowerCase() === 'status') ? 'Output' : 'Text'
   return (
     <div className="space-y-2">
       {parts.metadata.length > 0 && (
@@ -1064,7 +1070,7 @@ export function ReadableToolOutput({ output }: { output: string | null | undefin
         </div>
       )}
       {parts.structured !== null && <Section label="Data"><JsonView value={parts.structured} /></Section>}
-      {parts.text && <Section label={parts.metadata.some(([key]) => key.toLowerCase() === 'status') ? 'Output' : 'Text'}><pre className={preClass}>{stripAnsi(parts.text)}</pre></Section>}
+      {parts.text && <Section label={textLabel}><pre className={preClass}>{stripAnsi(parts.text)}</pre></Section>}
       {!parts.structured && !parts.text && parts.metadata.length === 0 && <div className="text-xs italic text-neutral-400 dark:text-neutral-500">no output</div>}
     </div>
   )

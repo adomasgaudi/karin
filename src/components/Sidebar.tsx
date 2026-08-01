@@ -276,6 +276,7 @@ export default function Sidebar({ className }: SidebarProps) {
                       tokenRef={tokenRef}
                       tokenMult={tokenMult}
                       compact
+                      bare
                       inlineLabels
                       hideSegmentLabels
                       showLegend={false}
