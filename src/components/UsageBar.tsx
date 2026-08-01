@@ -15,6 +15,7 @@ import {
 const EURO_CENTS_PER_USD = EUR_PER_USD * 100
 const MAX_BLOCK_LINE_PX = 260
 const FULL_BLOCK_PX = 5
+const DOT_BLOCK_PX = 3
 
 type Segment = {
   key: 'freshInput' | 'cachedInput' | 'cacheCreate' | 'output' | 'reasoning'
@@ -28,6 +29,8 @@ function SegmentBlocks({
   blockValue,
   blockUnit,
   blockPx,
+  boxUnit,
+  dotScale,
   stretch,
   widthPercent,
   estimated,
@@ -37,40 +40,46 @@ function SegmentBlocks({
   blockValue: number
   blockUnit: string
   blockPx: number
+  boxUnit: number
+  dotScale: boolean
   stretch: boolean
   widthPercent?: number
   estimated: boolean
   ariaLabel?: string
 }) {
   if (blockValue <= 0) return null
-  const fullBlocks = Math.floor(blockValue + 0.000001)
-  const remainder = Math.max(0, blockValue - fullBlocks)
-  const hasPartial = remainder > 0.000001
+  const blockCount = Math.ceil(blockValue / boxUnit - 0.000001)
   const hatch = estimated
     ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.45) 0, rgba(255,255,255,0.45) 2px, transparent 2px, transparent 5px)' }
     : undefined
-  const title = `${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens · ${blockValue.toFixed(2)} ${blockUnit}${hasPartial ? ' including a partial block' : ''}`
+  const title = `${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens · ${blockValue.toFixed(2)} ${blockUnit} · ${dotScale ? '1¢ dots' : '10¢ boxes'}`
 
   return (
     <div
-      className={`flex h-full min-w-0 shrink-0 items-center ${stretch ? 'gap-0' : 'gap-px'}`}
+      className="flex h-full min-w-0 shrink-0 items-center gap-px"
       style={stretch ? { width: `${Math.max(0, widthPercent || 0)}%` } : undefined}
       title={title}
       aria-label={ariaLabel}
     >
-      {Array.from({ length: fullBlocks }, (_, i) => (
-        <span
-          key={`${segment.key}-full-${i}`}
-          className={`block h-full ${segment.className} ${stretch ? 'min-w-0 flex-1 border-r border-white/25' : 'shrink-0 rounded-[2px]'}`}
-          style={stretch ? hatch : { width: `${blockPx}px`, ...hatch }}
-        />
-      ))}
-      {hasPartial && (
-        <span
-          className={`block h-full ${segment.className} shrink-0 rounded-none ${stretch ? 'min-w-0 flex-1' : ''}`}
-          style={stretch ? { flexGrow: remainder, flexBasis: 0, ...hatch } : { width: `${Math.max(0.75, remainder * blockPx)}px`, ...hatch }}
-        />
-      )}
+      {Array.from({ length: blockCount }, (_, i) => {
+        const fill = Math.min(1, Math.max(0, (blockValue - i * boxUnit) / boxUnit))
+        return (
+          <span
+            key={`${segment.key}-block-${i}`}
+            className={`relative block shrink-0 overflow-hidden bg-neutral-300/70 dark:bg-neutral-700/70 ${
+              stretch ? 'min-w-0 flex-1 rounded-[2px]' : dotScale ? 'h-[3px] rounded-full' : 'h-full rounded-[2px]'
+            }`}
+            style={stretch ? undefined : { width: `${dotScale ? DOT_BLOCK_PX : blockPx}px`, ...(dotScale ? { height: `${DOT_BLOCK_PX}px` } : null) }}
+          >
+            {fill > 0 && (
+              <span
+                className={`absolute inset-x-0 bottom-0 ${segment.className}`}
+                style={{ height: `${fill * 100}%`, minHeight: fill < 1 ? '1px' : undefined, ...hatch }}
+              />
+            )}
+          </span>
+        )
+      })}
     </div>
   )
 }
@@ -134,17 +143,21 @@ export default function UsageBar({
   const tokenTotal = parts.total || usage?.total_tokens || 0
   const stretch = mode === 'tokens'
   const tokenDenom = scaleMax && scaleMax > 0 ? scaleMax : tokenTotal
-  const blockPx = Math.min(FULL_BLOCK_PX, MAX_BLOCK_LINE_PX / Math.max(1, blockTotal))
+  // Short bars use one small dot per cent. Once a cycle/prompt/session crosses 50 cents,
+  // switch that bar to ten-cent boxes so a large total does not become visual noise.
+  const dotScale = blockTotal <= 50
+  const boxUnit = dotScale ? 1 : 10
+  const blockPx = Math.min(FULL_BLOCK_PX, MAX_BLOCK_LINE_PX / Math.max(1, Math.ceil(blockTotal / boxUnit)))
   const blockUnit = rates ? '€0.01 blocks' : 'million-token blocks (unpriced)'
   const isMoney = mode === 'money' && rates != null
   const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
   const fmtSeg = (segment: { value: number }) => (isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value))
-  const blockHeight = thin ? 'h-1' : inlineLabels ? (compact ? 'h-5' : 'h-6') : compact ? 'h-2.5' : 'h-3'
+  const blockHeight = thin ? 'h-0.5' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-1.5' : 'h-1.5'
 
   return (
     <div className={compact ? 'min-w-0' : 'max-w-4xl'}>
       <div
-        className={`flex min-w-0 items-center gap-1 overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
+        className={`flex min-w-0 items-center gap-px overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
           estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
         }`}
       >
@@ -156,6 +169,8 @@ export default function UsageBar({
               blockValue={segment.blockValue}
               blockUnit={blockUnit}
               blockPx={blockPx}
+              boxUnit={boxUnit}
+              dotScale={dotScale}
               stretch={stretch}
               widthPercent={stretch && tokenDenom > 0 ? (segment.raw / tokenDenom) * 100 : undefined}
               estimated={estimated}

@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.123',
+    title: 'Compact usage blocks',
+    summary: 'Usage bars now use dots or ten-cent cells with uniform gaps and vertical partial fills.',
+  },
+  {
     version: 'v.122',
     title: 'Tighter cycle cards',
     summary: 'Cycle cards now use compact spacing, implicit ownership, and model lines only when needed.',

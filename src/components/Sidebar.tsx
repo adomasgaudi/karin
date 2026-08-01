@@ -187,11 +187,11 @@ export default function Sidebar({ className }: SidebarProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-1">
         {list.length === 0 ? (
           <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No sessions match.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-0.5">
             {rows.map(({ session: s, rates }) => {
               const selected = s.uid === selectedUid
               // Claude groups by project; Warp has only a working directory — both read
@@ -204,7 +204,7 @@ export default function Sidebar({ className }: SidebarProps) {
                     type="button"
                     onClick={() => useKarin.getState().select(s.uid)}
                     className={cn(
-                      'grid w-full gap-1 rounded-md border px-3 py-2 text-left transition-colors',
+                      'grid w-full gap-0.5 rounded-md border px-2 py-1 text-left transition-colors',
                       selected
                         ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
                         : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
