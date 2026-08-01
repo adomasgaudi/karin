@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.186',
+    title: 'The watcher stops polling',
+    summary: 'Windows now wakes the indexer the moment a transcript changes, instead of it asking four times a second.',
+    detail:
+      'Polling is a compromise: check often and you burn a core doing nothing, check rarely and you are slow. ReadDirectoryChangesW removes the choice — the OS wakes the process when anything under the projects folder is written, measured at 8ms, and costs nothing while idle. The interval survives as a fallback heartbeat, and if the watch cannot be armed the old polling loop still runs, so nothing depends on it succeeding. What remains of the delay is now re-indexing, not noticing.',
+  },
+  {
+    version: 'v.185',
+    title: 'Live in under a second',
+    summary: 'A new message reaches the page in about half a second instead of ten — both polls were slow, and so was re-indexing.',
+    detail:
+      'Two five-second polls used to run back to back: the watcher waited five seconds before noticing a changed transcript, then the page waited five more before asking for the feed. Between them the indexer re-parsed and rewrote all forty sessions even though only one had changed. The indexer now keeps parsed and serialized sessions cached against each file’s timestamp and rewrites only the bodies that actually differ, cutting a changed tick from 2.9s to 0.37s; the page polls every 300ms and waits for each poll to finish before scheduling the next. The feed it produces is byte-for-byte identical to before.',
+  },
+  {
     version: 'v.184',
     title: 'Compact edits and aligned rows',
     summary: 'Edits show just the file and a numbered diff; chevrons are gone and token markers sit before every title.',
