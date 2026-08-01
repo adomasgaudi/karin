@@ -22,6 +22,7 @@ import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
 import SourceCycle from './SourceCycle'
 import SourceMark from './SourceMark'
+import SidebarHero from './SidebarHero'
 
 interface SidebarProps {
   className?: string
@@ -163,10 +164,9 @@ export default function Sidebar({ className }: SidebarProps) {
             })}
             aria-expanded={searchOpen}
             title="Search sessions, prompts, and tools"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            className="inline-flex h-7 w-7 items-center justify-center text-neutral-500 transition-colors hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white"
           >
             <Search className="h-3.5 w-3.5" />
-            Search
           </button>
           <button
             type="button"
@@ -177,10 +177,9 @@ export default function Sidebar({ className }: SidebarProps) {
             })}
             aria-expanded={infoOpen}
             title="Usage allowance, display units, and pricing"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            className="inline-flex h-7 w-7 items-center justify-center text-neutral-500 transition-colors hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white"
           >
             <Info className="h-3.5 w-3.5" />
-            Info
           </button>
 
           {searchOpen && (
@@ -309,6 +308,8 @@ export default function Sidebar({ className }: SidebarProps) {
           )}
         </div>
       </div>
+
+      <SidebarHero sessionCount={list.length} />
 
       <div className="flex-1 overflow-y-auto px-1 pt-1 pb-16">
         {list.length === 0 ? (

@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.215',
+    title: 'A quieter welcome',
+    summary: 'The session sidebar gains a private-workspace introduction and its search and info controls become icon-only.',
+    detail:
+      'The new sidebar introduction gives first-time visitors an immediate sense of Karin: it is a private, local record of AI work, not another cloud dashboard. Its restrained editorial typography, atmosphere, and live local-session count make the list feel intentional without competing with it. Search and usage information retain their existing actions and hover descriptions, but their button text and boxed styling are gone so the header recedes.',
+  },
+  {
     version: 'v.214',
     title: 'Delegated SSOT handoff',
     summary: 'The project now records the Claude–Codex contract and requires every new agent to read it before editing.',
