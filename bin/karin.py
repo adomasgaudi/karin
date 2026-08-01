@@ -542,6 +542,7 @@ def build_payload(limit: int | None) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "codex_home": str(CODEX_HOME),
         "session_count": len(sessions),
+        "split": True,
         **status,
         "sessions": sessions,
     }
@@ -588,6 +589,7 @@ _LAST_BODY_TEXT: dict[str, str] = {}
 
 
 def atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         temp.write_text(text, encoding="utf-8")
@@ -597,12 +599,18 @@ def atomic_write_text(path: Path, text: str) -> None:
 
 
 def atomic_copy(src: Path, dst: Path) -> None:
-    temp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
-    try:
-        shutil.copy2(src, temp)
-        os.replace(temp, dst)
-    finally:
-        temp.unlink(missing_ok=True)
+    for attempt in range(2):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        temp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
+        try:
+            shutil.copy2(src, temp)
+            os.replace(temp, dst)
+            return
+        except FileNotFoundError:
+            if attempt == 1:
+                raise
+        finally:
+            temp.unlink(missing_ok=True)
 
 
 def write_bodies(bodies: list[tuple[str, str]]) -> None:

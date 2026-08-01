@@ -973,6 +973,31 @@ def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
 _LAST_BODY_TEXT: dict[str, str] = {}
 
 
+def atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temp.write_text(text, encoding="utf-8")
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def atomic_copy(src: Path, dst: Path) -> None:
+    for attempt in range(2):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        temp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
+        try:
+            shutil.copy2(src, temp)
+            os.replace(temp, dst)
+            return
+        except FileNotFoundError:
+            if attempt == 1:
+                raise
+        finally:
+            temp.unlink(missing_ok=True)
+
+
 def write_bodies(bodies: list[tuple[str, str]]) -> None:
     """Write one file per session under data/sessions/claude/, drop stale ones, and
     mirror the whole directory into dist/data/ when a built bundle exists."""
@@ -986,7 +1011,7 @@ def write_bodies(bodies: list[tuple[str, str]]) -> None:
         # re-copying them into dist/) was most of the write cost.
         if _LAST_BODY_TEXT.get(name) == text and (BODIES_DIR / name).exists():
             continue
-        (BODIES_DIR / name).write_text(text, encoding="utf-8")
+        atomic_write_text(BODIES_DIR / name, text)
         _LAST_BODY_TEXT[name] = text
         changed.add(name)
     for stale in BODIES_DIR.glob("*.json"):
@@ -998,7 +1023,7 @@ def write_bodies(bodies: list[tuple[str, str]]) -> None:
         dist_bodies.mkdir(parents=True, exist_ok=True)
         for name in wanted:
             if name in changed or not (dist_bodies / name).exists():
-                shutil.copy2(BODIES_DIR / name, dist_bodies / name)
+                atomic_copy(BODIES_DIR / name, dist_bodies / name)
         for stale in dist_bodies.glob("*.json"):
             if stale.name not in wanted:
                 stale.unlink(missing_ok=True)
@@ -1008,20 +1033,20 @@ def write_data(payload: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     write_bodies(split_payload(payload))
     text = json.dumps(payload, ensure_ascii=False)
-    DATA_JSON.write_text(text, encoding="utf-8")
-    DATA_STATUS.write_text(json.dumps(status_from_payload(payload), ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(DATA_JSON, text)
+    atomic_write_text(DATA_STATUS, json.dumps(status_from_payload(payload), ensure_ascii=False))
     if DIST_DATA_DIR.exists():
         DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
-        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+        atomic_copy(DATA_JSON, DIST_DATA_DIR / DATA_JSON.name)
+        atomic_copy(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
 
 
 def write_status(status: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    DATA_STATUS.write_text(json.dumps(status, ensure_ascii=False), encoding="utf-8")
+    atomic_write_text(DATA_STATUS, json.dumps(status, ensure_ascii=False))
     if DIST_DATA_DIR.exists():
         DIST_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
+        atomic_copy(DATA_STATUS, DIST_DATA_DIR / DATA_STATUS.name)
 
 
 def latest_session_mtime(project_substr: str | None) -> float:
@@ -1118,9 +1143,11 @@ def main() -> int:
                     last_status_at = time.monotonic()
                 if current_mtime <= last_mtime:
                     continue
+                started = time.perf_counter()
                 payload = index_once(limit, args.project)
                 last_mtime = current_mtime
-                print(f"Karin (Claude) indexed {payload['session_count']} sessions at {payload['generated_at']}", flush=True)
+                elapsed = time.perf_counter() - started
+                print(f"Karin (Claude) indexed {payload['session_count']} sessions at {payload['generated_at']} ({elapsed:.2f}s)", flush=True)
     except KeyboardInterrupt:
         return 0
     finally:

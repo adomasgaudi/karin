@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.205',
+    title: 'Resilient feed copies',
+    summary: 'Live watchers recover if a rebuild briefly removes their destination directories during an atomic copy.',
+  },
+  {
     version: 'v.204',
     title: 'Icon-only JSON control',
     summary: 'The JSON control now sits in the open cycle title and uses only its braces icon.',
