@@ -157,6 +157,7 @@ function SimplifierToggle({
   etaMs,
   onOriginal,
   onProvider,
+  extra,
 }: {
   mode: 'original' | 'simple'
   provider: SimplifierProvider
@@ -164,10 +165,12 @@ function SimplifierToggle({
   etaMs: number | null
   onOriginal: () => void
   onProvider: (id: SimplifierProvider) => void
+  extra?: ReactNode
 }) {
   return (
     <div className="flex items-center justify-end gap-1">
       <span className="mr-auto text-[0.58rem] text-neutral-400 dark:text-neutral-500">simplifier</span>
+      {extra}
       <button
         type="button"
         onClick={onOriginal}
@@ -786,7 +789,17 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
   const [mode, setMode] = useState<'original' | 'simple'>('original')
   const [provider, setProvider] = useState<SimplifierProvider>('qwen')
   const [states, setStates] = useState<StepSimple[]>(() => stepStatesFor('qwen', steps, false))
+  // Faint original line above each simplified step; the "orig" toggle hides it and the
+  // choice is remembered across sessions.
+  const [showOriginal, setShowOriginal] = useState(() => localStorage.getItem('karin-simplifier-show-orig') !== '0')
   const abort = useRef<AbortController | null>(null)
+
+  const toggleOriginal = () => {
+    setShowOriginal((prev) => {
+      localStorage.setItem('karin-simplifier-show-orig', prev ? '0' : '1')
+      return !prev
+    })
+  }
 
   useEffect(() => {
     abort.current?.abort()
@@ -840,6 +853,18 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
         etaMs={null}
         onOriginal={() => setMode('original')}
         onProvider={(id) => void simplify(id)}
+        extra={
+          mode === 'simple' ? (
+            <button
+              type="button"
+              onClick={toggleOriginal}
+              title={showOriginal ? 'Hide the faint original above each simplified step' : 'Show the faint original above each simplified step'}
+              className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${showOriginal ? 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400' : 'text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-400'}`}
+            >
+              orig
+            </button>
+          ) : undefined
+        }
       />
       <div className="space-y-1">
         <div className={labelClass}>Command · {steps.length} step{steps.length === 1 ? '' : 's'}</div>
@@ -854,6 +879,9 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
               <div key={`${index}-${step}`} className="flex items-start gap-2 px-1 py-1">
                 <span className="mt-0.5 shrink-0 rounded-sm bg-neutral-200/80 px-1 font-mono text-[0.6rem] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">{index + 1}</span>
                 <div className="min-w-0 flex-1">
+                  {simple && showOriginal && (
+                    <div className="whitespace-pre-wrap break-words font-mono text-[0.58rem] leading-snug text-neutral-400/60 dark:text-neutral-600/70">{step}</div>
+                  )}
                   <code className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-800 dark:text-neutral-200">
                     {simple ? simpleCode || (simple.busy ? '' : step) : step}
                     {simple?.busy && <span className="animate-pulse text-neutral-400"> ▍</span>}

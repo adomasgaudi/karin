@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.168',
+    title: 'Faint original above steps',
+    summary: 'Simplified steps show the original command faintly above, with an orig toggle to hide it.',
+    detail:
+      'In simplified view each step now carries its original command in a barely-visible gray line directly above the simplified text, so the mapping is checkable at a glance. A small "orig" button in the simplifier row hides the line completely, and the choice persists across sessions.',
+  },
+  {
     version: 'v.167',
     title: 'No duplicate edit rows',
     summary: 'Claude file edits no longer render twice as both a tool call and an edit entry.',
