@@ -3,7 +3,7 @@
 // raw-mode / tool-result renderers. Moved here from src/components/claude/types.ts so the
 // unified layer can depend on them without reaching into a component folder.
 
-import type { TokenUsage } from '../types'
+import type { FeedRecord, TokenUsage } from '../types'
 
 export interface ClaudeUsageTotals {
   input_tokens: number
@@ -15,14 +15,7 @@ export interface ClaudeUsageTotals {
 
 // One line of the session JSONL, plus the indexer's `_line` / `_type` decorations.
 // It's an open record: any Claude Code log line may carry arbitrary extra keys.
-export type ClaudeRecord = Record<string, unknown> & {
-  _line: number
-  _type: string
-  type?: string
-  timestamp?: string
-  uuid?: string
-  message?: unknown
-}
+export type ClaudeRecord = FeedRecord
 
 export interface ClaudeSession {
   id: string

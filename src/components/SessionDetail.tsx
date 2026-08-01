@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
-import type { Session, TokenUsage } from '../types'
+import type { FeedRecord, Session, TokenUsage } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
-import type { ClaudeRecord, ClaudeSession } from '../lib/claudeRaw'
+import type { ClaudeSession } from '../lib/claudeRaw'
 import { useKarin } from '../store/karin'
 import { buildCycles, cycleUsage, cycleModelEffort } from '../lib/unifiedCycles'
 import { fmtNum, shortAge } from '../lib/format'
@@ -43,7 +43,7 @@ const selectClass =
 // The feed's records, dumped exactly as they are — one JSON object per line, the
 // JSONL shape they were read in. `_line` / `_type` are the indexer's own decorations
 // and are kept, because hiding them would make this NOT the stored data.
-function JsonDump({ records, uid }: { records: ClaudeRecord[]; uid: string }) {
+function JsonDump({ records, uid }: { records: FeedRecord[]; uid: string }) {
   const text = useMemo(
     () => records.map((rec) => JSON.stringify(rec)).join('\n'),
     [records],
@@ -206,11 +206,12 @@ export default function SessionDetail() {
   }
 
   const isClaude = s.source === 'claude'
-  // The Raw tab belongs to any source that ships records — Claude's JSONL lines and
-  // Warp's decoded protobuf events both qualify. Codex ships none.
+  // The Raw tab belongs to every source that ships decorated feed records. Codex and
+  // Claude keep JSONL lines; Warp keeps decoded protobuf events. The controls stay here,
+  // in the one shared detail page, rather than splitting into source-specific pages.
   const hasRaw = Array.isArray(s.rawRecords)
   const mode: DetailMode = hasRaw ? rawModeByUid[s.uid] || 'structured' : 'structured'
-  const records: ClaudeRecord[] = hasRaw ? (s.rawRecords as unknown as ClaudeRecord[]) : []
+  const records: FeedRecord[] = hasRaw ? s.rawRecords ?? [] : []
   const typeCounts = s.recordTypeCounts ?? {}
   const typeKeys = Object.keys(typeCounts)
   const shownRecords = typeFilter === 'all' ? records : records.filter((r) => r._type === typeFilter)

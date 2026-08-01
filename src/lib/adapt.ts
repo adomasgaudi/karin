@@ -71,6 +71,10 @@ function latestRateLimits(session: Session): RateLimits | null {
   return null
 }
 
+function totalRecordCount(counts: Record<string, number> | undefined): number {
+  return Object.values(counts ?? {}).reduce((total, count) => total + count, 0)
+}
+
 // --- Codex -----------------------------------------------------------------
 
 // The searchable text. The indexer ships this precomputed (`s.haystack`), because the
@@ -130,6 +134,9 @@ export function adaptCodexSession(s: Session): UnifiedSession {
       metaRow('path', s.path),
     ],
     raw: s,
+    rawRecords: s.records,
+    recordTypeCounts: s.audit.record_counts,
+    recordCount: s.records?.length || totalRecordCount(s.audit.record_counts),
   }
 }
 

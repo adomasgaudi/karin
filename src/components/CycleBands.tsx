@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { UnifiedEntry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
-import { groupClaudeActions } from '../lib/unifiedCycles'
+import { groupActions } from '../lib/unifiedCycles'
 import type { ContextBlock, TokenUsage } from '../types'
 import type { ClaudeContext } from '../lib/claudeModel'
 import {
@@ -69,7 +69,7 @@ function actionRow(entry: UnifiedEntry, usage: EntryUsage | undefined, d: BandDi
   )
 }
 
-// A token figure in the active unit mode — the label every claude group carries.
+// A token figure in the active unit mode — the label every AI action group carries.
 function figure(usage: TokenUsage | null, d: BandDisplay): string {
   const total = splitUsage(usage).total
   if (total <= 0) return ''
@@ -156,9 +156,9 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
   )
 }
 
-// --- Claude block: everything the AI chose, grouped by usage frame ----------
+// --- AI action band: everything the AI chose, grouped by usage frame --------
 // Each group = one API call's worth of actions, headed by the tokens that call spent.
-export function ClaudeBlock({
+export function ActionBand({
   entries,
   sourceLabel,
   d,
@@ -167,7 +167,7 @@ export function ClaudeBlock({
   sourceLabel: string
   d: BandDisplay
 }) {
-  const groups = groupClaudeActions(entries)
+  const groups = groupActions(entries)
   const total = groups.reduce<TokenUsage>((s, g) => addUsage(s, g.usage ?? {}), {})
   const totalFig = figure(total, d)
 

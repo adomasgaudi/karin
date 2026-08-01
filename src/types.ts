@@ -106,6 +106,18 @@ export interface CodeEdit {
   result: PatchResult | null
 }
 
+// One decorated source-feed line. Claude and Codex use different JSONL schemas,
+// but both raw explorers need the same open record shape and line/type metadata.
+export interface FeedRecord {
+  [key: string]: unknown
+  _line: number
+  _type: string
+  type?: string
+  timestamp?: string | null
+  uuid?: string | null
+  message?: unknown
+}
+
 export interface Counts {
   user: number
   assistant: number
@@ -142,6 +154,8 @@ export interface Session {
   started_at: string | null
   updated_at: string
   messages: Message[]
+  // Raw Codex JSONL lines. Empty in the split index and filled by hydrateSession().
+  records?: FeedRecord[]
   tools: Tool[]
   reasoning: Reasoning[]
   contexts: ContextBlock[]
@@ -233,9 +247,9 @@ export interface UnifiedSession {
   meta: UnifiedMetaRow[] // ⋮ popover rows, source-specific
   // The enriched source session, read only by the cycle builder (dispatched on source).
   raw: unknown
-  // Raw-tab extras. Claude fills these from its JSONL lines, Warp from its decoded
-  // protobuf events; undefined for Codex, which has no raw view.
-  rawRecords?: unknown[] // ClaudeRecord[] | WarpRecord[] — rows for the Raw toggle
+  // Raw-tab extras. Claude and Codex carry source JSONL lines; Warp carries decoded
+  // protobuf events. All three use the same record viewer.
+  rawRecords?: FeedRecord[]
   recordTypeCounts?: Record<string, number>
   recordCount?: number
   titleOps?: unknown[] // ClaudeSession[] — folded auto-title label sessions (Claude only)

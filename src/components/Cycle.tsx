@@ -7,7 +7,7 @@ import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleUsa
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
 import { splitUsage, usageUnitTotal } from '../lib/pricing'
 import EventEntry from './EventEntry'
-import { HooksBand, ClaudeBlock, type BandDisplay } from './CycleBands'
+import { HooksBand, ActionBand, type BandDisplay } from './CycleBands'
 import UsageBar from './UsageBar'
 import RawJson from './RawJson'
 
@@ -105,8 +105,8 @@ export default function Cycle({
 
   // Split the cycle into authorship bands: each human touchpoint is its own row, the
   // injected context it did not choose folds into a hooks band, and everything the AI
-  // chose folds into a claude block (grouped by usage frame). Order within a segment is
-  // human → hooks → claude, per the owner's layout.
+  // chose folds into an action band (grouped by usage frame). Order within a segment is
+  // human → hooks → AI, per the owner's layout.
   // Badge each structured item with its raw JSONL line number (== the ordinal shown in the
   // Raw pane), so every part of the structured view can be traced back to the raw record.
   const numFor = useMemo(() => {
@@ -117,16 +117,16 @@ export default function Cycle({
   const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, singleModel, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
   let hooksBuf: UnifiedEntry[] = []
-  let claudeBuf: UnifiedEntry[] = []
+  let aiBuf: UnifiedEntry[] = []
   let seg = 0
   const flushBands = () => {
     if (hooksBuf.length) {
       eventNodes.push(<HooksBand key={`hooks-${seg}`} entries={hooksBuf} d={display} />)
       hooksBuf = []
     }
-    if (claudeBuf.length) {
-      eventNodes.push(<ClaudeBlock key={`claude-${seg}`} entries={claudeBuf} sourceLabel={source} d={display} />)
-      claudeBuf = []
+    if (aiBuf.length) {
+      eventNodes.push(<ActionBand key={`ai-${seg}`} entries={aiBuf} sourceLabel={source} d={display} />)
+      aiBuf = []
     }
     seg++
   }
@@ -151,7 +151,7 @@ export default function Cycle({
     } else if (band === 'hooks') {
       hooksBuf.push(entry)
     } else {
-      claudeBuf.push(entry)
+      aiBuf.push(entry)
     }
   }
   flushBands()

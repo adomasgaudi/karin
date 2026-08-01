@@ -224,7 +224,7 @@ export function cycleCounts(cycle: Cycle): string {
 export function cycleStepCount(cycle: Cycle): number {
   return cycle.items.filter((entry) => {
     if (entry.kind === 'usage') return false
-    if (entryBand(entry) !== 'claude') return false
+    if (entryBand(entry) !== 'ai') return false
     return !isEmptyMessage(entry) && !isEmptyThinking(entry)
   }).length
 }
@@ -243,9 +243,9 @@ export function cycleUsage(cycle: Cycle): TokenUsage {
 //   • hooks  — injected context the AI did NOT choose: environment/attachment/
 //     session-state context blocks, Codex runtime events, and tool/harness-injected
 //     user records (deferred_tools_delta, hook_additional_context, …).
-//   • claude — everything the AI chose to do: its replies, thinking, tool calls,
+//   • ai     — everything the AI chose to do: its replies, thinking, tool calls,
 //     edits, subagents (usage frames ride along as token accounting, not actions).
-export type CycleBand = 'human' | 'hooks' | 'claude'
+export type CycleBand = 'human' | 'hooks' | 'ai'
 
 export function entryBand(entry: UnifiedEntry): CycleBand {
   if (isHumanPrompt(entry) || isAnsweredQuestion(entry)) return 'human'
@@ -253,7 +253,7 @@ export function entryBand(entry: UnifiedEntry): CycleBand {
   // A user-role message that is NOT a genuine human prompt is an injected record
   // (tool result / environment) — not chosen by the AI, so it bands with hooks.
   if (entry.kind === 'message' && (entry.item as Message | ClaudeMessage).role === 'user') return 'hooks'
-  return 'claude'
+  return 'ai'
 }
 
 // A message whose flattened text is empty — the turn's substance was only thinking +
@@ -278,7 +278,7 @@ function isEmptyAction(entry: UnifiedEntry): boolean {
   return isEmptyMessage(entry) || isEmptyThinking(entry)
 }
 
-// --- Claude action grouping ------------------------------------------------
+// --- AI action grouping ----------------------------------------------------
 // Usage is not an action — every usage frame instead CLOSES a group of the actions
 // it measured, and its `last` total becomes that group's token label. Empty assistant
 // messages merge forward into the next real action's group (they never anchor a group of
@@ -289,7 +289,7 @@ export interface ActionGroup {
   measured: boolean // whether any usage frame backed this group's tokens
 }
 
-export function groupClaudeActions(entries: UnifiedEntry[]): ActionGroup[] {
+export function groupActions(entries: UnifiedEntry[]): ActionGroup[] {
   const groups: ActionGroup[] = []
   let actions: UnifiedEntry[] = []
   let usage: TokenUsage = {}

@@ -5,7 +5,7 @@ import { shortAge } from '../lib/format'
 import TypeTag from './TypeTag'
 import JsonView from './JsonView'
 import RawJson from './RawJson'
-import type { ClaudeRecord } from '../lib/claudeRaw'
+import type { FeedRecord } from '../types'
 
 // --- preview extraction ---------------------------------------------------
 // Claude Code log lines vary a lot in shape. We pull a compact, human one-liner
@@ -30,7 +30,7 @@ function firstText(content: unknown): string | null {
   return null
 }
 
-function recordPreview(rec: ClaudeRecord): string {
+function recordPreview(rec: FeedRecord): string {
   const msg = rec.message as Record<string, unknown> | undefined
   if (msg && typeof msg === 'object') {
     const t = firstText(msg.content)
@@ -57,7 +57,7 @@ function oneLine(text: string, max = 160): string {
 
 // --------------------------------------------------------------------------
 
-export default function RecordRow({ record, now }: { record: ClaudeRecord; now: Date }) {
+export default function RecordRow({ record, now }: { record: FeedRecord; now: Date }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   // Readable key/value tree by default; raw JSON stays one click away for when the

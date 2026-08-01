@@ -35,7 +35,7 @@ BODIES_DIR = DATA_DIR / BODIES_REL
 WATCH_LOCK = DATA_DIR / ".karin-codex-watch.lock"
 
 # Heavy arrays moved out of the index into a per-session body file.
-BODY_FIELDS = ("runtime_events", "tools", "contexts", "code_edits")
+BODY_FIELDS = ("records", "runtime_events", "tools", "contexts", "code_edits")
 
 
 SECRET_PATTERNS = [
@@ -54,6 +54,17 @@ def redact(text: str) -> str:
     for pattern, replacement in SECRET_PATTERNS:
         text = pattern.sub(replacement, text)
     return text
+
+
+def clean_value(value: Any) -> Any:
+    """Recursively redact secrets before a source record enters the local feed."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, list):
+        return [clean_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: clean_value(item) for key, item in value.items()}
+    return value
 
 
 def load_thread_names() -> dict[str, str]:
@@ -169,6 +180,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
         "started_at": None,
         "updated_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
         "messages": [],
+        "records": [],
         "tools": [],
         "reasoning": [],
         "contexts": [],
@@ -213,6 +225,10 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
             kind = record.get("type")
             payload = record.get("payload") or {}
             record_counts[str(kind)] += 1
+            raw_record = clean_value(record)
+            raw_record["_line"] = line_no
+            raw_record["_type"] = str(kind or "unknown")
+            session["records"].append(raw_record)
 
             if kind == "session_meta":
                 meta = payload

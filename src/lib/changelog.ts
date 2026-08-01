@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.207',
+    title: 'Unified source views',
+    summary: 'Codex now receives Claude’s raw and JSON feed views through the same shared record components and AI bands.',
+    detail:
+      'The recent Claude-side feed work had not crossed the source boundary: Codex bodies omitted their original JSONL records, so the shared Structured/Raw/JSON controls never appeared there. Codex now preserves decorated, redacted source records in its lazy body, adapts them into the common FeedRecord contract, and renders them through the same detail page. Shared cycle bands and grouping are source-neutral too, making the remaining source conditionals explicit schema differences instead of separate UI paths.',
+  },
+  {
     version: 'v.206',
     title: 'Windows-safe feed handoff',
     summary: 'Feed updates fall back safely when Vite keeps a served JSON file open during live refresh.',
