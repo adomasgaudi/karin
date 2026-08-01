@@ -28,38 +28,44 @@ function initialTheme(): Theme {
 
 function initialSourceFilter(): SourceFilter {
   const saved = localStorage.getItem('karin-source')
-  return saved === 'codex' || saved === 'claude' || saved === 'warp' ? saved : 'all'
+  if (saved === 'codex' || saved === 'claude' || saved === 'warp') return saved
+  return 'all'
 }
 
 // One global usage-unit toggle drives EVERY token display (sidebar totals + bars,
 // session detail, cycles) so switching it re-expresses all instances at once.
 function initialUnitMode(): UsageUnitMode {
   const saved = localStorage.getItem('karin-unit')
-  return saved === 'tokens' || saved === 'token_units' || saved === 'money' ? saved : 'money'
+  if (saved === 'tokens' || saved === 'token_units' || saved === 'money') return saved
+  return 'money'
 }
 
 // Which token type token_units mode normalizes against (independent of currency).
 function initialTokenRef(): TokenUnitRef {
   const saved = localStorage.getItem('karin-tokenref')
-  return saved === 'input' || saved === 'cached' || saved === 'output' || saved === 'scaled' ? saved : 'output'
+  if (saved === 'input' || saved === 'cached' || saved === 'output' || saved === 'scaled') return saved
+  return 'output'
 }
 
 // Multiplier for the 'scaled' reference (see pricing.ts).
 function initialTokenMult(): number {
   const saved = Number(localStorage.getItem('karin-tokenmult'))
-  return Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_TOKEN_MULT
+  if (Number.isFinite(saved) && saved > 0) return saved
+  return DEFAULT_TOKEN_MULT
 }
 
 function initialCurrency(): CurrencyMode {
   const saved = localStorage.getItem('karin-currency')
-  return saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents' ? saved : 'eur'
+  if (saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents') return saved
+  return 'eur'
 }
 
 // Which price the money mode shows: theoretical API list price, or the subscription
 // plan estimate. Defaults to the plan estimate — the number the owner actually cares about.
 function initialPriceBasis(): PriceBasis {
   const saved = localStorage.getItem('karin-pricebasis')
-  return saved === 'api' || saved === 'sub' ? saved : 'sub'
+  if (saved === 'api' || saved === 'sub') return saved
+  return 'sub'
 }
 
 // Divisor applied to API list price for the 'sub' plan estimate — SEPARATE per source,
@@ -69,7 +75,8 @@ function initialSubDivisor(key: string, fallback: number): number {
   const saved = Number(localStorage.getItem(key))
   if (Number.isFinite(saved) && saved > 0) return saved
   const legacy = Number(localStorage.getItem('karin-subdiv'))
-  return Number.isFinite(legacy) && legacy > 0 ? legacy : fallback
+  if (Number.isFinite(legacy) && legacy > 0) return legacy
+  return fallback
 }
 
 function applyTheme(theme: Theme) {
@@ -183,7 +190,8 @@ function derive(
   selectedUid: string | null,
 ) {
   const sessions = frozenOrder(mergeSessions(codex, claude, warp))
-  const stillSelected = selectedUid && sessions.some((s) => s.uid === selectedUid) ? selectedUid : null
+  let stillSelected: string | null = null
+  if (selectedUid && sessions.some((s) => s.uid === selectedUid)) stillSelected = selectedUid
   return { sessions, generatedAt: freshestGeneratedAt(codex, claude, warp), selectedUid: stillSelected }
 }
 
@@ -311,7 +319,9 @@ export const useKarin = create<KarinStore>((set, get) => ({
     if (claudeNew && localClaude) void saveClaude(localClaude)
     if (warpNew && localWarp) void saveWarp(localWarp)
     // Re-attach known bodies to the fresh index before it ever reaches a component.
-    const { codex, claude } = attachKnownBodies(codexNew ? localCodex : curCodex, claudeNew ? localClaude : curClaude)
+    const nextCodex = codexNew ? localCodex : curCodex
+    const nextClaude = claudeNew ? localClaude : curClaude
+    const { codex, claude } = attachKnownBodies(nextCodex, nextClaude)
     set((st) => ({ codex, claude, warp, error: null, ...derive(codex, claude, warp, st.selectedUid) }))
     // Then pull whatever actually moved: the open session first, and every body if the
     // timeline is relying on them.

@@ -9,12 +9,22 @@ import type { ClaudeDetailSession } from './claudeModel'
 import type { WarpRawData, WarpSession } from './warpRaw'
 import { claudeTurnState, codexTurnState, warpTurnState } from './turnState'
 
+type ClaudeMessagePreview = { role?: string; origin_kind?: string; text?: string | null }
+type ClaudeTitleOperation = { messages?: ClaudeMessagePreview[] }
+
 function metaRow(label: string, value: string | number | null | undefined): UnifiedMetaRow {
-  return { label, value: value === null || value === undefined || value === '' ? null : String(value) }
+  const hasValue = value !== null && value !== undefined && value !== ''
+  return { label, value: hasValue ? String(value) : null }
 }
 
 function recordOf(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function fastMode(value: boolean | null | undefined): string | null {
+  if (value == null) return null
+  return value ? 'on' : 'off'
 }
 
 function rateLimitWindow(value: unknown): RateLimitWindow | null {
@@ -115,7 +125,7 @@ export function adaptCodexSession(s: Session): UnifiedSession {
       metaRow('model', s.models?.length ? s.models.join(', ') : s.model),
       metaRow('effort', s.efforts?.length ? s.efforts.join(', ') : s.reasoning_effort),
       metaRow('codex', s.cli_version),
-      metaRow('fast', s.fast_mode == null ? null : s.fast_mode ? 'on' : 'off'),
+      metaRow('fast', fastMode(s.fast_mode)),
       metaRow('cwd', s.cwd),
       metaRow('path', s.path),
     ],
@@ -158,8 +168,8 @@ function cleanTitle(raw: string): string {
 // Claude regenerates that label as the conversation's topic shifts, it tracks the LATEST
 // topic — a far better session name than the frozen first prompt.
 function generatedLabel(session: ClaudeSession): string | null {
-  const ops = (session as unknown as { title_ops?: Array<{ messages?: Array<{ role?: string; text?: string | null }> }> }).title_ops
-  for (const op of ops || []) {
+  const ops = (session as unknown as { title_ops?: ClaudeTitleOperation[] }).title_ops ?? []
+  for (const op of ops) {
     const msgs = op.messages
     if (!Array.isArray(msgs)) continue
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -174,9 +184,9 @@ function generatedLabel(session: ClaudeSession): string | null {
 // human prompt (skipping terse ones like "fix" / "ok" and injected environment blocks), so
 // the name still reflects where the session went, not just where it started.
 function latestHumanPrompt(s: ClaudeDetailSession): string | null {
-  const msgs = s.messages || []
+  const msgs = (s.messages || []) as ClaudeMessagePreview[]
   for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i] as { role?: string; origin_kind?: string; text?: string | null }
+    const m = msgs[i]
     if (m.role !== 'user' || (m.origin_kind && m.origin_kind !== 'human')) continue
     const t = (m.text || '').replace(/\s+/g, ' ').trim()
     if (t.length < 8 || t.includes('# AGENTS.md instructions') || t.includes('<environment_context>')) continue

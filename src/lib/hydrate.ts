@@ -142,6 +142,9 @@ export async function hydrateSession<T extends Session | ClaudeDetailSession>(
   // Already carrying its own arrays and no newer body to pull → nothing to do.
   if (!needsHydration(source, raw) && !cached) return session
   const body = await fetchBody(source, session.id, stamp)
-  if (!body) return cached ? (merge(raw, cached.body, source) as unknown as T) : session
+  if (!body) {
+    if (cached) return merge(raw, cached.body, source) as unknown as T
+    return session
+  }
   return merge(raw, body, source) as unknown as T
 }

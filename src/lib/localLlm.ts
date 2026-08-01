@@ -13,6 +13,7 @@ export const DEEPSEEK_URL = import.meta.env.VITE_DEEPSEEK_API_URL || '/api/deeps
 // The model we install and default to (see CLAUDE.md). Any pulled model can be chosen
 // instead — the picker lists whatever `/api/tags` reports.
 export const DEFAULT_MODEL = 'qwen3.5:9b'
+export const LOCAL_LLM_TIMEOUT_MS = 300_000
 
 export type SimplifierProvider = 'qwen' | 'd-flash' | 'd-pro'
 
@@ -22,12 +23,12 @@ export const SIMPLIFIER_PROVIDERS: Array<{ id: SimplifierProvider; label: string
   { id: 'd-pro', label: 'D-Pro', model: 'deepseek-v4-pro' },
 ]
 
-const USER_PROMPT_TITLE_SYSTEM = [
-  'Create a short title for a user prompt in an AI session transcript.',
-  'Return only one plain-text phrase with six words or fewer.',
-  'Capture the main requested action or question, preserving important technical nouns.',
-  'Do not add a label, explanation, quotation marks, markdown, or invented details.',
-].join(' ')
+const USER_PROMPT_TITLE_SYSTEM = `
+Create a short title for a user prompt in an AI session transcript.
+Return only one plain-text phrase with six words or fewer.
+Capture the main requested action or question, preserving important technical nouns.
+Do not add a label, explanation, quotation marks, markdown, or invented details.
+`.trim()
 const USER_PROMPT_TITLE_INPUT_LIMIT = 12_000
 const userPromptTitleCache = new Map<string, string>()
 const userPromptTitlePending = new Map<string, Promise<string>>()
@@ -84,7 +85,6 @@ export interface GenerateOptions {
 }
 
 export interface GenerateProgress {
-  percent: number
   generatedTokens: number
   targetTokens: number
   elapsedMs: number
@@ -95,24 +95,57 @@ function estimatedTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4))
 }
 
+const DEFAULT_PERFORMANCE: Record<SimplifierProvider, { tokensPerSecond: number; firstTokenMs: number }> = {
+  qwen: { tokensPerSecond: 24, firstTokenMs: 1_400 },
+  'd-flash': { tokensPerSecond: 55, firstTokenMs: 700 },
+  'd-pro': { tokensPerSecond: 38, firstTokenMs: 900 },
+}
+
+const performanceByProvider = new Map<SimplifierProvider, { tokensPerSecond: number; firstTokenMs: number }>()
+
 function progressReporter(prompt: string, opts: GenerateOptions) {
   const startedAt = Date.now()
-  const targetTokens = Math.max(32, opts.expectedTokens ?? Math.min(opts.numPredict ?? 700, Math.max(96, Math.ceil(estimatedTokens(prompt) * 0.3))))
+  const provider = opts.provider ?? 'qwen'
+  const remembered = performanceByProvider.get(provider) ?? DEFAULT_PERFORMANCE[provider]
+  // Output size is tied to the input size, capped by the server request limit.
+  // This gives the first ETA a meaningful target before any token has arrived.
+  const promptTokens = estimatedTokens(prompt)
+  const defaultTargetTokens = Math.max(96, Math.ceil(promptTokens * 0.3))
+  const requestedTargetTokens = opts.expectedTokens ?? Math.min(opts.numPredict ?? 700, defaultTargetTokens)
+  const targetTokens = Math.max(48, requestedTargetTokens)
+  let speed = remembered.tokensPerSecond
+  let firstTokenMs: number | null = null
   let full = ''
+  const estimate = (generatedTokens: number, elapsedMs: number): number => {
+    if (generatedTokens <= 0) {
+      const estimatedGenerationMs = (targetTokens / speed) * 1000
+      return Math.round(remembered.firstTokenMs + estimatedGenerationMs)
+    }
+    const generationMs = Math.max(250, elapsedMs - (firstTokenMs ?? 0))
+    const observedSpeed = generatedTokens / (generationMs / 1000)
+    // Wait for a useful sample, then blend it into the provider estimate so one
+    // unusually large first chunk cannot make the remaining time jump wildly.
+    if (generatedTokens >= 8 && Number.isFinite(observedSpeed) && observedSpeed > 0) {
+      speed = speed * 0.35 + observedSpeed * 0.65
+      performanceByProvider.set(provider, {
+        tokensPerSecond: speed,
+        firstTokenMs: firstTokenMs ?? remembered.firstTokenMs,
+      })
+    }
+    return Math.round((Math.max(0, targetTokens - generatedTokens) / speed) * 1000)
+  }
   const report = () => {
     const generatedTokens = estimatedTokens(full)
     const elapsedMs = Date.now() - startedAt
-    const speed = generatedTokens / Math.max(0.25, elapsedMs / 1000)
-    const remainingTokens = Math.max(0, targetTokens - generatedTokens)
+    if (generatedTokens > 0 && firstTokenMs === null) firstTokenMs = elapsedMs
     opts.onProgress?.({
-      percent: Math.min(96, Math.round((generatedTokens / targetTokens) * 100)),
       generatedTokens,
       targetTokens,
       elapsedMs,
-      etaMs: speed > 0 ? Math.round((remainingTokens / speed) * 1000) : null,
+      etaMs: estimate(generatedTokens, elapsedMs),
     })
   }
-  opts.onProgress?.({ percent: 0, generatedTokens: 0, targetTokens, elapsedMs: 0, etaMs: null })
+  opts.onProgress?.({ generatedTokens: 0, targetTokens, elapsedMs: 0, etaMs: Math.round(remembered.firstTokenMs + (targetTokens / speed) * 1000) })
   return {
     add(chunk: string) {
       full += chunk
@@ -120,7 +153,19 @@ function progressReporter(prompt: string, opts: GenerateOptions) {
     },
     finish() {
       const elapsedMs = Date.now() - startedAt
-      opts.onProgress?.({ percent: 100, generatedTokens: estimatedTokens(full), targetTokens, elapsedMs, etaMs: 0 })
+      const generatedTokens = estimatedTokens(full)
+      if (generatedTokens > 0 && firstTokenMs === null) firstTokenMs = elapsedMs
+      const generationMs = Math.max(250, elapsedMs - (firstTokenMs ?? 0))
+      const observedSpeed = generatedTokens / (generationMs / 1000)
+      if (Number.isFinite(observedSpeed) && observedSpeed > 0) {
+        const blendedSpeed = speed * 0.35 + observedSpeed * 0.65
+        const firstTokenEstimate = firstTokenMs ?? remembered.firstTokenMs
+        performanceByProvider.set(provider, {
+          tokensPerSecond: blendedSpeed,
+          firstTokenMs: firstTokenEstimate,
+        })
+      }
+      opts.onProgress?.({ generatedTokens, targetTokens, elapsedMs, etaMs: 0 })
     },
   }
 }
@@ -205,7 +250,7 @@ async function readDeepSeekStream(res: Response, progress: ReturnType<typeof pro
 // caller can show the error next to the (empty) output.
 export async function generate(prompt: string, opts: GenerateOptions = {}): Promise<string> {
   const provider = opts.provider || 'qwen'
-  const timeout = requestSignal(opts.signal, opts.timeoutMs ?? 90_000)
+  const timeout = requestSignal(opts.signal, opts.timeoutMs ?? LOCAL_LLM_TIMEOUT_MS)
   const progress = progressReporter(prompt, opts)
   try {
     let res: Response
@@ -250,13 +295,15 @@ export async function generate(prompt: string, opts: GenerateOptions = {}): Prom
     }
     if (!res.ok || !res.body) {
       const detail = await res.text().catch(() => '')
-      throw new Error(`${provider === 'qwen' ? 'Ollama' : 'DeepSeek'} ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+      const providerName = provider === 'qwen' ? 'Ollama' : 'DeepSeek'
+      const detailSuffix = detail ? `: ${detail.slice(0, 200)}` : ''
+      throw new Error(`${providerName} ${res.status}${detailSuffix}`)
     }
     const full = await read(res)
     progress.finish()
     return full
   } catch (e) {
-    if (timeout.timedOut()) throw new Error(`Simplification timed out after ${Math.round((opts.timeoutMs ?? 90_000) / 1000)} seconds.`)
+    if (timeout.timedOut()) throw new Error(`Simplification timed out after ${Math.round((opts.timeoutMs ?? LOCAL_LLM_TIMEOUT_MS) / 1000)} seconds.`)
     throw e
   } finally {
     timeout.cleanup()

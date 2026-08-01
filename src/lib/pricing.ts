@@ -343,7 +343,9 @@ export function ratesForClaudeModel(model: string | null | undefined): TokenRate
   let key = normalizeModel(model).replace(/\[1m\]$/, '')
   if (key === 'claude-haiku-4-5-20251001') key = 'claude-haiku-4-5'
   const pricedAs = key || ''
-  const resolvedKey = CLAUDE_RATES[pricedAs] ? pricedAs : pricedAs === 'claude-opus-5' ? 'claude-opus-4-8' : null
+  let resolvedKey: string | null = null
+  if (CLAUDE_RATES[pricedAs]) resolvedKey = pricedAs
+  else if (pricedAs === 'claude-opus-5') resolvedKey = 'claude-opus-4-8'
   const r = resolvedKey ? CLAUDE_RATES[resolvedKey] : null
   if (!r) return null
   return {

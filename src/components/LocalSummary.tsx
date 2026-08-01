@@ -13,13 +13,14 @@ import { DEFAULT_MODEL, fmtModelSize, generate, probe, type LocalModel } from '.
 
 const MODEL_KEY = 'karin-local-model'
 
-const SYSTEM = [
-  'You summarize logs of AI coding sessions for the developer who ran them.',
-  'Be concrete and short. No preamble, no restating the question, no flattery.',
-  'Write: one line on what the session was for, then 3-6 bullets of what actually',
-  'happened (changes made, files touched, problems hit), then one line on where it',
-  'ended up. Name real files and real decisions; skip anything you cannot see.',
-].join(' ')
+const SYSTEM = `
+You summarize logs of AI coding sessions for the developer who ran them.
+Be concrete and short. No preamble, no restating the question, no flattery.
+Write one line on what the session was for.
+Then write 3-6 bullets of what actually happened (changes made, files touched, problems hit).
+Then write one line on where it ended up.
+Name real files and real decisions; skip anything you cannot see.
+`.trim()
 
 export default function LocalSummary({ session }: { session: UnifiedSession }) {
   const [models, setModels] = useState<LocalModel[]>([])

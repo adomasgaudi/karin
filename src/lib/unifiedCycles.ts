@@ -252,13 +252,18 @@ export function entryBand(entry: UnifiedEntry): CycleBand {
 // A message whose flattened text is empty — the turn's substance was only thinking +
 // tool calls, so there is nothing to render. It still counts toward its group's tokens.
 export function isEmptyMessage(entry: UnifiedEntry): boolean {
-  return entry.kind === 'message' && !(entry.item as { text?: string }).text?.trim()
+  return entry.kind === 'message' && !hasVisibleText(entry)
 }
 
 // An empty (or content-less) thinking block — nothing to show. Like an empty message it
 // merges forward into the next real action's group rather than taking a row of its own.
 export function isEmptyThinking(entry: UnifiedEntry): boolean {
-  return entry.kind === 'thinking' && !(entry.item as { text?: string }).text?.trim()
+  return entry.kind === 'thinking' && !hasVisibleText(entry)
+}
+
+function hasVisibleText(entry: UnifiedEntry): boolean {
+  const text = (entry.item as { text?: string }).text
+  return Boolean(text?.trim())
 }
 
 // Actions that carry no information to render and should merge forward, not anchor a group.
@@ -460,7 +465,8 @@ export function cycleTiming(cycle: Cycle): CycleTiming {
   // The leading item is the human touchpoint (prompt / interjection / answer);
   // context-only cycles have none to skip.
   const leading = cycleOrigin(cycle) === 'context' ? null : cycle.items[0]
-  const restTimes = cycle.items.filter((e) => e !== leading).map(entryMs).filter((t): t is number => t != null)
+  const restItems = cycle.items.filter((e) => e !== leading)
+  const restTimes = restItems.map(entryMs).filter((t): t is number => t != null)
   const workStartMs = restTimes.length ? Math.min(...restTimes) : startMs
   return {
     startMs,

@@ -48,8 +48,15 @@ export function fmtDate(value: string | null | undefined): string {
   return parts ? `${parts.date} ${parts.hour}:${parts.minute}` : value
 }
 
+function twoDigits(value: number): string {
+  return value.toString().padStart(2, '0')
+}
+
 export function fmtTime(value: Date): string {
-  return `${value.getHours().toString().padStart(2, '0')}:${value.getMinutes().toString().padStart(2, '0')}:${value.getSeconds().toString().padStart(2, '0')}`
+  const hours = twoDigits(value.getHours())
+  const minutes = twoDigits(value.getMinutes())
+  const seconds = twoDigits(value.getSeconds())
+  return `${hours}:${minutes}:${seconds}`
 }
 
 export function fmtLiveDateTime(value: Date): string {

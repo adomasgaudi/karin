@@ -26,7 +26,7 @@ import ToolResult from './ToolResult'
 import JsonView, { MaybeJson, stripAnsi } from './JsonView'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
-import BaseInstructions, { looksLikeStructuredContext } from './BaseInstructions'
+import BaseInstructions, { isStructuredInstructionPayload, looksLikeStructuredContext } from './BaseInstructions'
 import { summarizeUserPromptTitle } from '../lib/localLlm'
 
 interface UsageProps {
@@ -644,10 +644,7 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
         <Row title={label} meta={meta} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin} dim>
-          {entry.source === 'codex' &&
-          ((item as ContextBlock).name === 'base_instructions' ||
-            (item as ContextBlock).name === 'developer_message' ||
-            looksLikeStructuredContext(item.text)) ? (
+          {isStructuredInstructionPayload((item as ContextBlock | ClaudeContext).name, item.text) ? (
             <BaseInstructions text={item.text} />
           ) : (
             <MaybeJson text={item.text} className={preClass} />

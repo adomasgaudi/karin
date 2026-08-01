@@ -102,7 +102,9 @@ function editedFiles(entries: UnifiedEntry[]): string[] {
 function sessionHeader(s: UnifiedSession, index: number): string[] {
   const usage: TokenUsage = s.latest_total_usage || {}
   const project = s.projectCwd || s.cwd
-  const models = s.models.length > 1 ? s.models.join(', ') : s.model || '?'
+  let models = '?'
+  if (s.models.length > 1) models = s.models.join(', ')
+  else if (s.model) models = s.model
   const lines = [
     `## ${index}. [${s.source}] ${s.title || s.id}`,
     '',
@@ -130,7 +132,9 @@ function sessionBody(s: UnifiedSession): string[] {
     n++
     const origin = cycleOrigin(cycle)
     const tag = origin === 'prompt' ? 'prompt' : origin // 'interjection' | 'answer'
-    lines.push(`${n}. **${fmtTime((cycle.items[0]?.item as { timestamp?: string | null })?.timestamp)}** ${tag}: ${prompt}`)
+    const firstItem = cycle.items[0]?.item as { timestamp?: string | null } | undefined
+    const timestamp = fmtTime(firstItem?.timestamp)
+    lines.push(`${n}. **${timestamp}** ${tag}: ${prompt}`)
     const tools = toolChips(cycle)
     if (tools) lines.push(`   - tools: ${tools}`)
     const files = editedFiles(cycle.items)

@@ -202,3 +202,13 @@ the binary; the launcher falls back to `cloudflared` on PATH. The PC must stay o
 launcher window open, and anyone with the URL can view it, so share it carefully. For a
 private-only mesh to your own devices instead of a public URL, Tailscale is the alternative
 (not wired into the launcher).
+## AI serve-start requirement
+
+Instruction version: v.1
+
+When starting Karin for the owner, use the project launcher so the local data is refreshed and the watch processes are started before declaring the serve port ready:
+
+- Built local target: run `./karin.ps1 -NoOpen`; it refreshes Codex, Claude, and Warp data, rebuilds `dist/`, starts `:4173`, and starts all three `--watch` processes.
+- Dev target: run `./karin.ps1 -Dev -NoOpen` for `:5173`; do not use a bare `pnpm preview` when live data watching is expected.
+- Before reporting success, verify the serve URL returns HTTP 200 and verify these processes are still running: `karin.py --watch`, `karin_claude.py --watch`, and `karin_warp.py --watch`.
+- If any watcher is missing or stale, stop the partial server and restart the full launcher; do not report the port as ready with an unwatched feed.
