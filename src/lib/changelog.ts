@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.206',
+    title: 'Windows-safe feed handoff',
+    summary: 'Feed updates fall back safely when Vite keeps a served JSON file open during live refresh.',
+  },
+  {
     version: 'v.205',
     title: 'Resilient feed copies',
     summary: 'Live watchers recover if a rebuild briefly removes their destination directories during an atomic copy.',

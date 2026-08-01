@@ -989,7 +989,13 @@ def atomic_copy(src: Path, dst: Path) -> None:
         temp = dst.with_name(f".{dst.name}.{os.getpid()}.tmp")
         try:
             shutil.copy2(src, temp)
-            os.replace(temp, dst)
+            try:
+                os.replace(temp, dst)
+            except PermissionError:
+                # Vite preview can keep the served file open without delete sharing.
+                # Fall back to the old in-place copy; it is the only Windows-safe
+                # handoff while the preview process owns the destination handle.
+                shutil.copy2(src, dst)
             return
         except FileNotFoundError:
             if attempt == 1:
