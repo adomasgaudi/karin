@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.135',
+    title: 'Remove duplicate usage',
+    summary: 'Cycle token usage now appears once in the summary, not again inside expanded details.',
+  },
+  {
     version: 'v.134',
     title: 'Clean terminal diffs',
     summary: 'ANSI control codes are removed, and added or removed code lines now receive clear editor-style highlighting.',

@@ -193,13 +193,6 @@ export default function Cycle({
           {hasUsage && <span>{fmtCompact(parts.total)} tokens</span>}
           {cost != null && <span>{fmtCurrency(cost, currency)}</span>}
         </div>
-        {/* Expanded view: this bar fills full width (scaled to the cycle's own total),
-            and every card bar below is proportional to it via the same cardScaleMax. */}
-        {hasUsage && (
-          <div className="mb-[3px] rounded-md bg-neutral-50 px-[3px] py-[3px] dark:bg-neutral-950/60">
-            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact inlineLabels scaleMax={cardScaleMax} />
-          </div>
-        )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}
