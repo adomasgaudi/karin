@@ -45,8 +45,8 @@ const SOURCE_ACCENTS: Record<SessionSource, string> = {
 
 function windowName(minutes: number | null): string {
   if (minutes == null) return 'window'
-  if (minutes >= 10080) return 'week'
-  if (minutes >= 1440) return 'day'
+  if (minutes >= 10080) return 'weekly'
+  if (minutes >= 1440) return 'daily'
   if (minutes >= 60) return `${Math.round(minutes / 60)}h`
   return `${Math.round(minutes)}m`
 }
@@ -64,14 +64,13 @@ function RemainingUsage({ limits }: { limits: RateLimits | null }) {
   }
   if (windows.length === 0) return null
   const label = windows
-    .map((window) => `${Math.max(0, 100 - window!.used_percent).toFixed(window!.used_percent % 1 ? 1 : 0)}% ${windowName(window!.window_minutes)}`)
+    .map((window) => `${windowName(window!.window_minutes)} ${Math.max(0, 100 - window!.used_percent).toFixed(window!.used_percent % 1 ? 1 : 0)}% left`)
     .join(' · ')
   const title = windows.map((window) => resetLabel(window!.resets_at)).join(' · ')
   return (
     <div className="flex items-center gap-1 border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400" title={title}>
       <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
       <span className="font-semibold text-neutral-700 dark:text-neutral-200">{label}</span>
-      <span>usage left</span>
     </div>
   )
 }

@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.131',
+    title: 'Clarify usage windows',
+    summary: 'Remaining usage now reads weekly and hourly windows directly, such as weekly 98% left · 7h 84% left.',
+  },
+  {
     version: 'v.130',
     title: 'Room after the final item',
     summary: 'Session lists and cycle details now reserve comfortable bottom space after their last visible item.',
