@@ -276,18 +276,61 @@ function KindTitle({ kind, name }: { kind: string; name: string }) {
 // file it touched, the pattern it searched) instead of the opaque call id.
 function toolSummary(input: Record<string, unknown>): string {
   const str = (k: string): string => (typeof input[k] === 'string' ? (input[k] as string) : '')
-  const clean = (v: string) => v.replace(/\s+/g, ' ').trim()
-  if (str('command')) return clean(str('command'))
+  if (str('command')) return conciseToolPurpose(str('command'))
   const path = str('file_path') || str('path') || str('notebook_path')
-  if (path) return path.split(/[/\\]/).slice(-2).join('/')
-  const pattern = str('pattern')
-  if (pattern) {
-    const where = str('path') || str('glob')
-    return clean(where ? `${pattern}  ·  ${where}` : pattern)
+  if (path) {
+    const lower = `${str('action')} ${str('operation')}`.toLowerCase()
+    if (/read|open|load|cat/.test(lower)) return 'Read project file'
+    if (/write|create|save/.test(lower)) return 'Write project file'
+    if (/edit|patch|update|replace/.test(lower)) return 'Edit source file'
+    return 'Inspect project file'
   }
-  for (const k of ['query', 'url', 'description', 'prompt', 'todos']) if (str(k)) return clean(str(k))
-  for (const v of Object.values(input)) if (typeof v === 'string' && v.trim()) return clean(v)
+  const pattern = str('pattern')
+  if (pattern) return 'Search project text'
+  if (str('query')) return 'Search project information'
+  if (str('url')) return 'Fetch web resource'
+  if (str('todos')) return 'Update task checklist'
+  if (str('description') || str('prompt')) return 'Process task request'
   return ''
+}
+
+// Keep collapsed rows useful without making a model request for every tool in a session.
+// The expanded input still contains the exact command, and the local Qwen toggle can
+// explain it in depth when the owner wants that view.
+function conciseToolPurpose(raw: string): string {
+  const text = raw.replace(/\s+/g, ' ').trim()
+  const lower = text.toLowerCase()
+  if (/apply[_ -]?patch|tools\.apply_patch|patch\s*=/.test(lower)) return 'Edit source files'
+  if (/pnpm\s+(?:run\s+)?(?:build|typecheck)|npm\s+(?:run\s+)?(?:build|test)|vite\s+build/.test(lower)) return 'Build project bundle'
+  if (/\b(?:vitest|jest|pytest|npm\s+test|pnpm\s+test)\b/.test(lower)) return 'Run project tests'
+  if (/\bgit\s+status\b/.test(lower)) return 'Check git status'
+  if (/\bgit\s+diff\b/.test(lower)) return 'Review code changes'
+  if (/\bgit\s+(?:commit|push)\b/.test(lower)) return 'Publish repository changes'
+  if (/\bgit\s+log\b/.test(lower)) return 'Review commit history'
+  if (/select-string|\brg(?:\.exe)?\b|\bgrep\b|\bfindstr\b/.test(lower)) return 'Search project code'
+  if (/get-content|\bcat\b|\btype\s+[^=]|read(file|all|_file)|open\(/.test(lower)) {
+    if (/skill\.md|agents?\.md|claude\.md|instructions|roster/.test(lower)) return 'Read project instructions'
+    return 'Read project files'
+  }
+  if (/get-childitem|\bdir\b|\bls(?:\.exe)?\b|readdir|file_glob/.test(lower)) return 'List project files'
+  if (/invoke-webrequest|invoke-restmethod|\bcurl\b|\bwget\b|fetch\(/.test(lower)) return 'Check web endpoint'
+  if (/start-process|vite\s+preview|localhost:\d+/.test(lower)) return 'Start local server'
+  if (/python(?:\.exe)?\s+/.test(lower)) return 'Run Python script'
+  if (/remove-item|\brm\s+|delete|unlink/.test(lower)) return 'Remove generated files'
+  if (/copy-item|\bcp\s+|copyfile|cpsync/.test(lower)) return 'Copy project files'
+  if (/move-item|\bmv\s+|rename-item/.test(lower)) return 'Move project files'
+  if (/mkdir|new-item.*directory|createdirectory/.test(lower)) return 'Create project directory'
+  return 'Run shell command'
+}
+
+function conciseInvocationPurpose(name: string, input: unknown, rawArgs: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('apply_patch')) return 'Edit source files'
+  if (lower.includes('update_plan')) return 'Update task plan'
+  if (lower.includes('request_user_input')) return 'Ask for clarification'
+  if (lower.includes('view_image')) return 'Inspect screenshot'
+  if (input && typeof input === 'object' && !Array.isArray(input)) return toolSummary(input as Record<string, unknown>) || conciseToolPurpose(rawArgs)
+  return conciseToolPurpose(`${name} ${rawArgs}`)
 }
 
 // Codex tools carry arguments as a JSON string; parse then summarise, else show the raw args.
@@ -300,17 +343,15 @@ function toolSummaryCodex(argsJson: string): string {
   }
   const invocations = parseToolInvocations(argsJson)
   if (invocations.length > 0) {
-    return invocations
-      .map((invocation) => {
-        if (invocation.input && typeof invocation.input === 'object' && !Array.isArray(invocation.input)) {
-          return toolSummary(invocation.input as Record<string, unknown>)
-        }
-        return invocation.name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')
-      })
-      .filter(Boolean)
-      .join(' · ')
+    const purposes = invocations.map((invocation) => conciseInvocationPurpose(invocation.name, invocation.input, invocation.rawArgs))
+    if (purposes.some((purpose) => purpose === 'Edit source files')) return 'Edit source files'
+    if (purposes.some((purpose) => purpose === 'Build project bundle')) return 'Build project bundle'
+    if (purposes.some((purpose) => purpose === 'Search project code')) return 'Search project code'
+    if (purposes.some((purpose) => purpose === 'Read project instructions')) return 'Read project instructions'
+    if (purposes.some((purpose) => purpose === 'Read project files')) return 'Read project files'
+    return purposes[0] || 'Run shell command'
   }
-  return argsJson.replace(/\s+/g, ' ').trim()
+  return conciseToolPurpose(argsJson)
 }
 
 // One-line preview of a message body for the collapsed title (whitespace collapsed).

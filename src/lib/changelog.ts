@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.141',
+    title: 'Name tool purposes',
+    summary: 'Collapsed tool rows now show concise purposes such as Read project instructions or Search project code.',
+  },
+  {
     version: 'v.140',
     title: 'Show cent markers',
     summary: 'Compact usage indicators now show only full-height cent markers without the obsolete empty track.',
