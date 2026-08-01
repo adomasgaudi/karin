@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.124',
+    title: 'Simpler session cards',
+    summary: 'Session cards now use source accents and clean visual bars without ambiguous numeric overlays.',
+  },
+  {
     version: 'v.123',
     title: 'Compact usage blocks',
     summary: 'Usage bars now use dots or ten-cent cells with uniform gaps and vertical partial fills.',

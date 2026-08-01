@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import type { SessionSource } from '../types'
 import { useKarin } from '../store/karin'
-import { sessionMatchesUnified, sessionTotalLabel } from '../lib/format'
+import { sessionMatchesUnified } from '../lib/format'
 import { cn } from '../lib/cn'
 import {
   CURRENCY_LABELS,
@@ -20,7 +21,6 @@ import {
 import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
 import SourceCycle from './SourceCycle'
-import SourceBadge from './SourceBadge'
 import TurnDot from './TurnDot'
 
 interface SidebarProps {
@@ -35,6 +35,12 @@ function projectLabel(cwd: string | null, slug: string | null): string | null {
     if (parts.length) return parts[parts.length - 1]
   }
   return slug
+}
+
+const SOURCE_ACCENTS: Record<SessionSource, string> = {
+  codex: 'bg-sky-500',
+  claude: 'bg-orange-500',
+  warp: 'bg-violet-500',
 }
 
 export default function Sidebar({ className }: SidebarProps) {
@@ -204,21 +210,21 @@ export default function Sidebar({ className }: SidebarProps) {
                     type="button"
                     onClick={() => useKarin.getState().select(s.uid)}
                     className={cn(
-                      'grid w-full gap-0.5 rounded-md border px-2 py-1 text-left transition-colors',
+                      'relative grid w-full gap-0.5 rounded-md border px-2 py-1 pl-3 text-left transition-colors',
                       selected
                         ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
                         : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
                     )}
                   >
+                    <span aria-hidden className={`absolute inset-y-1 left-1 w-1 rounded-full ${SOURCE_ACCENTS[s.source]}`} />
                     <div className="flex min-w-0 items-center gap-2">
                       <TurnDot state={s.turnState} />
-                      <SourceBadge source={s.source} />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
                         {s.title || s.id}
                       </span>
                     </div>
-                    {/* Cost, project and the turn counts ride ON the usage bar — as separate
-                        lines they took three rows to say what one row can. */}
+                    {/* The bar is intentionally visual-only; project names remain available
+                        for Claude/Warp without overlaying hard-to-read numeric labels. */}
                     <div className="relative">
                       <UsageBar
                         usage={s.latest_total_usage || {}}
@@ -233,18 +239,11 @@ export default function Sidebar({ className }: SidebarProps) {
                         showLegend={false}
                         scaleMax={scaleMax}
                       />
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-between gap-2 px-1.5 text-[0.65rem] leading-none text-neutral-700 mix-blend-luminosity dark:text-neutral-200">
-                        <span className="truncate">
-                          {sessionTotalLabel(s, rates, unitMode, currency, tokenRef, tokenMult)}
-                          {project ? ` / ${project}` : ''}
+                      {project && (
+                        <span className="pointer-events-none absolute inset-0 flex items-center truncate px-1.5 text-[0.65rem] leading-none text-neutral-700 dark:text-neutral-200">
+                          {project}
                         </span>
-                        <span
-                          className="shrink-0 tabular-nums"
-                          title={`${s.counts.user} user / ${s.counts.assistant} assistant / ${s.counts.tool_calls} tools / ${s.counts.code_edits} edits`}
-                        >
-                          {s.counts.user}·{s.counts.assistant}·{s.counts.tool_calls}·{s.counts.code_edits}
-                        </span>
-                      </div>
+                      )}
                     </div>
                   </button>
                 </li>
