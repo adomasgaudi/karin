@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from watch_lock import acquire_watch_lock
+
 
 CLAUDE_HOME = Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude"))
 PROJECTS_DIR = CLAUDE_HOME / "projects"
@@ -36,6 +38,7 @@ DIST_DATA_DIR = KARIN_HOME / "dist" / "data"
 # Per-session bodies live here; the index keeps only light fields (see split_payload).
 BODIES_REL = Path("sessions") / "claude"
 BODIES_DIR = DATA_DIR / BODIES_REL
+WATCH_LOCK = DATA_DIR / ".karin-claude-watch.lock"
 
 # Heavy arrays moved out of the index into a per-session body file.
 BODY_FIELDS = ("records", "subagents", "usage_frames", "tools", "contexts", "code_edits")
@@ -989,14 +992,18 @@ def main() -> int:
 
     limit = None if args.all else args.limit
 
-    payload = index_once(limit, args.project)
-    print(f"Karin (Claude) indexed {payload['session_count']} sessions across {payload['project_count']} projects")
-    print(f"JSON:   {DATA_JSON}")
-    print(f"STATUS: {DATA_STATUS}")
+    lock = acquire_watch_lock(WATCH_LOCK)
+    if lock is None:
+        print("Karin Claude indexer already running; exiting.")
+        return 0
+    try:
+        payload = index_once(limit, args.project)
+        print(f"Karin (Claude) indexed {payload['session_count']} sessions across {payload['project_count']} projects")
+        print(f"JSON:   {DATA_JSON}")
+        print(f"STATUS: {DATA_STATUS}")
 
-    if args.watch:
-        last_mtime = latest_session_mtime(args.project)
-        try:
+        if args.watch:
+            last_mtime = latest_session_mtime(args.project)
             while True:
                 time.sleep(max(args.interval, 1.0))
                 files = iter_session_files()
@@ -1010,8 +1017,11 @@ def main() -> int:
                 payload = index_once(limit, args.project)
                 last_mtime = current_mtime
                 print(f"Karin (Claude) indexed {payload['session_count']} sessions at {payload['generated_at']}", flush=True)
-        except KeyboardInterrupt:
-            return 0
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        if lock is not None:
+            lock.release()
     return 0
 
 

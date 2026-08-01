@@ -297,7 +297,15 @@ export const useKarin = create<KarinStore>((set, get) => ({
     const codexNew = isNewer(localCodex, curCodex)
     const claudeNew = isNewer(localClaude, curClaude)
     const warpNew = isNewer(localWarp, curWarp)
-    if (!codexNew && !claudeNew && !warpNew) return
+    // A body request can briefly fail while the indexer is replacing a split body
+    // file, even though the small feed itself has not changed. Retry the selected
+    // body's hydration on every poll so one transient read cannot leave the detail
+    // stuck at its opening user prompt forever.
+    if (!codexNew && !claudeNew && !warpNew) {
+      const uid = get().selectedUid
+      if (uid) void get().hydrateSelected(uid)
+      return
+    }
     const warp = warpNew ? localWarp : curWarp
     if (codexNew && localCodex) void saveCodex(localCodex)
     if (claudeNew && localClaude) void saveClaude(localClaude)

@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from watch_lock import acquire_watch_lock
+
 
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 KARIN_HOME = Path(__file__).resolve().parents[1]
@@ -30,6 +32,7 @@ DIST_DATA_DIR = KARIN_HOME / "dist" / "data"
 # Per-session bodies live here; the index keeps only light fields (see split_payload).
 BODIES_REL = Path("sessions") / "codex"
 BODIES_DIR = DATA_DIR / BODIES_REL
+WATCH_LOCK = DATA_DIR / ".karin-codex-watch.lock"
 
 # Heavy arrays moved out of the index into a per-session body file.
 BODY_FIELDS = ("runtime_events", "tools", "contexts", "code_edits")
@@ -585,13 +588,17 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=5.0, help="Watch polling interval in seconds.")
     args = parser.parse_args()
 
-    payload = index_once(args.limit)
-    print(f"Karin indexed {payload['session_count']} sessions")
-    print(f"JSON: {DATA_JSON}")
-    print(f"JS:   {DATA_JS}")
-    if args.watch:
-        last_mtime = latest_source_mtime()
-        try:
+    lock = acquire_watch_lock(WATCH_LOCK)
+    if lock is None:
+        print("Karin Codex indexer already running; exiting.")
+        return 0
+    try:
+        payload = index_once(args.limit)
+        print(f"Karin indexed {payload['session_count']} sessions")
+        print(f"JSON: {DATA_JSON}")
+        print(f"JS:   {DATA_JS}")
+        if args.watch:
+            last_mtime = latest_source_mtime()
             while True:
                 time.sleep(max(args.interval, 1.0))
                 files = iter_session_files()
@@ -603,8 +610,11 @@ def main() -> int:
                 payload = index_once(args.limit)
                 last_mtime = current_mtime
                 print(f"Karin indexed {payload['session_count']} sessions at {payload['generated_at']}", flush=True)
-        except KeyboardInterrupt:
-            return 0
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        if lock is not None:
+            lock.release()
     return 0
 
 

@@ -48,12 +48,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from watch_lock import acquire_watch_lock
+
 
 KARIN_HOME = Path(__file__).resolve().parents[1]
 DATA_DIR = KARIN_HOME / "data"
 DATA_JSON = DATA_DIR / "warp-raw.json"
 DATA_STATUS = DATA_DIR / "warp-status.json"
 DIST_DATA_DIR = KARIN_HOME / "dist" / "data"
+WATCH_LOCK = DATA_DIR / ".karin-warp-watch.lock"
 
 MAX_STRING_CHARS = 8000
 DEFAULT_LIMIT = 40
@@ -799,20 +802,31 @@ def main() -> int:
     db = Path(args.db) if args.db else WARP_DB
     limit = 0 if args.all else max(0, args.limit)
 
-    index_once(db, limit, args.model)
-    if not args.watch:
+    lock = acquire_watch_lock(WATCH_LOCK)
+    if lock is None:
+        print("Karin Warp indexer already running; exiting.")
         return 0
+    try:
+        index_once(db, limit, args.model)
+        if not args.watch:
+            return 0
 
-    last = db_fingerprint(db)
-    while True:
-        time.sleep(args.interval)
-        current = db_fingerprint(db)
-        if current != last:
-            last = current
-            try:
-                index_once(db, limit, args.model, quiet=True)
-            except Exception as error:  # keep the watcher alive across Warp's writes
-                print(f"warp: reindex failed: {error}", file=sys.stderr)
+        last = db_fingerprint(db)
+        while True:
+            time.sleep(args.interval)
+            current = db_fingerprint(db)
+            if current != last:
+                last = current
+                try:
+                    index_once(db, limit, args.model, quiet=True)
+                except Exception as error:  # keep the watcher alive across Warp's writes
+                    print(f"warp: reindex failed: {error}", file=sys.stderr)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        if lock is not None:
+            lock.release()
+    return 0
 
 
 if __name__ == "__main__":

@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.143',
+    title: 'Keep active logs live',
+    summary: 'Selected sessions retry body loading and duplicate source watchers can no longer race the local feed.',
+    detail:
+      'A transient body-file read could leave an active cycle showing only its opening prompt even after the index contained new replies and tools. Karin now retries the selected body on each five-second poll. The Codex, Claude, and Warp watchers also take per-source process locks, preventing two launchers from overwriting each other’s index and body files.',
+  },
+  {
     version: 'v.142',
     title: 'Count cycle steps',
     summary: 'Cycle headers show meaningful AI work-step counts, with timing retained inside the expanded cycle.',
