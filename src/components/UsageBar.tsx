@@ -87,6 +87,7 @@ export default function UsageBar({
   tokenRef = 'output',
   tokenMult,
   compact = false,
+  bare = false,
   showLegend = true,
   inlineLabels = false,
   hideSegmentLabels = false,
@@ -110,6 +111,10 @@ export default function UsageBar({
   inlineLabels?: boolean
   // Callers may overlay their own summary on the block line (for example, sidebar rows).
   hideSegmentLabels?: boolean
+  // Drop the grey track behind the blocks and show the squares alone. The track only
+  // means something when the blocks stretch to fill it; with discrete cent squares it
+  // is a full-width band of nothing on every row.
+  bare?: boolean
   // In pure token mode, block-line width is proportional to this raw-token scale.
   scaleMax?: number
   // Estimated (not measured) usage: render hatched + faded so it reads as a guess.
@@ -165,8 +170,10 @@ export default function UsageBar({
       <div
         title={hoverTitle}
         className={
-          thin
-            ? `inline-flex min-w-0 items-center gap-px ${blockHeight}`
+          thin || bare
+            ? `inline-flex min-w-0 items-center gap-px ${blockHeight} ${
+                bare && estimated ? 'opacity-70' : ''
+              }`
             : `flex min-w-0 items-center gap-px overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
                 estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
               }`

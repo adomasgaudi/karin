@@ -21,7 +21,6 @@ const ORIGIN_TAG: Record<'prompt' | 'interjection' | 'answer', { label: string; 
 
 export default function Cycle({
   cycle,
-  index,
   source,
   rates,
   unitMode,
@@ -35,7 +34,6 @@ export default function Cycle({
   singleModel,
 }: {
   cycle: CycleData
-  index: number
   source: SessionSource
   rates: TokenRates | null
   unitMode: UsageUnitMode
@@ -64,18 +62,10 @@ export default function Cycle({
   // Whole-cycle raw view: swaps every card in this cycle for the untouched records
   // behind them. Same idea as a step's Raw JSON switch, one level up.
   const [rawCycle, setRawCycle] = useState(false)
-  const detailsRef = useRef<HTMLDetailsElement>(null)
   const rawItems = useMemo(() => (rawCycle ? cycle.items.map((entry) => entry.item) : []), [rawCycle, cycle])
-  const toggleRaw = (event: React.MouseEvent) => {
-    // The button lives inside <summary>, whose default click collapses the cycle —
-    // exactly the wrong outcome when you are asking to SEE its raw body.
-    event.preventDefault()
-    event.stopPropagation()
-    setRawCycle((prev) => {
-      if (!prev && detailsRef.current) detailsRef.current.open = true
-      return !prev
-    })
-  }
+  // The button now sits in the body, so it no longer has to fight <summary>'s
+  // click-to-collapse — the cycle is already open whenever it is reachable.
+  const toggleRaw = () => setRawCycle((prev) => !prev)
   // Accordion: expanding a step row closes this cycle's other open steps, unless the
   // owner opted out in settings. `toggle` doesn't bubble, so listen in capture phase.
   const keepStepsOpen = useKarin((s) => s.keepStepsOpen)
@@ -171,13 +161,12 @@ export default function Cycle({
   }
   flushBands()
 
+  // No border or ring: a card per cycle drew a grid of outlines down the page. The card
+  // is defined by its fill alone, and lifts on hover or once opened.
   return (
     <details
-      ref={detailsRef}
-      className={`cycle group mb-[3px] rounded-md border shadow-sm shadow-neutral-950/[0.02] transition-[margin] open:mb-[11px] open:shadow-md ${
-        contextOnly
-          ? 'border-neutral-200/70 bg-neutral-50/50 dark:border-neutral-800/70 dark:bg-neutral-900/40'
-          : 'border-neutral-200 bg-white open:border-neutral-300 open:ring-1 open:ring-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/80 dark:open:border-neutral-700 dark:open:ring-neutral-800'
+      className={`cycle group mb-[3px] rounded-md transition-[margin,box-shadow] open:mb-[11px] hover:shadow-md open:shadow-md ${
+        contextOnly ? 'bg-neutral-50/50 dark:bg-neutral-900/40' : 'bg-white dark:bg-neutral-900/80'
       }`}
     >
       <summary className="flex cursor-pointer select-none flex-col gap-[3px] rounded-t-md px-1 py-[3px] text-xs [&::-webkit-details-marker]:hidden hover:bg-neutral-50 group-open:sticky group-open:top-0 group-open:z-10 group-open:border-b group-open:border-neutral-200 group-open:bg-white/95 group-open:backdrop-blur dark:hover:bg-neutral-800/60 dark:group-open:border-neutral-800 dark:group-open:bg-neutral-900/95">
@@ -187,10 +176,9 @@ export default function Cycle({
             {effort && <span>· {effort}</span>}
           </div>
         )}
+        {/* No ordinal badge: the cycles are already in order down the page, so a number
+            on each one was a column of noise beside every prompt. */}
         <div className="flex min-w-0 items-center gap-1">
-          <span className="shrink-0 rounded-sm bg-neutral-100 px-[2px] py-[1px] font-mono text-[0.68rem] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-            {index + 1}
-          </span>
           {origin !== 'context' && origin !== 'prompt' && !contextOnly && (
             <span className={`shrink-0 rounded-sm px-[2px] py-[1px] text-[0.62rem] font-medium uppercase tracking-wide ${ORIGIN_TAG[origin].cls}`}>
               {ORIGIN_TAG[origin].label}
@@ -206,12 +194,25 @@ export default function Cycle({
           >
             {prompt}
           </span>
+        </div>
+        {/* Step count and token squares read as one measurement of the cycle's size, so
+            they share a line — the count first, then the weight it produced. */}
+        <div className="flex min-w-0 items-center gap-1.5">
           <span
             className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
             title="Meaningful AI work entries in this cycle"
           >
             {stepCount} {stepCount === 1 ? 'step' : 'steps'}
           </span>
+          {hasUsage && (
+            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenMult={tokenMult} tokenRef={tokenRef} compact bare showLegend={false} scaleMax={scaleMax} />
+          )}
+        </div>
+      </summary>
+      <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
+        {/* The raw switch lives INSIDE the cycle, next to what it changes — in the header
+            it sat on every collapsed row competing with the prompt for attention. */}
+        <div className="mb-[3px] flex justify-end">
           <button
             type="button"
             onClick={toggleRaw}
@@ -226,11 +227,6 @@ export default function Cycle({
             {rawCycle ? 'Structured' : 'JSON'}
           </button>
         </div>
-        {hasUsage && (
-          <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact showLegend={false} scaleMax={scaleMax} />
-        )}
-      </summary>
-      <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         {rawCycle ? (
           <div className="max-h-[36rem] overflow-y-auto rounded-md bg-white dark:bg-neutral-950">
@@ -244,7 +240,7 @@ export default function Cycle({
         {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}
         <div className="mt-[3px] flex items-center gap-[3px] px-[1px] text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
           <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-          end of cycle {index + 1}
+          end of cycle
           <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
         </div>
       </div>

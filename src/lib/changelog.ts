@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.190',
+    title: 'Quieter cycle cards',
+    summary: 'Cycles lose their ordinals, outlines and bar tracks; the step count moves beside the token squares and JSON moves inside.',
+    detail:
+      'Each cycle carried an ordinal badge, a full-width grey track behind a few token squares, and a JSON button competing with the prompt — three kinds of furniture around one line of text. The ordinals are gone since the cycles are already in order, the track is gone so only the squares remain, and the JSON switch now lives inside the expanded cycle next to what it changes. The step count sits beside the squares as one measure of size, and the card is defined by its fill alone, lifting on hover or once opened rather than carrying a permanent outline.',
+  },
+  {
     version: 'v.189',
     title: 'Bands show tokens, reads show content',
     summary: 'Context and claude band headers carry token squares, the user label is gone, and a read is just its path and content.',

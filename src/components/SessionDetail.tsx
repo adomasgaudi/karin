@@ -510,7 +510,6 @@ export default function SessionDetail() {
                     // on the element).
                     key={`c${cycle.startLine}`}
                     cycle={cycle}
-                    index={i}
                     source={s.source}
                     rates={cycleRates}
                     unitMode={unitMode}
