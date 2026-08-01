@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.179',
+    title: 'Booleans and shorter paths',
+    summary: 'true/false are shown as written, and paths inside the project drop the project prefix.',
+    detail:
+      'Booleans were being rewritten as yes/no, which simplifies nothing — they are already plain English — and quietly changed what the record said. They now render exactly as recorded. File paths inside the session’s working directory drop everything up to and including the project folder, since that prefix is identical for every file; paths outside the project keep every segment, because there the location is the point. A shortened path keeps its full value in the tooltip.',
+  },
+  {
     version: 'v.178',
     title: 'Raw JSON is a viewer',
     summary: 'Every raw view is now a collapsible tree instead of a stringify dump — no braces, commas or quotes.',

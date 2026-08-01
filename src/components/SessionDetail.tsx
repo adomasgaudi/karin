@@ -29,6 +29,7 @@ import LocalSummary from './LocalSummary'
 import UsageBar from './UsageBar'
 import SourceBadge from './SourceBadge'
 import RecordRow from './RecordRow'
+import { WorkspaceRootContext } from './JsonView'
 
 // structured = the rendered cycles · raw = per-record rows · json = the untouched
 // feed records dumped as JSONL, no formatting of any kind.
@@ -225,6 +226,9 @@ export default function SessionDetail() {
   }
 
   return (
+    // Publishing this session's working directory lets every value tree drop the project
+    // prefix from paths inside it, while paths elsewhere on disk stay complete.
+    <WorkspaceRootContext.Provider value={s.cwd}>
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <div className="shrink-0 border-b border-neutral-200/80 bg-white/90 p-3 shadow-sm shadow-neutral-950/[0.03] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
         <div className="flex min-w-0 items-start gap-2">
@@ -524,5 +528,6 @@ export default function SessionDetail() {
         )}
       </div>
     </div>
+    </WorkspaceRootContext.Provider>
   )
 }
