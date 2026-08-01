@@ -20,6 +20,14 @@ const VAL = 'min-w-0 font-mono text-[0.68rem] break-words text-neutral-800 dark:
 const BLOCK_AT = 90
 const CLAMP_AT = 1200
 
+// Terminal tools frequently return ANSI colour/cursor sequences. They are useful
+// in a terminal but become visible control-code noise in a transcript.
+const ANSI_ESCAPE = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*)?\u0007)|(?:(?:\d{1,4}(?:[;:]\d{0,4})*)?[ -/]*[@-~]))/g
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_ESCAPE, '')
+}
+
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
@@ -68,7 +76,7 @@ function Scalar({ k, v }: { k: string; v: unknown }) {
   if (typeof v === 'number')
     return <span className="font-mono text-[0.68rem] tabular-nums text-sky-700 dark:text-sky-300">{v.toLocaleString()}</span>
 
-  const s = String(v)
+  const s = stripAnsi(String(v))
   const hint = clockHint(k, s)
   return (
     <span className={VAL}>
@@ -82,8 +90,9 @@ function Scalar({ k, v }: { k: string; v: unknown }) {
 // 40 KB tool result can't bury the rest of the record.
 function TextBlock({ text }: { text: string }) {
   const [full, setFull] = useState(false)
-  const long = text.length > CLAMP_AT
-  const shown = full || !long ? text : text.slice(0, CLAMP_AT)
+  const cleanText = stripAnsi(text)
+  const long = cleanText.length > CLAMP_AT
+  const shown = full || !long ? cleanText : cleanText.slice(0, CLAMP_AT)
   return (
     <div className="mt-0.5">
       <p className="whitespace-pre-wrap break-words font-mono text-[0.68rem] leading-relaxed text-neutral-800 dark:text-neutral-100">
@@ -96,7 +105,7 @@ function TextBlock({ text }: { text: string }) {
           onClick={() => setFull((f) => !f)}
           className="mt-0.5 text-[0.62rem] text-neutral-400 underline hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300"
         >
-          {full ? 'show less' : `show all ${text.length.toLocaleString()} chars`}
+          {full ? 'show less' : `show all ${cleanText.length.toLocaleString()} chars`}
         </button>
       )}
     </div>
@@ -232,7 +241,7 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
 // attachments, Codex tool arguments. Render those as a tree too; anything that
 // isn't JSON stays verbatim text.
 export function MaybeJson({ text, className }: { text: string | null | undefined; className?: string }) {
-  const body = text ?? ''
+  const body = stripAnsi(text ?? '')
   const t = body.trim()
   if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
     try {

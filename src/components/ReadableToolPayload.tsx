@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import JsonView from './JsonView'
+import JsonView, { stripAnsi } from './JsonView'
 
 type Obj = Record<string, unknown>
 
@@ -312,7 +312,7 @@ function textBlocks(value: unknown): string[] | null {
 }
 
 function executionText(text: string): { text: string | null; metadata: Array<[string, string]> } {
-  const lines = text.split(/\r?\n/)
+  const lines = stripAnsi(text).split(/\r?\n/)
   const metadata: Array<[string, string]> = []
   const body: string[] = []
   let inBody = false
@@ -363,7 +363,8 @@ function executionText(text: string): { text: string | null; metadata: Array<[st
 
 export function parseToolOutput(raw: string | null | undefined): ToolOutputParts {
   if (!raw) return { structured: null, text: null, metadata: [] }
-  const parsed = parseLoosePayload(raw)
+  const clean = stripAnsi(raw)
+  const parsed = parseLoosePayload(clean)
   if (parsed !== null) {
     const blocks = textBlocks(parsed)
     if (blocks) {
@@ -372,13 +373,13 @@ export function parseToolOutput(raw: string | null | undefined): ToolOutputParts
     }
     return { structured: parsed, text: null, metadata: [] }
   }
-  return { structured: null, ...executionText(raw) }
+  return { structured: null, ...executionText(clean) }
 }
 
 function renderScalar(value: unknown, raw: string) {
-  if (typeof value === 'string') return <pre className={preClass}>{value}</pre>
+  if (typeof value === 'string') return <pre className={preClass}>{stripAnsi(value)}</pre>
   if (value !== null && value !== undefined) return <JsonView value={value} />
-  return <pre className={preClass}>{raw}</pre>
+  return <pre className={preClass}>{stripAnsi(raw)}</pre>
 }
 
 function readableToolName(name: string): string {
@@ -389,7 +390,7 @@ function readableToolName(name: string): string {
 }
 
 function renderInputValue(value: unknown | null, raw: string) {
-  return value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{raw || '(no arguments)'}</pre>
+  return value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{stripAnsi(raw) || '(no arguments)'}</pre>
 }
 
 export function ReadableToolInput({ toolName, argumentsText, value }: { toolName?: string; argumentsText?: string; value?: unknown }) {
@@ -436,7 +437,7 @@ export function ReadableToolOutput({ output }: { output: string | null | undefin
         </div>
       )}
       {parts.structured !== null && <Section label="Data"><JsonView value={parts.structured} /></Section>}
-      {parts.text && <Section label={parts.metadata.some(([key]) => key.toLowerCase() === 'status') ? 'Output' : 'Text'}><pre className={preClass}>{parts.text}</pre></Section>}
+      {parts.text && <Section label={parts.metadata.some(([key]) => key.toLowerCase() === 'status') ? 'Output' : 'Text'}><pre className={preClass}>{stripAnsi(parts.text)}</pre></Section>}
       {!parts.structured && !parts.text && parts.metadata.length === 0 && <div className="text-xs italic text-neutral-400 dark:text-neutral-500">no output</div>}
     </div>
   )

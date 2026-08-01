@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.134',
+    title: 'Clean terminal diffs',
+    summary: 'ANSI control codes are removed, and added or removed code lines now receive clear editor-style highlighting.',
+  },
+  {
     version: 'v.133',
     title: 'Read every tool input',
     summary: 'All nested tool calls now render as readable sections, including multiple calls and locally defined arguments.',

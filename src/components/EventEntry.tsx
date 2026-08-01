@@ -23,7 +23,7 @@ import {
 } from '../lib/pricing'
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
-import JsonView, { MaybeJson } from './JsonView'
+import JsonView, { MaybeJson, stripAnsi } from './JsonView'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { looksLikeStructuredContext } from './BaseInstructions'
@@ -505,7 +505,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row num={num} title={<KindTitle kind="edit" name={item.name} />} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Patch</div>
-          <pre className={preClass}>{item.patch}</pre>
+          <DiffView structured={null} patch={stripAnsi(item.patch)} />
           {item.result && (
             <>
               <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Result</div>

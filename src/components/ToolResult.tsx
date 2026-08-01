@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ClaudeTool } from '../lib/claudeModel'
-import { MaybeJson } from './JsonView'
+import { MaybeJson, stripAnsi } from './JsonView'
+import { DiffLines } from './DiffView'
 import { ReadableToolInput, ReadableToolValue } from './ReadableToolPayload'
 
 // Structural renderer for a Claude tool_use result. Dispatches on `tool.name` to render
@@ -20,7 +21,7 @@ const diffPreClass =
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v)
 const isArr = (v: unknown): v is unknown[] => Array.isArray(v)
-const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v))
+const str = (v: unknown): string => stripAnsi(typeof v === 'string' ? v : v == null ? '' : String(v))
 const get = (v: unknown, key: string): unknown => (isObj(v) ? v[key] : undefined)
 
 function prettyJson(v: unknown): string {
@@ -106,21 +107,7 @@ function DiffView({ hunks }: { hunks: Hunk[] }) {
           return (
             <div key={hi}>
               <div className="whitespace-pre text-cyan-700 dark:text-cyan-400">{header}</div>
-              {lines.map((raw, li) => {
-                const line = str(raw)
-                const c = line[0]
-                const cls =
-                  c === '+'
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : c === '-'
-                      ? 'text-red-700 dark:text-red-400'
-                      : 'text-neutral-600 dark:text-neutral-400'
-                return (
-                  <div key={li} className={`whitespace-pre ${cls}`}>
-                    {line || ' '}
-                  </div>
-                )
-              })}
+              <DiffLines lines={lines.map((raw) => str(raw))} />
             </div>
           )
         })}
