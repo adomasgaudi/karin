@@ -15,12 +15,10 @@ where <project-slug> is a filesystem path with separators replaced by "-".
 from __future__ import annotations
 
 import argparse
-import ctypes
 import json
 import os
 import re
 import shutil
-import threading
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -28,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from watch_lock import acquire_watch_lock
+from watch_signal import start_change_signal
 
 
 CLAUDE_HOME = Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude"))
@@ -832,9 +831,11 @@ def attach_title_ops(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         op["session_kind"] = "title-op"
         parent = find_parent(op)
         if parent is None:
+            op.setdefault("title_ops", [])
             normals.append(op)  # nothing to attach to — keep it visible
             continue
         op["parent_session_id"] = parent.get("id")
+        parent.setdefault("title_ops", [])
         parent["title_ops"].append(op)
     for s in normals:
         if s.get("title_ops"):
@@ -1082,38 +1083,6 @@ def index_once(limit: int | None, project_substr: str | None) -> dict[str, Any]:
     return payload
 
 
-def start_change_signal() -> "threading.Event | None":
-    """Set an Event whenever anything under projects/ changes, via the OS.
-
-    ReadDirectoryChangesW wakes us in ~8ms and costs nothing while idle, so the
-    watch loop does not have to poll fast to be fast. Returns None if the watch
-    cannot be armed (non-Windows, permissions) — the caller then just polls.
-    """
-    try:
-        from tail_session import open_dir, changed_names  # same dir; Windows-only
-    except Exception:
-        return None
-    try:
-        handle = open_dir(PROJECTS_DIR)
-    except Exception:
-        return None
-
-    signal = threading.Event()
-
-    def pump() -> None:
-        buf = ctypes.create_string_buffer(64 * 1024)
-        while True:
-            try:
-                names = changed_names(handle, buf, subtree=True)
-            except OSError:
-                return  # watch died; the loop's interval fallback takes over
-            if any(name.endswith(".jsonl") for name in names):
-                signal.set()
-
-    threading.Thread(target=pump, daemon=True).start()
-    return signal
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Index local Claude Code sessions for the Karin web app.")
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
@@ -1140,7 +1109,7 @@ def main() -> int:
         if args.watch:
             last_mtime = latest_session_mtime(args.project)
             last_status_at = 0.0
-            signal = start_change_signal()
+            signal = start_change_signal(PROJECTS_DIR)
             print(f"WATCH:  {'events (ReadDirectoryChangesW)' if signal else 'polling'}"
                   f", interval {args.interval}s", flush=True)
             while True:

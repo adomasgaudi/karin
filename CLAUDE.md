@@ -16,6 +16,15 @@ A local AI-session viewer. **React 19 + Vite 6 + TypeScript + Tailwind v4**, sta
 Zustand. It loads token-usage / prompt / tool data and renders it as sessions → cycles →
 events with usage bars. Transcripts stay on the machine.
 
+## Claude–Codex SSOT contract (read before every delegated task)
+
+Before editing or reviewing Karin, every new agent must read
+`docs/CLAUDE-CODEX-SSOT-HANDOFF.md`. Claude and Codex are two source adapters feeding
+one `UnifiedSession`, one cycle builder, and one renderer. Source-specific branches are
+allowed only for genuine schema differences; a feature introduced on one source must be
+checked against the other before it is committed. Never add a second source-specific
+page or component when the shared path can carry the behavior.
+
 **Three sources, one framework** (`SessionSource = 'codex' | 'claude' | 'warp'`). Never
 build a per-AI UI: each source has its own indexer that emits a JSON feed, an adapter into
 the shared `UnifiedSession`, and then flows through one cycle builder and one renderer.

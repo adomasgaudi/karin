@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.214',
+    title: 'Delegated SSOT handoff',
+    summary: 'The project now records the Claude–Codex contract and requires every new agent to read it before editing.',
+  },
+  {
     version: 'v.213',
     title: 'Stable centered navigation',
     summary: 'The burger menu no longer shifts layout, scrollbars disappear, and freshness stays centered in the nav.',

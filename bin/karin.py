@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from watch_lock import acquire_watch_lock
+from watch_signal import start_change_signal
 
 
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -791,8 +792,15 @@ def main() -> int:
         if args.watch:
             last_mtime = latest_source_mtime()
             last_status_write = 0.0
+            signal = start_change_signal(CODEX_HOME)
+            print(f"WATCH:  {'events (ReadDirectoryChangesW)' if signal else 'polling'}"
+                  f", interval {args.interval}s", flush=True)
             while True:
-                time.sleep(max(args.interval, 0.1))
+                if signal is not None:
+                    signal.wait(timeout=max(args.interval, 1.0))
+                    signal.clear()
+                else:
+                    time.sleep(max(args.interval, 0.1))
                 files = iter_session_files()
                 now = time.monotonic()
                 if now - last_status_write >= max(args.status_interval, 0.25):

@@ -362,6 +362,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   // view shows its normal empty state until it resolves. Batched so a hundred sessions
   // don't open a hundred simultaneous requests.
   hydrateAll: async () => {
+    let feedReplacedWhileHydrating = false
     const codex = get().codex
     if (codex?.split) {
       const pending = codex.sessions.filter((s) => needsHydration('codex', s as unknown as Record<string, unknown>))
@@ -373,6 +374,8 @@ export const useKarin = create<KarinStore>((set, get) => ({
       if (filled.size && get().codex === codex) {
         const next = { ...codex, sessions: codex.sessions.map((s) => filled.get(s.id) ?? s) }
         set((st) => ({ codex: next, ...derive(next, st.claude, st.warp, st.selectedUid) }))
+      } else if (get().codex !== codex) {
+        feedReplacedWhileHydrating = true
       }
     }
 
@@ -394,9 +397,14 @@ export const useKarin = create<KarinStore>((set, get) => ({
           })),
         }
         set((st) => ({ claude: next, ...derive(st.codex, next, st.warp, st.selectedUid) }))
+      } else if (get().claude !== claude) {
+        feedReplacedWhileHydrating = true
       }
     }
-    hydratedAll = true
+    // A live feed can replace the index while this batch is in flight. Do not mark the
+    // stale snapshot complete: immediately retry against the new identity/body set.
+    hydratedAll = !feedReplacedWhileHydrating
+    if (feedReplacedWhileHydrating) void get().hydrateAll()
   },
 
   reset: async () => {
