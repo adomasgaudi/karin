@@ -391,11 +391,25 @@ function OutputBody({ tool }: { tool: ClaudeTool }) {
   }
 }
 
+// Edit-family inputs repeat what the result diff already shows (find/replace, file
+// content), so with a result present only the small metadata (file, replace all, …)
+// remains worth rendering. Without a result the full input is still the only record.
+const EDIT_INPUT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
+const BULKY_EDIT_KEYS = new Set(['old_string', 'new_string', 'content', 'edits', 'new_source'])
+
 export default function ToolResult({ tool }: { tool: ClaudeTool }) {
+  const slimInput =
+    EDIT_INPUT_TOOLS.has(tool.name) && tool.result && isObj(tool.input)
+      ? Object.fromEntries(Object.entries(tool.input).filter(([key]) => !BULKY_EDIT_KEYS.has(key)))
+      : null
   return (
     <div className="space-y-2">
       <Section label="Input">
-        <ReadableToolInput toolName={tool.name} argumentsText={tool.arguments} value={tool.input} />
+        {slimInput ? (
+          <ReadableToolValue value={slimInput} />
+        ) : (
+          <ReadableToolInput toolName={tool.name} argumentsText={tool.arguments} value={tool.input} />
+        )}
       </Section>
       <OutputBody tool={tool} />
     </div>

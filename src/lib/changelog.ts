@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.170',
+    title: 'Edit input trimmed to diff',
+    summary: 'Edit tool rows keep the file and replace-all metadata but drop the find/replace blocks the diff already shows.',
+    detail:
+      'An Edit/Write/MultiEdit row rendered its find and replace-with strings in the Input section and then the same change again as the result diff. With a result present, the input now shows only the small metadata (file, replace all, …) and the diff carries the change. Without a result the full input still renders.',
+  },
+  {
     version: 'v.169',
     title: 'Steps auto-close',
     summary: 'Expanding a step inside a cycle closes its other open steps; a setting keeps them open instead.',
