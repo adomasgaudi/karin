@@ -13,13 +13,13 @@ const labelClass = 'text-xs font-semibold text-neutral-600 dark:text-neutral-300
 
 const SIMPLE_SYSTEM = [
   'You simplify coding-tool inputs for a developer reading an AI session transcript.',
-  'Return a near-identical, concise walkthrough, not a vague summary.',
+  'Return a prettier, near-identical command walkthrough, not the original JSON wrapper and not a vague summary.',
   'Keep every meaningful step, order, path, filename, search pattern, flag, literal, and command argument.',
-  'Replace only noisy syntax or unfamiliar wrappers with intuitive uppercase keywords such as READ FILE, RUN COMMAND, SEARCH TEXT, EDIT FILE, or RUN IN PARALLEL.',
-  'Keep the original path, command, or value in parentheses when replacing it could lose meaning.',
-  'Start with exactly one short sentence beginning "What it does:" (18 words maximum).',
-  'Then use one short line per meaningful original step. Do not invent results, edits, or intent.',
-  'Output only the simplified text, with no markdown fence and no preamble.',
+  'Keep recognizable command keywords such as Get-Content, ForEach-Object, Select-Object, Test-Path, and their original order.',
+  'Format the steps across readable lines, using arrows or short annotations only when they clarify the same step.',
+  'Do not replace a precise keyword with a broader word when the keyword makes the source easier to track.',
+  'Output exactly two sections: CODE: followed by the formatted walkthrough, then EXPLANATION: followed by one sentence under 20 words.',
+  'Do not add markdown fences, a preamble, invented results, edits, or intent.',
 ].join(' ')
 
 const SIMPLE_INPUT_LIMIT = 18_000
@@ -33,11 +33,53 @@ function promptInput(raw: string): string {
 }
 
 function prettyInput(value: unknown, fallback: string): string {
-  if (typeof value === 'string') return value
+  if (typeof value === 'string') {
+    const parsed = parseLoosePayload(value)
+    if (isBranch(parsed)) {
+      try {
+        return JSON.stringify(parsed, null, 2) || fallback
+      } catch {
+        return value
+      }
+    }
+    return value
+  }
   try {
     return JSON.stringify(value, null, 2) || fallback
   } catch {
     return fallback
+  }
+}
+
+interface SimpleParts {
+  code: string
+  explanation: string
+}
+
+function removeMarkdownFence(text: string): string {
+  return text
+    .trim()
+    .replace(/^```(?:\w+)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+}
+
+function underTwentyWords(text: string): string {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  return words.slice(0, 19).join(' ')
+}
+
+function parseSimpleParts(text: string): SimpleParts {
+  const cleaned = text.replace(/\r/g, '').trim()
+  const explanationMarker = /(?:^|\n)\s*(?:EXPLANATION|WHAT IT DOES):\s*/i.exec(cleaned)
+  if (!explanationMarker) {
+    return { code: removeMarkdownFence(cleaned.replace(/^\s*CODE:\s*/i, '')), explanation: '' }
+  }
+  const code = cleaned.slice(0, explanationMarker.index).replace(/^\s*CODE:\s*/i, '')
+  const explanation = cleaned.slice(explanationMarker.index + explanationMarker[0].length)
+  return {
+    code: removeMarkdownFence(code),
+    explanation: underTwentyWords(explanation),
   }
 }
 
@@ -101,10 +143,11 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
 
   if (!raw.trim()) return <>{original}</>
 
-  const shown = mode === 'simple' && (simple || draft) ? simple || draft : ''
-  const annotation = mode === 'simple' && (shown || busy) ? (
+  const simpleParts = parseSimpleParts(simple || draft)
+  const simpleCode = simpleParts.code || (busy ? 'Formatting…' : '')
+  const annotation = mode === 'simple' && (simpleParts.explanation || busy) ? (
     <div className="border-t border-neutral-200/70 pt-1 font-sans text-[0.68rem] leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-      {shown || 'Simplifying…'}{busy && shown && <span className="animate-pulse text-neutral-400">▍</span>}
+      {simpleParts.explanation || 'Writing a short explanation…'}{busy && simpleParts.explanation && <span className="animate-pulse text-neutral-400">▍</span>}
     </div>
   ) : null
   return (
@@ -126,7 +169,12 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
           {busy ? 'Simplifying…' : 'Simple'}
         </button>
       </div>
-      {mode === 'simple' ? <div className="space-y-2">{original}{annotation}</div> : original}
+      {mode === 'simple' ? (
+        <div className="space-y-2">
+          <pre className={`${preClass} whitespace-pre-wrap break-words`}>{simpleCode}</pre>
+          {annotation}
+        </div>
+      ) : original}
       {mode === 'simple' && error && <div className="text-[0.65rem] text-red-600 dark:text-red-400">{error}</div>}
     </div>
   )
@@ -499,9 +547,13 @@ export function parseToolOutput(raw: string | null | undefined): ToolOutputParts
 }
 
 function renderScalar(value: unknown, raw: string) {
-  if (typeof value === 'string') return <pre className={preClass}>{stripAnsi(value)}</pre>
+  if (typeof value === 'string') {
+    const parsed = parseLoosePayload(value)
+    if (isBranch(parsed)) return <JsonView value={parsed} />
+    return <pre className={`${preClass} whitespace-pre-wrap break-words`}>{stripAnsi(value)}</pre>
+  }
   if (value !== null && value !== undefined) return <JsonView value={value} />
-  return <pre className={preClass}>{stripAnsi(raw)}</pre>
+  return <pre className={`${preClass} whitespace-pre-wrap break-words`}>{stripAnsi(raw)}</pre>
 }
 
 function readableToolName(name: string): string {
@@ -512,7 +564,7 @@ function readableToolName(name: string): string {
 }
 
 function renderInputValue(value: unknown | null, raw: string) {
-  const original = value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{stripAnsi(raw) || '(no arguments)'}</pre>
+  const original = value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={`${preClass} whitespace-pre-wrap break-words`}>{stripAnsi(raw) || '(no arguments)'}</pre>
   return <SimplifiableInput raw={raw} original={original} />
 }
 

@@ -19,6 +19,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.153',
+    title: 'Format tool simplification',
+    summary: 'Original inputs now wrap cleanly, while Simple mode preserves command keywords in a formatted walkthrough under twenty words.',
+  },
+  {
+    version: 'v.152',
+    title: 'Format long context',
+    summary: 'Instruction-heavy messages now split into readable sections with paragraphs, lists, inline code, and fenced blocks.',
+    detail:
+      'Flattened startup payloads can preserve headings and XML tags on one line, which used to collapse an entire AGENTS.md or environment message into a wall of text. Karin now restores those boundaries before sectioning and renders each section with readable paragraphs, lists, inline code, and dedicated code blocks. Fenced code remains protected from false heading detection.',
+  },
+  {
     version: 'v.151',
     title: 'Keep original tool input',
     summary: 'Simple mode now keeps the original payload and places Qwen’s smaller gray annotation underneath.',
