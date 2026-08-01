@@ -73,6 +73,19 @@ function underTwentyWords(text: string): string {
   return words.slice(0, 19).join(' ')
 }
 
+// Models (DeepSeek especially) like to echo the original, add a "**Simplified:**"
+// label, or quote their answer despite the prompt. Keep only the simplified text.
+function extractSimplified(text: string): string {
+  const cleaned = removeMarkdownFence(text.replace(/\r/g, ''))
+  const markerSplit = cleaned.split(/(?:^|\n)\s*\*{0,2}\s*Simplified(?:\s+version)?\s*:?\s*\*{0,2}\s*/i)
+  let out = markerSplit[markerSplit.length - 1].trim()
+  out = out.replace(/\*\*/g, '').trim()
+  // Drop wrapping quotes only when they enclose the whole answer.
+  const quoted = /^(["'`])([\s\S]*)\1$/.exec(out)
+  if (quoted) out = quoted[2].trim()
+  return out
+}
+
 function parseSimpleParts(text: string): SimpleParts {
   const cleaned = text.replace(/\r/g, '').trim()
   const explanationMarker = /(?:^|\n)\s*(?:EXPLANATION|WHAT IT DOES):\s*/i.exec(cleaned)
@@ -114,7 +127,7 @@ async function generateSimple(
   onToken?: (chunk: string) => void,
 ): Promise<string> {
   const result = await generate(
-    `Simplify this coding-tool input. Preserve its useful details.\n\n${promptInput(text)}`,
+    `Simplify this coding-tool input. Preserve its useful details. Reply with ONLY the simplified version — do not repeat the original, no "Simplified:" label, no surrounding quotes, no markdown, no explanation.\n\n${promptInput(text)}`,
     {
       provider,
       system: `${SIMPLE_SYSTEM} ${SIMPLE_PROVIDER_GUIDANCE[provider]}`,
@@ -237,7 +250,7 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
 
   const simpleParts = parseSimpleParts(simple || draft)
   const providerLabel = SIMPLIFIER_PROVIDERS.find((item) => item.id === provider)?.label || provider
-  const simpleCode = simpleParts.code || (busy ? 'Waiting for the first token…' : '')
+  const simpleCode = extractSimplified(simpleParts.code) || (busy ? 'Waiting for the first token…' : '')
   const annotation = mode === 'simple' && (simpleParts.explanation || busy) ? (
     <div className="border-t border-neutral-200/70 pt-1 font-sans text-[0.68rem] leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
       {busy ? `${providerLabel} · ${formatEta(progress?.etaMs ?? null)} · ${formatElapsed(progress?.elapsedMs ?? 0)}` : simpleParts.explanation}
@@ -830,11 +843,13 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
       />
       <div className="space-y-1">
         <div className={labelClass}>Command · {steps.length} step{steps.length === 1 ? '' : 's'}</div>
-        <div className="space-y-1">
+        {/* In simplified mode a left outline marks the list as the SAME box as the
+            original — the rows change wording, not identity. */}
+        <div className={mode === 'simple' ? 'space-y-1 border-l-2 border-amber-300/80 pl-1.5 dark:border-amber-700/60' : 'space-y-1'}>
           {steps.map((step, index) => {
             const state = states[index]
             const simple = mode === 'simple' && state ? state : null
-            const simpleCode = simple ? parseSimpleParts(simple.text || simple.draft).code : ''
+            const simpleCode = simple ? extractSimplified(parseSimpleParts(simple.text || simple.draft).code) : ''
             return (
               <div key={`${index}-${step}`} className="flex items-start gap-2 px-1 py-1">
                 <span className="mt-0.5 shrink-0 rounded-sm bg-neutral-200/80 px-1 font-mono text-[0.6rem] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">{index + 1}</span>

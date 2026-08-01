@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.166',
+    title: 'Clean simplified steps',
+    summary: 'Simplified steps now show only the simplified text, keep their numbers, and carry a left outline.',
+    detail:
+      'Model replies that echoed the original command, added a "Simplified:" label, or wrapped the answer in quotes are stripped at render time — cached answers included — and the prompt now forbids them outright. The simplified list keeps its step numbers and gains an amber left outline marking it as the same box as the original.',
+  },
+  {
     version: 'v.165',
     title: 'Per-step simplification',
     summary: 'Shell commands split into steps now simplify each step with its own model request.',
