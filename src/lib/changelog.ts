@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.172',
+    title: 'One square size everywhere',
+    summary: 'Cycle usage bars now use the same block height as the sidebar session rows.',
+    detail:
+      'Compact bars inside a session drew their cent dots and ten-cent boxes at six pixels tall while the sidebar drew ten — the same money read as two different sizes. Compact non-inline bars now share the sidebar height, so a ten-cent square is one size across the app.',
+  },
+  {
     version: 'v.171',
     title: 'JSON mode in simplifier',
     summary: 'A JSON button in the simplifier row shows the exact source-feed payload verbatim.',

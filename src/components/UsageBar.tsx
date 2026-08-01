@@ -154,7 +154,9 @@ export default function UsageBar({
       ? `total ${fmtCompact(total)}${refSuffix}`
       : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`
   const hoverTitle = estimated ? `≈ estimated ${totalLabel}` : totalLabel
-  const blockHeight = thin ? 'h-[3px]' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-1.5' : 'h-1.5'
+  // Compact bars (cycle summaries) use the SAME block height as the sidebar's session
+  // rows (h-2.5), so a ten-cent box reads as one size everywhere.
+  const blockHeight = thin ? 'h-[3px]' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-2.5' : 'h-1.5'
   const hasBlocks = valuedSegments.length > 0 && blockTotal > 0
   if (thin && !hasBlocks) return null
 
