@@ -56,10 +56,13 @@ def open_dir(path: Path) -> wintypes.HANDLE:
     return handle
 
 
-def changed_names(handle: wintypes.HANDLE, buf: ctypes.Array) -> list[str]:
-    """Block until the directory changes; return the file names reported."""
+def changed_names(handle: wintypes.HANDLE, buf: ctypes.Array, subtree: bool = False) -> list[str]:
+    """Block until the directory changes; return the file names reported.
+
+    With subtree=True the names are relative paths below the watched directory.
+    """
     returned = wintypes.DWORD(0)
-    ok = kernel32.ReadDirectoryChangesW(handle, buf, len(buf), False, WATCH_FLAGS,
+    ok = kernel32.ReadDirectoryChangesW(handle, buf, len(buf), subtree, WATCH_FLAGS,
                                         ctypes.byref(returned), None, None)
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())

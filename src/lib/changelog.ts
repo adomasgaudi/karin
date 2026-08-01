@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.181',
+    title: 'The watcher stops polling',
+    summary: 'Windows now wakes the indexer the moment a transcript changes, instead of it asking four times a second.',
+    detail:
+      'Polling is a compromise: check often and you burn a core doing nothing, check rarely and you are slow. ReadDirectoryChangesW removes the choice — the OS wakes the process when anything under the projects folder is written, measured at 8ms, and costs nothing while idle. The interval survives as a fallback heartbeat, and if the watch cannot be armed the old polling loop still runs, so nothing depends on it succeeding. What remains of the delay is now re-indexing, not noticing.',
+  },
+  {
     version: 'v.180',
     title: 'Live in under a second',
     summary: 'A new message reaches the page in ~0.6s instead of ~10s — both polls were slow, and so was re-indexing.',

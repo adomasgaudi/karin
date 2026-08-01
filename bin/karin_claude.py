@@ -15,10 +15,12 @@ where <project-slug> is a filesystem path with separators replaced by "-".
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import os
 import re
 import shutil
+import threading
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -1037,6 +1039,38 @@ def index_once(limit: int | None, project_substr: str | None) -> dict[str, Any]:
     return payload
 
 
+def start_change_signal() -> "threading.Event | None":
+    """Set an Event whenever anything under projects/ changes, via the OS.
+
+    ReadDirectoryChangesW wakes us in ~8ms and costs nothing while idle, so the
+    watch loop does not have to poll fast to be fast. Returns None if the watch
+    cannot be armed (non-Windows, permissions) — the caller then just polls.
+    """
+    try:
+        from tail_session import open_dir, changed_names  # same dir; Windows-only
+    except Exception:
+        return None
+    try:
+        handle = open_dir(PROJECTS_DIR)
+    except Exception:
+        return None
+
+    signal = threading.Event()
+
+    def pump() -> None:
+        buf = ctypes.create_string_buffer(64 * 1024)
+        while True:
+            try:
+                names = changed_names(handle, buf, subtree=True)
+            except OSError:
+                return  # watch died; the loop's interval fallback takes over
+            if any(name.endswith(".jsonl") for name in names):
+                signal.set()
+
+    threading.Thread(target=pump, daemon=True).start()
+    return signal
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Index local Claude Code sessions for the Karin web app.")
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
@@ -1063,8 +1097,17 @@ def main() -> int:
         if args.watch:
             last_mtime = latest_session_mtime(args.project)
             last_status_at = 0.0
+            signal = start_change_signal()
+            print(f"WATCH:  {'events (ReadDirectoryChangesW)' if signal else 'polling'}"
+                  f", interval {args.interval}s", flush=True)
             while True:
-                time.sleep(max(args.interval, 0.05))
+                if signal is not None:
+                    # Wake on the OS notification; the interval is only a fallback
+                    # heartbeat so the status file keeps ticking on a quiet machine.
+                    signal.wait(timeout=max(args.interval, 1.0))
+                    signal.clear()
+                else:
+                    time.sleep(max(args.interval, 0.05))
                 files = iter_session_files()
                 if args.project:
                     files = [f for f in files if args.project.lower() in f.parent.name.lower()]
