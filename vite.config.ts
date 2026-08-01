@@ -3,10 +3,10 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync, createReadStream, mkdirSync, copyFileSync } from 'node:fs'
+import { existsSync, createReadStream, mkdirSync, copyFileSync, cpSync } from 'node:fs'
 
 const root = dirname(fileURLToPath(import.meta.url))
-// Every feed the app fetches. A file missing here never reaches dist/data/, so the
+// Every top-level feed the app fetches. A file missing here never reaches dist/data/, so the
 // local deploy at :4173 would silently serve a bundle without that source.
 const DATA_FILES = [
   'karin-data.json',
@@ -59,6 +59,14 @@ function bundleLocalData() {
           copyFileSync(src, join(outDir, name))
           copied++
         }
+      }
+      // Split feeds keep their heavy transcript arrays in per-session bodies. Vite clears
+      // dist/ before this hook runs, so the indexer's earlier mirror is not enough: copy
+      // the body tree here as part of the same self-contained offline build.
+      const sessionsSrc = join(root, 'data', 'sessions')
+      if (existsSync(sessionsSrc)) {
+        cpSync(sessionsSrc, join(outDir, 'sessions'), { recursive: true })
+        copied++
       }
       if (!copied) {
         // eslint-disable-next-line no-console

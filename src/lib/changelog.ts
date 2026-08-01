@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.137',
+    title: 'Ship session bodies',
+    summary: 'Offline builds now include split transcript bodies, so Codex tool calls appear immediately after startup.',
+  },
+  {
     version: 'v.136',
     title: 'Clear cycle header',
     summary: 'Expanded cycles no longer show timing, counts, token totals, or cost metadata above their contents.',
