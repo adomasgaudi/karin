@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { cn } from '../lib/cn'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +30,35 @@ export function stripAnsi(text: string): string {
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+// The session's working directory, so paths inside the project can drop the part the
+// owner already knows. Empty when unknown — then nothing is shortened.
+export const WorkspaceRootContext = createContext<string | null>(null)
+
+const normalizeSlashes = (path: string): string => path.replace(/\\/g, '/').replace(/\/+$/, '')
+
+/**
+ * Shorten a path that lives inside the project: everything up to and including the
+ * project directory is dropped, because it is the same for every file the owner sees.
+ * A path OUTSIDE the project keeps every segment — there the location is the point.
+ */
+export function shortenPath(value: string, root: string | null): string {
+  if (!root) return value
+  const normalizedRoot = normalizeSlashes(root)
+  if (!normalizedRoot) return value
+  const normalizedValue = normalizeSlashes(value)
+  // Windows paths differ in case between records (c:\ vs C:\), so compare case-insensitively.
+  if (!normalizedValue.toLowerCase().startsWith(`${normalizedRoot.toLowerCase()}/`)) return value
+  const relative = normalizedValue.slice(normalizedRoot.length + 1)
+  return relative || value
+}
+
+// A value is treated as a path only when it looks like one AND resolves inside the
+// project; anything else is left exactly as recorded.
+function displayValue(raw: string, root: string | null): string {
+  if (!root || raw.length < 3 || !/[\\/]/.test(raw)) return raw
+  return shortenPath(raw, root)
 }
 
 // A LOT of the payload arrives as JSON stuffed inside a string — hook stdout,
@@ -66,20 +95,25 @@ function clockHint(key: string, v: string): string | null {
 }
 
 function Scalar({ k, v }: { k: string; v: unknown }) {
+  const root = useContext(WorkspaceRootContext)
   if (v === null || v === undefined) return <span className="font-mono text-[0.68rem] text-neutral-400 dark:text-neutral-500">—</span>
+  // true/false stay true/false. Rewriting them as yes/no simplifies nothing — a boolean
+  // is already plain English — and it quietly changes what the record actually said.
   if (typeof v === 'boolean')
     return (
       <span className={cn('font-mono text-[0.68rem]', v ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500')}>
-        {v ? 'yes' : 'no'}
+        {String(v)}
       </span>
     )
   if (typeof v === 'number')
     return <span className="font-mono text-[0.68rem] tabular-nums text-sky-700 dark:text-sky-300">{v.toLocaleString()}</span>
 
-  const s = stripAnsi(String(v))
-  const hint = clockHint(k, s)
+  const raw = stripAnsi(String(v))
+  const s = displayValue(raw, root)
+  const hint = clockHint(k, raw)
   return (
-    <span className={VAL}>
+    // A shortened path keeps its full value in the tooltip, so nothing is unrecoverable.
+    <span className={VAL} title={s === raw ? undefined : raw}>
       {s || <span className="text-neutral-400 dark:text-neutral-500">(empty)</span>}
       {hint && <span className="ml-2 text-[0.62rem] text-neutral-400 dark:text-neutral-400">{hint}</span>}
     </span>

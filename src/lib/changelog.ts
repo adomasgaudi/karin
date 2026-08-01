@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.178',
+    title: 'Raw JSON is a viewer',
+    summary: 'Every raw view is now a collapsible tree instead of a stringify dump — no braces, commas or quotes.',
+    detail:
+      'Raw JSON used to print JSON.stringify into a <pre>, which meant scrolling a wall of punctuation to find one field. All three raw views — a step, a whole cycle, a Raw-tab record — now render the same collapsible tree: every branch folds, a collapsed one previews its field names, values are typed by colour rather than by quotes, and long strings clamp with a show-all. It stays faithful where JsonView does not: exact key names, nothing renamed or hidden. Copy JSON still gives the exact bytes.',
+  },
+  {
     version: 'v.177',
     title: 'JSON button on the cycle',
     summary: 'Every cycle header carries a JSON button that swaps the whole cycle for its raw records; open-file tags are now recognised.',

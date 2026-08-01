@@ -24,6 +24,7 @@ import {
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
 import JsonView, { MaybeJson, stripAnsi } from './JsonView'
+import RawJson from './RawJson'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { isStructuredInstructionPayload, looksLikeStructuredContext } from './BaseInstructions'
@@ -133,9 +134,9 @@ function RawSwitch({ item, children }: { item: unknown; children: ReactNode }) {
         </button>
       </div>
       {raw ? (
-        <pre className="max-h-[28rem] overflow-x-auto overflow-y-auto whitespace-pre rounded-md bg-neutral-50 px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-          {json}
-        </pre>
+        <div className="max-h-[28rem] overflow-y-auto rounded-md bg-neutral-50 dark:bg-neutral-900">
+          <RawJson value={item} />
+        </div>
       ) : (
         children
       )}

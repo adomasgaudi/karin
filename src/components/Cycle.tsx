@@ -9,6 +9,7 @@ import { splitUsage, usageUnitTotal } from '../lib/pricing'
 import EventEntry from './EventEntry'
 import { HooksBand, ClaudeBlock, type BandDisplay } from './CycleBands'
 import UsageBar from './UsageBar'
+import RawJson from './RawJson'
 
 // Colour + label per touchpoint kind: owner prompt (neutral), mid-turn interjection
 // (amber), answer to an AI question (violet). 'context' cycles show no tag.
@@ -64,14 +65,7 @@ export default function Cycle({
   // behind them. Same idea as a step's Raw JSON switch, one level up.
   const [rawCycle, setRawCycle] = useState(false)
   const detailsRef = useRef<HTMLDetailsElement>(null)
-  const rawJson = useMemo(() => {
-    if (!rawCycle) return ''
-    try {
-      return JSON.stringify(cycle.items.map((entry) => entry.item), null, 2)
-    } catch {
-      return '(this cycle could not be serialized)'
-    }
-  }, [rawCycle, cycle])
+  const rawItems = useMemo(() => (rawCycle ? cycle.items.map((entry) => entry.item) : []), [rawCycle, cycle])
   const toggleRaw = (event: React.MouseEvent) => {
     // The button lives inside <summary>, whose default click collapses the cycle —
     // exactly the wrong outcome when you are asking to SEE its raw body.
@@ -239,9 +233,9 @@ export default function Cycle({
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         {rawCycle ? (
-          <pre className="max-h-[36rem] overflow-auto whitespace-pre rounded-md bg-white px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
-            {rawJson}
-          </pre>
+          <div className="max-h-[36rem] overflow-y-auto rounded-md bg-white dark:bg-neutral-950">
+            <RawJson value={rawItems} />
+          </div>
         ) : (
           <div ref={eventsRef} className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
             {eventNodes}

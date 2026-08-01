@@ -4,6 +4,7 @@ import { cn } from '../lib/cn'
 import { shortAge } from '../lib/format'
 import TypeTag from './TypeTag'
 import JsonView from './JsonView'
+import RawJson from './RawJson'
 import type { ClaudeRecord } from '../lib/claudeRaw'
 
 // --- preview extraction ---------------------------------------------------
@@ -124,9 +125,10 @@ export default function RecordRow({ record, now }: { record: ClaudeRecord; now: 
             </div>
           </div>
           {raw ? (
-            <pre className="max-h-[28rem] overflow-x-auto overflow-y-auto whitespace-pre bg-neutral-50 px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-              {json}
-            </pre>
+            <div className="max-h-[28rem] overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
+              {/* Faithful shape and key names, collapsible — exact bytes are on Copy JSON. */}
+              <RawJson value={record} />
+            </div>
           ) : (
             <div className="max-h-[28rem] overflow-y-auto bg-neutral-50 dark:bg-neutral-900">
               {/* _line and _type already sit in the row header — repeating them is noise. */}
