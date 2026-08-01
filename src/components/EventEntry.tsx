@@ -90,14 +90,6 @@ function Chevron() {
   )
 }
 
-function NumBadge({ n }: { n: number }) {
-  return (
-    <span className="shrink-0 rounded-sm bg-neutral-200/70 px-1 font-mono text-[0.55rem] leading-tight text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-      {n}
-    </span>
-  )
-}
-
 function Pill({ children }: { children: ReactNode }) {
   return (
     <span className="shrink-0 rounded-sm bg-neutral-200/80 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
@@ -132,10 +124,9 @@ function StepDur({ step }: { step?: StepDuration }) {
 }
 
 // The single compact row primitive every event kind renders through. The summary is one
-// inline flex line (chevron · number · title · badge · meta · duration); the body only
+// inline flex line (chevron · title · badge · meta · duration); the body only
 // exists once expanded and carries the optional usage bar plus the kind-specific content.
 function Row({
-  num,
   title,
   meta,
   badge,
@@ -151,7 +142,6 @@ function Row({
   expandable = true,
   children,
 }: {
-  num: number
   title: ReactNode
   meta?: ReactNode
   badge?: ReactNode
@@ -191,10 +181,10 @@ function Row({
     return () => observer.disconnect()
   }, [expandOnOverflow, title])
   const canExpand = expandable && (!expandOnOverflow || overflows)
+  const hasTitle = title !== null && title !== undefined && title !== ''
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
       {!disabled && canExpand && <Chevron />}
-      <NumBadge n={num} />
       {clamp ? (
         <span className="relative min-w-0 flex-1">
           <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
@@ -210,10 +200,10 @@ function Row({
         </span>
       ) : (
         <>
-          <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
+          {hasTitle && <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>}
           {badge}
           {meta != null && meta !== '' && (
-            <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
+            <span className={`min-w-0 truncate ${hasTitle ? 'flex-1 font-normal text-neutral-500 dark:text-neutral-400' : 'font-medium text-neutral-800 dark:text-neutral-100'}`}>{meta}</span>
           )}
         </>
       )}
@@ -278,11 +268,12 @@ function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult, scal
   )
 }
 
-// A kind tag ("tool" / "edit") + the action name — replaces the old "tool / Name" title.
+// Edit rows keep their kind tag; tool rows use the action name and purpose directly.
 function KindTitle({ kind, name }: { kind: string; name: string }) {
+  if (kind === 'tool' && name.toLowerCase() === 'exec') return null
   return (
     <span className="flex items-center gap-1.5">
-      <Pill>{kind}</Pill>
+      {kind !== 'tool' && <Pill>{kind}</Pill>}
       <span className="font-semibold text-neutral-800 dark:text-neutral-100">{name}</span>
     </span>
   )
@@ -395,13 +386,12 @@ export function isSessionMeta(entry: Entry): boolean {
 
 // A run of consecutive session-state context blocks, collapsed into a single dropdown so
 // the repetitive last-prompt / mode / permission / ai-title records stop taking four rows.
-export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: number }) {
+export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
   const labels = entries.map((e) => metaLabel(e.item as ClaudeContext)).join(', ')
   return (
     <details className={`${rowBase} border-l-neutral-300 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
         <Chevron />
-        <NumBadge n={num} />
         <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">session state</span>
         <span className="min-w-0 flex-1 truncate font-normal italic text-neutral-400 dark:text-neutral-500">
           {entries.length} · {labels}
@@ -425,7 +415,7 @@ export function SessionMetaGroup({ entries, num }: { entries: Entry[]; num: numb
   )
 }
 
-export default function EventEntry({ entry, num, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; num: number; step?: StepDuration; singleModel?: boolean } & UsageProps) {
+export default function EventEntry({ entry, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
   const tint = tintFor(entry)
   const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
   // Thin collapsed indicator: the same usage as a ~4px unlabelled bar, shown in the summary.
@@ -447,7 +437,6 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       if (item.role === 'assistant') {
         return (
           <Row
-            num={num}
             clamp
             expandOnOverflow={Boolean(item.text?.trim())}
             expandable={Boolean(item.text?.trim())}
@@ -469,7 +458,6 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       )
       return (
         <Row
-          num={num}
           clamp
           expandOnOverflow={Boolean(item.text?.trim())}
           expandable={Boolean(item.text?.trim())}
@@ -490,12 +478,10 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       if (entry.source === 'codex' && isLockedReasoning(item.text)) {
         return (
           <Row
-            num={num}
-            title="reasoning"
+            title={null}
             badge={
               <span className="flex shrink-0 items-center gap-1">
                 <Lock className="h-3 w-3 text-neutral-400 dark:text-neutral-500" />
-                <Pill>locked</Pill>
               </span>
             }
             tint="border-l-neutral-300 dark:border-l-neutral-700"
@@ -514,7 +500,6 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       }
       return (
         <Row
-          num={num}
           title={entry.source === 'claude' ? 'thinking' : 'reasoning'}
           expandable={Boolean(item.text?.trim())}
           meta={item.id || undefined}
@@ -536,7 +521,6 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         const item = entry.item as ClaudeTool
         return (
           <Row
-            num={num}
             title={<KindTitle kind="tool" name={item.name} />}
             meta={toolSummary(item.input) || undefined}
             badge={
@@ -556,7 +540,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       }
       const item = entry.item as Tool
       return (
-        <Row num={num} title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
           <ReadableToolInput toolName={item.name} argumentsText={item.arguments} />
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
@@ -570,7 +554,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       if (entry.source === 'claude') {
         const item = entry.item as ClaudeEdit
         return (
-          <Row num={num} title={<KindTitle kind="edit" name={item.name} />} meta={item.file_path || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+          <Row title={<KindTitle kind="edit" name={item.name} />} meta={item.file_path || undefined} tint={tint} step={step} bar={bar} thin={thin}>
             <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Diff</div>
             <DiffView structured={item.structured_patch} patch={item.patch} />
           </Row>
@@ -579,7 +563,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as CodeEdit
       const failed = item.result?.success === false ? 'failed' : undefined
       return (
-        <Row num={num} title={<KindTitle kind="edit" name={item.name} />} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title={<KindTitle kind="edit" name={item.name} />} meta={failed} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Patch</div>
           <DiffView structured={null} patch={stripAnsi(item.patch)} />
           {item.result && (
@@ -599,14 +583,14 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         const parts = splitUsage(item.last)
         const meta = `in ${fmtCompact(parts.freshInput + parts.cachedInput + parts.cacheCreate)} / out ${fmtCompact(parts.output + parts.reasoning)}`
         return (
-          <Row num={num} title="usage" meta={meta} expandable={Boolean(item.usage_raw)} tint={tint} step={step} bar={bar} thin={thin}>
+          <Row title="usage" meta={meta} expandable={Boolean(item.usage_raw)} tint={tint} step={step} bar={bar} thin={thin}>
             <JsonView value={item.usage_raw} />
           </Row>
         )
       }
       const item = entry.item as TokenEvent
       return (
-        <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} expandable={Boolean(item.last)} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} expandable={Boolean(item.last)} tint={tint} step={step} bar={bar} thin={thin}>
           <JsonView value={item} />
         </Row>
       )
@@ -624,7 +608,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           ? `${item.chars} chars`
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
-        <Row num={num} title={label} meta={meta} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin} dim>
+        <Row title={label} meta={meta} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin} dim>
           {entry.source === 'codex' &&
           ((item as ContextBlock).name === 'base_instructions' ||
             (item as ContextBlock).name === 'developer_message' ||
@@ -639,7 +623,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
     case 'runtime': {
       const item = entry.item as RuntimeEvent
       return (
-        <Row num={num} title={`runtime / ${item.type}`} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title={`runtime / ${item.type}`} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin}>
           <MaybeJson text={item.text} className={preClass} />
         </Row>
       )
@@ -648,7 +632,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as ClaudeSubagent
       const messages = item.session?.messages || []
       return (
-        <Row num={num} title={`agent / ${item.agent_type}`} meta={item.description || undefined} expandable={messages.length > 0} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title={`agent / ${item.agent_type}`} meta={item.description || undefined} expandable={messages.length > 0} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
             {messages.length} message{messages.length === 1 ? '' : 's'}
           </div>

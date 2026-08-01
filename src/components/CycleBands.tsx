@@ -55,7 +55,6 @@ function actionRow(entry: UnifiedEntry, usage: EntryUsage | undefined, d: BandDi
     <EventEntry
       key={d.numFor.get(entry) ?? entry.line}
       entry={entry}
-      num={d.numFor.get(entry) ?? entry.line}
       usage={usage}
       step={d.steps.get(entry)}
       rates={d.rates}
@@ -90,16 +89,14 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
   const totalChars = entries.reduce((s, e) => s + contextChars(e), 0)
   const nodes: ReactNode[] = []
   let metaRun: UnifiedEntry[] = []
-  let metaNum = 0
   const flushMeta = () => {
     if (metaRun.length === 0) return
     if (metaRun.length === 1) nodes.push(leafRow(metaRun[0], d))
-    else nodes.push(<SessionMetaGroup key={`meta-${metaNum}`} entries={metaRun} num={metaNum} />)
+    else nodes.push(<SessionMetaGroup key={`meta-${metaRun[0].line}`} entries={metaRun} />)
     metaRun = []
   }
   for (const e of entries) {
     if (entryIsSessionMeta(e)) {
-      if (metaRun.length === 0) metaNum = d.numFor.get(e) ?? 0
       metaRun.push(e)
       continue
     }

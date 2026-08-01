@@ -121,7 +121,6 @@ export default function Cycle({
       eventNodes.push(
         <EventEntry
           key={`human-${numFor.get(entry)}`}
-          num={numFor.get(entry) ?? 0}
           entry={entry}
           usage={entryUsage.get(entry)}
           step={steps.get(entry)}

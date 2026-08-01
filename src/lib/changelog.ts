@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.147',
+    title: 'Quiet event rows',
+    summary: 'Event rows omit raw step numbers, redundant reasoning labels, and obvious tool wrappers.',
+  },
+  {
     version: 'v.146',
     title: 'Show hover totals',
     summary: 'Hovering any usage bar now reports its total instead of constant block-unit details.',
