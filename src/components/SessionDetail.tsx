@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
 import type { Session, TokenUsage } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
 import type { ClaudeRecord, ClaudeSession } from '../lib/claudeRaw'
@@ -9,7 +9,6 @@ import { fmtNum, shortAge } from '../lib/format'
 import {
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
-  PRICE_BASIS_NOTES,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
   currencyModes,
@@ -172,21 +171,17 @@ export default function SessionDetail() {
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <div className="shrink-0 border-b border-neutral-200/80 bg-white/90 p-3 shadow-sm shadow-neutral-950/[0.03] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => useKarin.getState().select(null)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 md:hidden"
-          >
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <SourceBadge source={s.source} />
-          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
-            {s.title || s.id}
-          </h1>
-          {/* The version lives in the nav bar — repeating it in every session header was noise. */}
-          <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
+                {s.title || s.id}
+              </h1>
+              {/* The version lives in the nav bar — repeating it in every session header was noise. */}
+              <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
+            </div>
+            <SourceBadge source={s.source} className="mt-0.5 px-1 py-0.5 text-[0.5rem]" />
+          </div>
 
           {hasRaw && (
             <div className="ml-auto inline-flex shrink-0 rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
@@ -217,7 +212,7 @@ export default function SessionDetail() {
             </select>
           )}
 
-          <div className={`relative shrink-0 ${isClaude ? '' : 'ml-auto'}`}>
+          <div className="relative ml-auto shrink-0">
             <button
               type="button"
               onClick={() => setMetaOpen((o) => !o)}
@@ -244,10 +239,9 @@ export default function SessionDetail() {
           </div>
         </div>
 
-        <div className="mt-2 flex items-start gap-1.5">
-          <div className="min-w-0 flex-1">
-            <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} inlineLabels />
-          </div>
+        <div className="mt-1.5 flex min-w-0 flex-col gap-1">
+          <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} inlineLabels />
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
           {/* One pill cycling tokens → token units → money. */}
           <button
             type="button"
@@ -337,7 +331,7 @@ export default function SessionDetail() {
               )}
             </div>
           )}
-          <div className="relative shrink-0">
+            <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => setInfoOpen((o) => !o)}
@@ -374,6 +368,7 @@ export default function SessionDetail() {
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
         {/* Persistent basis caption so money figures are never ambiguous — states which
@@ -382,22 +377,6 @@ export default function SessionDetail() {
           <p className="mt-1.5 text-[0.68rem] leading-snug text-neutral-500 dark:text-neutral-400">
             <span className="font-medium text-neutral-600 dark:text-neutral-300">Not priced</span>
             {` — Warp records one cumulative token total per model, with no input/output split, and the two bill at very different rates. Any cost here would be a guess, so Karin shows tokens only.`}
-          </p>
-        )}
-        {unitMode === 'money' && s.source !== 'warp' && (
-          <p className="mt-1.5 text-[0.68rem] leading-snug text-neutral-500 dark:text-neutral-400">
-            <span className="font-medium text-neutral-600 dark:text-neutral-300">{PRICE_BASIS_NOTES[priceBasis].title}</span>
-            {priceBasis === 'sub'
-              ? ` — your ${s.source === 'claude' ? 'Claude' : 'Codex'} plan: API list price ÷${subDivisor}, an estimate (not a billed amount). Cycle the “${PRICE_BASIS_LABELS.api}” pill for the theoretical API cost.`
-              : ` — theoretical pay-as-you-go cost, ~10-25× the real subscription cost. Cycle to “${PRICE_BASIS_LABELS.sub}” for the plan estimate.`}{' '}
-            <button
-              type="button"
-              onClick={() => setPriceInfoOpen(true)}
-              className="font-medium text-sky-600 underline-offset-2 hover:underline dark:text-sky-400"
-            >
-              see the pricing model
-            </button>
-            .
           </p>
         )}
       </div>

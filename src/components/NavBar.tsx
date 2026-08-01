@@ -27,6 +27,8 @@ interface NavBarProps<T extends string> {
   versionLabel: string
   onVersionClick: () => void
   versionTitle: string
+  /** Optional action for the Karin glasses mark. */
+  onLogoClick?: () => void
   /** Right-hand slot — each version's own settings/status. */
   right?: ReactNode
 }
@@ -38,13 +40,26 @@ export function NavBarShell<T extends string>({
   versionLabel,
   onVersionClick,
   versionTitle,
+  onLogoClick,
   right,
 }: NavBarProps<T>) {
   // The bar must NOT be overflow-hidden: the settings popover is absolutely positioned
   // inside it, so clipping the bar clips the menu — it opens and is invisible.
   return (
     <nav className="relative z-40 flex shrink-0 flex-nowrap items-center gap-0.5 border-b border-neutral-200 bg-white px-1.5 dark:border-neutral-800 dark:bg-neutral-950">
-      <KarinLogo className="h-4 shrink-0" />
+      {onLogoClick ? (
+        <button
+          type="button"
+          onClick={onLogoClick}
+          aria-label="Back to sessions"
+          title="Back to sessions"
+          className="shrink-0 rounded-sm p-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+        >
+          <KarinLogo className="h-4" />
+        </button>
+      ) : (
+        <KarinLogo className="h-4 shrink-0" />
+      )}
       <button
         type="button"
         onClick={onVersionClick}
@@ -106,6 +121,7 @@ export default function NavBar() {
       versionLabel={APP_VERSION}
       onVersionClick={() => setView('v2')}
       versionTitle="Open Karin v.2.0 (work in progress)"
+      onLogoClick={() => useKarin.getState().select(null)}
       right={
         <>
           <AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />

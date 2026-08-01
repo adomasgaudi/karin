@@ -356,6 +356,7 @@ export default function V2Page() {
         versionLabel={V2_VERSION}
         onVersionClick={() => setView('sessions')}
         versionTitle="Back to Karin v.1"
+        onLogoClick={() => setView('sessions')}
         right={
           <div className="flex items-center gap-2">
             <div className="relative">
