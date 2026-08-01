@@ -213,6 +213,7 @@ export interface ClaudeDetailSession {
   entrypoint?: string | null
   permission_modes?: string[]
   session_kind?: string | null
+  parent_session_id?: string | null
   service_tier?: string | null
   speed?: string | null
   bridge_session_id?: string | null

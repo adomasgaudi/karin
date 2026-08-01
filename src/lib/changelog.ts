@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.217',
+    title: 'Nested agent usage',
+    summary: 'Parallel child sessions now sit under their parent and exclude cloned context from token totals.',
+    detail:
+      'Codex child rollouts retain separate transcript streams, but the sidebar presents them as a parent session tree with agent labels and accurate per-stream bars. The indexer detects the fork boundary from session metadata, removes the cloned startup context from every child request, and keeps the untouched JSONL available for audit. Claude parent links continue to use the same unified hierarchy fields.',
+  },
+  {
     version: 'v.216',
     title: 'Resilient local feed',
     summary: 'The preview server now reads the live local feed without risking a process crash during a bundle refresh.',

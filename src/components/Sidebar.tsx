@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronRight, Folder, Info, List, Search } from 'lucide-react'
 import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
@@ -130,9 +130,97 @@ export default function Sidebar({ className }: SidebarProps) {
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
+  // Codex parallel rollouts and Claude's explicitly linked sessions carry a source-local
+  // parent id. Keep them in the data model as separate streams, but render the children
+  // directly below the visible parent so collaboration reads as one session tree.
+  const rowsByUid = new Map(rows.map((row) => [row.session.uid, row]))
+  const parentRowsByLogicalId = new Map<string, (typeof rows)[number]>()
+  rows.forEach((row) => {
+    const key = `${row.session.source}:${row.session.logicalId || row.session.id}`
+    // A duplicated Codex logical id includes the real parent and its child streams;
+    // prefer the non-subagent row even if the freshest child appeared first.
+    if (!parentRowsByLogicalId.has(key) || !row.session.isSubagent) parentRowsByLogicalId.set(key, row)
+  })
+  const childRowsByParent = new Map<string, typeof rows>()
+  const topRows = rows.filter((row) => {
+    const parentId = row.session.parentId
+    const parent = parentId
+      ? rowsByUid.get(`${row.session.source}:${parentId}`) || parentRowsByLogicalId.get(`${row.session.source}:${parentId}`)
+      : undefined
+    if (!parent || parent.session.uid === row.session.uid) return true
+    const children = childRowsByParent.get(parent.session.uid) ?? []
+    children.push(row)
+    childRowsByParent.set(parent.session.uid, children)
+    return false
+  })
+  const renderRow = (row: (typeof rows)[number], depth = 0): ReactNode => {
+    const { session: s, rates } = row
+    const selected = s.uid === selectedUid
+    // Every source gets a compact project label from its project cwd or working cwd.
+    const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
+    return (
+      <li key={s.uid} className={cn(depth > 0 && 'ml-4 border-l border-neutral-200 pl-1 dark:border-neutral-800')}>
+        <button
+          type="button"
+          onClick={() => useKarin.getState().select(s.uid)}
+          className={cn(
+            'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
+            selected
+              ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
+              : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SourceMark source={s.source} state={s.turnState} />
+            {depth > 0 && <span className="shrink-0 text-[0.65rem] text-neutral-400 dark:text-neutral-500">↳</span>}
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+                {s.title || s.id}
+              </span>
+              {s.agentNickname && (
+                <span className="max-w-[28%] shrink-0 truncate text-[0.65rem] text-neutral-400 dark:text-neutral-500" title="Parallel agent">
+                  · {s.agentNickname}
+                </span>
+              )}
+              {project && (
+                <span
+                  className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
+                  title={s.projectCwd || s.cwd || project}
+                >
+                  · {project}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="ml-[22px] -mt-px min-w-0">
+            <UsageBar
+              usage={s.latest_total_usage || {}}
+              rates={rates}
+              mode={unitMode}
+              currency={currency}
+              tokenRef={tokenRef}
+              tokenMult={tokenMult}
+              compact
+              bare
+              inlineLabels
+              hideSegmentLabels
+              showLegend={false}
+              scaleMax={scaleMax}
+            />
+          </div>
+        </button>
+      </li>
+    )
+  }
+  const treeCount = (row: (typeof rows)[number]): number =>
+    1 + (childRowsByParent.get(row.session.uid) ?? []).reduce((total, child) => total + treeCount(child), 0)
+  const renderRowTree = (row: (typeof rows)[number], depth = 0): ReactNode[] => [
+    renderRow(row, depth),
+    ...(childRowsByParent.get(row.session.uid) ?? []).flatMap((child) => renderRowTree(child, depth + 1)),
+  ]
   const folderGroups = (() => {
     const groups = new Map<string, { key: string; folder: string | null; rows: typeof rows }>()
-    rows.forEach((row) => {
+    topRows.forEach((row) => {
       const folder = sessionFolder(row.session)
       const key = `folder:${folderGroupKey(folder)}`
       const group = groups.get(key)
@@ -316,7 +404,7 @@ export default function Sidebar({ className }: SidebarProps) {
           <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No sessions match.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {(groupByFolder ? folderGroups : [{ key: 'all-sessions', folder: null, rows }]).map(({ key, folder, rows: groupRows }) => (
+            {(groupByFolder ? folderGroups : [{ key: 'all-sessions', folder: null, rows: topRows }]).map(({ key, folder, rows: groupRows }) => (
               <section key={key}>
                 {groupByFolder && (
                   <button
@@ -329,63 +417,12 @@ export default function Sidebar({ className }: SidebarProps) {
                     <ChevronRight className={cn('h-3 w-3 shrink-0 transition-transform', !collapsedFolders[key] && 'rotate-90')} />
                     <Folder className="h-3 w-3 shrink-0" />
                     <span className="min-w-0 truncate">{folderLabel(folder)}</span>
-                    <span className="ml-auto shrink-0 font-normal tabular-nums text-neutral-400 dark:text-neutral-500">{groupRows.length}</span>
+                    <span className="ml-auto shrink-0 font-normal tabular-nums text-neutral-400 dark:text-neutral-500">{groupRows.reduce((total, row) => total + treeCount(row), 0)}</span>
                   </button>
                 )}
                 {!groupByFolder || !collapsedFolders[key] ? (
                   <ul className="flex flex-col gap-0.5">
-                    {groupRows.map(({ session: s, rates }) => {
-                      const selected = s.uid === selectedUid
-                      // Every source gets a compact project label from its project cwd or working cwd.
-                      const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
-                      return (
-                        <li key={s.uid}>
-                          <button
-                            type="button"
-                            onClick={() => useKarin.getState().select(s.uid)}
-                            className={cn(
-                              'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
-                              selected
-                                ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
-                                : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
-                            )}
-                          >
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              <SourceMark source={s.source} state={s.turnState} />
-                              <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                                <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
-                                  {s.title || s.id}
-                                </span>
-                                {project && (
-                                  <span
-                                    className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
-                                    title={s.projectCwd || s.cwd || project}
-                                  >
-                                    · {project}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="ml-[22px] -mt-px min-w-0">
-                              <UsageBar
-                                usage={s.latest_total_usage || {}}
-                                rates={rates}
-                                mode={unitMode}
-                                currency={currency}
-                                tokenRef={tokenRef}
-                                tokenMult={tokenMult}
-                                compact
-                                bare
-                                inlineLabels
-                                hideSegmentLabels
-                                showLegend={false}
-                                scaleMax={scaleMax}
-                              />
-                            </div>
-                          </button>
-                        </li>
-                      )
-                    })}
+                    {groupRows.flatMap((row) => renderRowTree(row))}
                   </ul>
                 ) : null}
               </section>

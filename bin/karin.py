@@ -38,6 +38,20 @@ WATCH_LOCK = DATA_DIR / ".karin-codex-watch.lock"
 # Heavy arrays moved out of the index into a per-session body file.
 BODY_FIELDS = ("records", "runtime_events", "tools", "contexts", "code_edits")
 
+# Codex child rollouts receive a cloned prompt/context before their own task starts.
+# Their token_count frames then include that clone in every request, which would make
+# a parent with N parallel agents look as if it spent the same context N+1 times.
+TOKEN_USAGE_FIELDS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+    "total_tokens",
+    "cache_creation_input_tokens",
+    "cache_creation_5m_input_tokens",
+    "cache_creation_1h_input_tokens",
+)
+
 
 SECRET_PATTERNS = [
     (re.compile(r"(?i)(api[_-]?key|access[_-]?token|secret|password)(\s*[:=]\s*)(['\"]?)[^\s'\";,]+"), r"\1\2\3[redacted]"),
@@ -66,6 +80,63 @@ def clean_value(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: clean_value(item) for key, item in value.items()}
     return value
+
+
+def usage_number(value: Any) -> int:
+    return int(value) if isinstance(value, (int, float)) else 0
+
+
+def normalize_subagent_usage(session: dict[str, Any]) -> None:
+    """Remove the cloned parent context from every Codex child request.
+
+    The first token_count in a spawned rollout is the first reliable boundary in the
+    transcript: it contains the cloned startup context plus the child's initial task.
+    Codex repeats that context on each request, so subtract the first request's input
+    footprint from each later `last_token_usage` frame. Raw records remain untouched;
+    only Karin's derived usage views are corrected.
+    """
+    if not (session.get("is_subagent") or session.get("parent_id")):
+        return
+    events = session.get("token_events") or []
+    first_event = next((event for event in events if isinstance(event.get("last"), dict)), None)
+    first = first_event.get("last") if first_event else None
+    if not first:
+        return
+
+    clone_input = usage_number(first.get("input_tokens"))
+    clone_cached = usage_number(first.get("cached_input_tokens"))
+    if clone_input <= 0:
+        return
+
+    running: dict[str, int] = {key: 0 for key in TOKEN_USAGE_FIELDS}
+    for event in events:
+        raw_last = event.get("last")
+        if not isinstance(raw_last, dict):
+            continue
+        last = dict(raw_last)
+        effective_input = max(0, usage_number(raw_last.get("input_tokens")) - clone_input)
+        # Cache reads are a subset of input. Codex may round cache prefixes in chunks,
+        # so clamp after removing the clone rather than allowing cached > input.
+        effective_cached = min(
+            effective_input,
+            max(0, usage_number(raw_last.get("cached_input_tokens")) - clone_cached),
+        )
+        last["input_tokens"] = effective_input
+        last["cached_input_tokens"] = effective_cached
+        # Codex's total_tokens is input + output (reasoning is reported separately).
+        last["total_tokens"] = max(0, usage_number(raw_last.get("total_tokens")) - clone_input)
+        event["last"] = last
+        for key in TOKEN_USAGE_FIELDS:
+            running[key] += usage_number(last.get(key))
+        event["total"] = dict(running)
+
+    session["latest_total_usage"] = dict(running)
+    session["usage_clone_baseline"] = {
+        "input_tokens": clone_input,
+        "cached_input_tokens": clone_cached,
+        "total_tokens": clone_input,
+        "source_line": first_event.get("line") if first_event else None,
+    }
 
 
 def load_thread_names() -> dict[str, str]:
@@ -181,6 +252,9 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
         "started_at": None,
         "updated_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
         "logical_id": None,
+        "parent_id": None,
+        "is_subagent": False,
+        "agent_nickname": None,
         "messages": [],
         "records": [],
         "tools": [],
@@ -241,6 +315,28 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
                 session["title"] = names.get(session_id, session_id or session["title"])
                 session["cwd"] = meta.get("cwd")
                 session["originator"] = meta.get("originator")
+                source = meta.get("source")
+                subagent = source.get("subagent") if isinstance(source, dict) else None
+                thread_spawn = subagent.get("thread_spawn") if isinstance(subagent, dict) else None
+                parent_id = (
+                    meta.get("forked_from_id")
+                    or meta.get("parent_thread_id")
+                    or (thread_spawn.get("parent_thread_id") if isinstance(thread_spawn, dict) else None)
+                )
+                # Older Codex child files use `session_id` for the parent's id and
+                # keep the child's real id in `id`; newer files also expose forked_from_id.
+                if parent_id and (meta.get("id") != parent_id or meta.get("thread_source") == "subagent"):
+                    session["parent_id"] = parent_id
+                session["is_subagent"] = bool(
+                    session.get("is_subagent")
+                    or meta.get("thread_source") == "subagent"
+                    or isinstance(subagent, dict)
+                )
+                session["agent_nickname"] = (
+                    meta.get("agent_nickname")
+                    or session.get("agent_nickname")
+                    or (thread_spawn.get("agent_nickname") if isinstance(thread_spawn, dict) else None)
+                )
                 # A session can carry several session_meta records (resume/compaction); a
                 # later one often omits the model. Never let that clobber a real model
                 # already found (e.g. gpt-5.5 from turn_context) with the bare provider.
@@ -445,6 +541,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
     tc_efforts = _distinct(tc.get("effort") for tc in session["turn_contexts"])
     session["models"] = tc_models or ([session["model"]] if session["model"] else [])
     session["efforts"] = tc_efforts or ([session["reasoning_effort"]] if session["reasoning_effort"] else [])
+    normalize_subagent_usage(session)
     return session
 
 

@@ -143,6 +143,12 @@ export interface Session {
   // The source transcript's session_meta id. It can be shared by parent/child
   // rollout files; `id` is made stream-unique before the feed is written.
   logical_id?: string | null
+  // Codex collaboration metadata. Child rollout files point at the parent logical id;
+  // the indexer keeps the raw stream separate but the UI nests it beneath that parent.
+  parent_id?: string | null
+  is_subagent?: boolean
+  agent_nickname?: string | null
+  usage_clone_baseline?: TokenUsage & { source_line?: number | null }
   title: string
   path: string
   cwd: string | null
@@ -230,6 +236,10 @@ export interface UnifiedSession {
   uid: string // `${source}:${id}` — globally unique across both sources
   source: SessionSource
   id: string
+  logicalId?: string | null
+  parentId?: string | null
+  isSubagent?: boolean
+  agentNickname?: string | null
   title: string
   subtitle: string | null // Claude first_prompt; null for Codex
   cwd: string | null
