@@ -36,8 +36,20 @@ the shared `UnifiedSession`, and then flows through one cycle builder and one re
 | Warp | `bin/karin_warp.py` | `data/warp-raw.json` | `%LOCALAPPDATA%/warp/Warp/data/warp.sqlite` |
 
 Its own git repo (`origin → github.com/adomasgaudi/karin.git`), separate from the
-`Meta apps` repo. Commit style here is plain descriptive subjects (see `git log`), NOT the
-parent repo's `vN RULE-ID | … | N sp` format.
+`Meta apps` repo. Commit subjects follow the owner's global format
+(`~/watari/skills/rule-of-3/Confidence/Editing/git.md`):
+
+```text
+v.<APP_VERSION> | CODE-N | <title>
+```
+
+`v.<APP_VERSION>` is the app version at that commit — the same string the app shows
+(`CHANGELOG[0].version`), so a commit and the dev-tools version pill always agree.
+`CODE-N` is a 3–6 letter theme code plus its running number; reuse an existing code from
+`git log` (BUILD, CYCLE, SESS, SIDE, NAV, PRICE, TIME, JSON, V2, LLM, WATCH, TOOL, CTX,
+WARP, SUM, EXPORT, DOCS) and increment it, or start a new one. Title under 8 words, then a
+blank line and a body under 100 words. The whole history was normalised to this on
+2026-08-01 (backup tag `backup-pre-rename-2026-08-01`).
 
 ## The local version — how the owner runs it
 
@@ -161,8 +173,8 @@ Increment by one per material change. End your reply naming the shift, e.g. `v.1
 ## Push policy
 
 **Commit + push to `main` after every change, automatically — do NOT ask.** The owner
-confirmed this on 2026-07-08. Plain descriptive commit subjects (see `git log`), not the
-parent repo's `vN RULE-ID | … | N sp` format. LF→CRLF warnings on commit are expected.
+confirmed this on 2026-07-08. Subjects use `v.<APP_VERSION> | CODE-N | <title>` — see the
+commit-format block near the top. LF→CRLF warnings on commit are expected.
 
 ## Live-deploy rule — commit ≠ live (READ THIS)
 
