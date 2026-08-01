@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import JsonView, { stripAnsi } from './JsonView'
+import { DEFAULT_MODEL, generate } from '../lib/localLlm'
 
 type Obj = Record<string, unknown>
 
@@ -9,6 +10,126 @@ const isBranch = (value: unknown): value is Obj | unknown[] => isObj(value) || A
 const preClass =
   'overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed text-neutral-700 dark:bg-neutral-950/55 dark:text-neutral-300'
 const labelClass = 'text-xs font-semibold text-neutral-600 dark:text-neutral-300'
+
+const SIMPLE_SYSTEM = [
+  'You simplify coding-tool inputs for a developer reading an AI session transcript.',
+  'Return a near-identical, concise walkthrough, not a vague summary.',
+  'Keep every meaningful step, order, path, filename, search pattern, flag, literal, and command argument.',
+  'Replace only noisy syntax or unfamiliar wrappers with intuitive uppercase keywords such as READ FILE, RUN COMMAND, SEARCH TEXT, EDIT FILE, or RUN IN PARALLEL.',
+  'Keep the original path, command, or value in parentheses when replacing it could lose meaning.',
+  'Start with exactly one short sentence beginning "What it does:" (18 words maximum).',
+  'Then use one short line per meaningful original step. Do not invent results, edits, or intent.',
+  'Output only the simplified text, with no markdown fence and no preamble.',
+].join(' ')
+
+const SIMPLE_INPUT_LIMIT = 18_000
+const simpleCache = new Map<string, string>()
+
+function promptInput(raw: string): string {
+  if (raw.length <= SIMPLE_INPUT_LIMIT) return raw
+  const head = Math.floor(SIMPLE_INPUT_LIMIT * 0.72)
+  const tail = SIMPLE_INPUT_LIMIT - head
+  return `${raw.slice(0, head)}\n… [middle clipped only for the local explanation] …\n${raw.slice(-tail)}`
+}
+
+function prettyInput(value: unknown, fallback: string): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode }) {
+  const [mode, setMode] = useState<'original' | 'simple'>('original')
+  const [simple, setSimple] = useState(() => simpleCache.get(raw) || '')
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const abort = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    abort.current?.abort()
+    setMode('original')
+    setSimple(simpleCache.get(raw) || '')
+    setDraft('')
+    setBusy(false)
+    setError(null)
+    return () => abort.current?.abort()
+  }, [raw])
+
+  const simplify = async () => {
+    const cached = simpleCache.get(raw)
+    if (cached) {
+      setSimple(cached)
+      setMode('simple')
+      return
+    }
+    abort.current?.abort()
+    const ac = new AbortController()
+    abort.current = ac
+    setMode('simple')
+    setBusy(true)
+    setDraft('')
+    setError(null)
+    try {
+      const result = await generate(
+        `Simplify this coding-tool input. Preserve its useful details.\n\n${promptInput(raw)}`,
+        {
+          model: DEFAULT_MODEL,
+          system: SIMPLE_SYSTEM,
+          signal: ac.signal,
+          think: false,
+          temperature: 0.15,
+          numPredict: 500,
+          numCtx: 8192,
+          onToken: (chunk) => setDraft((prev) => prev + chunk),
+        },
+      )
+      const cleaned = result.trim()
+      if (!cleaned) throw new Error('Qwen returned no explanation.')
+      simpleCache.set(raw, cleaned)
+      setSimple(cleaned)
+    } catch (e) {
+      if (!ac.signal.aborted) setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      if (abort.current === ac) abort.current = null
+      setBusy(false)
+    }
+  }
+
+  if (!raw.trim()) return <>{original}</>
+
+  const shown = mode === 'simple' && (simple || draft) ? simple || draft : ''
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-end gap-1">
+        <span className="mr-auto text-[0.58rem] text-neutral-400 dark:text-neutral-500">local Qwen</span>
+        <button
+          type="button"
+          onClick={() => setMode('original')}
+          className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${mode === 'original' ? 'bg-neutral-200 font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`}
+        >
+          Original
+        </button>
+        <button
+          type="button"
+          onClick={() => void simplify()}
+          className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${mode === 'simple' ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`}
+        >
+          {busy ? 'Simplifying…' : 'Simple'}
+        </button>
+      </div>
+      {mode === 'simple' && shown ? (
+        <pre className={`${preClass} whitespace-pre-wrap`}>{shown}{busy && <span className="animate-pulse text-neutral-400">▍</span>}</pre>
+      ) : (
+        original
+      )}
+      {mode === 'simple' && error && <div className="text-[0.65rem] text-red-600 dark:text-red-400">{error}</div>}
+    </div>
+  )
+}
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -390,14 +511,16 @@ function readableToolName(name: string): string {
 }
 
 function renderInputValue(value: unknown | null, raw: string) {
-  return value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{stripAnsi(raw) || '(no arguments)'}</pre>
+  const original = value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{stripAnsi(raw) || '(no arguments)'}</pre>
+  return <SimplifiableInput raw={raw} original={original} />
 }
 
 export function ReadableToolInput({ toolName, argumentsText, value }: { toolName?: string; argumentsText?: string; value?: unknown }) {
   // Claude gives us the already-parsed input object. Codex/exec wrapper calls may
   // contain several nested tool invocations, so show every one instead of only the first.
   if (value !== undefined) {
-    return <div className="space-y-1">{renderScalar(value, argumentsText || '')}</div>
+    const raw = prettyInput(value, argumentsText || '')
+    return <div className="space-y-1">{renderInputValue(value, raw)}</div>
   }
 
   const invocations = argumentsText ? parseToolInvocations(argumentsText) : []

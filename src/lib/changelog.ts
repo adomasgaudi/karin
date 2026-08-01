@@ -19,6 +19,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.139',
+    title: 'Give prompts room',
+    summary: 'Cycle titles use available width, while expanded prompts show three lines before optional full text.',
+    detail:
+      'Cycle titles no longer stop at an arbitrary 40-character limit. A cycle containing only its opening prompt does not repeat that prompt when expanded. When other cycle data exists, the prompt remains the first step, shows up to three readable lines, and opens a nested full-text view only when those lines overflow.',
+  },
+  {
+    version: 'v.138',
+    title: 'Simplify tool inputs',
+    summary: 'Toggle between original payloads and concise local Qwen explanations preserving paths, steps, flags, and values.',
+  },
+  {
     version: 'v.137',
     title: 'Ship session bodies',
     summary: 'Offline builds now include split transcript bodies, so Codex tool calls appear immediately after startup.',
