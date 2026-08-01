@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Braces } from 'lucide-react'
 import { useKarin } from '../store/karin'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
@@ -59,6 +60,28 @@ export default function Cycle({
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
+  // Whole-cycle raw view: swaps every card in this cycle for the untouched records
+  // behind them. Same idea as a step's Raw JSON switch, one level up.
+  const [rawCycle, setRawCycle] = useState(false)
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+  const rawJson = useMemo(() => {
+    if (!rawCycle) return ''
+    try {
+      return JSON.stringify(cycle.items.map((entry) => entry.item), null, 2)
+    } catch {
+      return '(this cycle could not be serialized)'
+    }
+  }, [rawCycle, cycle])
+  const toggleRaw = (event: React.MouseEvent) => {
+    // The button lives inside <summary>, whose default click collapses the cycle —
+    // exactly the wrong outcome when you are asking to SEE its raw body.
+    event.preventDefault()
+    event.stopPropagation()
+    setRawCycle((prev) => {
+      if (!prev && detailsRef.current) detailsRef.current.open = true
+      return !prev
+    })
+  }
   // Accordion: expanding a step row closes this cycle's other open steps, unless the
   // owner opted out in settings. `toggle` doesn't bubble, so listen in capture phase.
   const keepStepsOpen = useKarin((s) => s.keepStepsOpen)
@@ -156,6 +179,7 @@ export default function Cycle({
 
   return (
     <details
+      ref={detailsRef}
       className={`cycle group mb-[3px] rounded-md border shadow-sm shadow-neutral-950/[0.02] transition-[margin] open:mb-[11px] open:shadow-md ${
         contextOnly
           ? 'border-neutral-200/70 bg-neutral-50/50 dark:border-neutral-800/70 dark:bg-neutral-900/40'
@@ -194,6 +218,19 @@ export default function Cycle({
           >
             {stepCount} {stepCount === 1 ? 'step' : 'steps'}
           </span>
+          <button
+            type="button"
+            onClick={toggleRaw}
+            title={rawCycle ? 'Back to the structured cycle' : 'Replace this whole cycle with its raw JSON records'}
+            className={`inline-flex shrink-0 items-center gap-1 rounded-sm border px-1 py-px text-[0.6rem] ${
+              rawCycle
+                ? 'border-neutral-300 bg-neutral-200 text-neutral-700 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100'
+                : 'border-neutral-200 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:border-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200'
+            }`}
+          >
+            <Braces className="h-3 w-3" />
+            {rawCycle ? 'Structured' : 'JSON'}
+          </button>
         </div>
         {hasUsage && (
           <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact showLegend={false} scaleMax={scaleMax} />
@@ -201,9 +238,15 @@ export default function Cycle({
       </summary>
       <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
-        <div ref={eventsRef} className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
-          {eventNodes}
-        </div>
+        {rawCycle ? (
+          <pre className="max-h-[36rem] overflow-auto whitespace-pre rounded-md bg-white px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
+            {rawJson}
+          </pre>
+        ) : (
+          <div ref={eventsRef} className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
+            {eventNodes}
+          </div>
+        )}
         {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}
         <div className="mt-[3px] flex items-center gap-[3px] px-[1px] text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
           <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />

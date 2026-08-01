@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.177',
+    title: 'JSON button on the cycle',
+    summary: 'Every cycle header carries a JSON button that swaps the whole cycle for its raw records; open-file tags are now recognised.',
+    detail:
+      'Raw JSON previously existed only inside an expanded step, so there was no way to see a whole cycle unstructured. The cycle header now has its own JSON button beside the step count: it opens the cycle if collapsed and replaces every card with the untouched records behind them. Separately, ide_opened_file and ide_diagnostics were missing from the attached-block list, so those prompts still showed the injected wall as their title — both are now recognised.',
+  },
+  {
     version: 'v.176',
     title: 'Raw JSON in every step',
     summary: 'Each expanded step now has the Raw JSON switch, and it replaces the structured view rather than adding to it.',

@@ -15,6 +15,8 @@
 // mislabelling the owner's own words as injected is the one unacceptable error.
 const INJECTED_TAGS = [
   'ide_selection',
+  'ide_opened_file',
+  'ide_diagnostics',
   'system-reminder',
   'local-command-caveat',
   'local-command-stdout',
@@ -28,6 +30,8 @@ const INJECTED_TAGS = [
 
 const TAG_LABELS: Record<string, string> = {
   ide_selection: 'IDE selection',
+  ide_opened_file: 'open file',
+  ide_diagnostics: 'IDE diagnostics',
   'system-reminder': 'system reminder',
   'local-command-caveat': 'command caveat',
   'local-command-stdout': 'command output',
