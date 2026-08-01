@@ -27,7 +27,6 @@ type Segment = {
 function SegmentBlocks({
   segment,
   blockValue,
-  blockUnit,
   blockPx,
   boxUnit,
   dotScale,
@@ -38,7 +37,6 @@ function SegmentBlocks({
 }: {
   segment: Segment
   blockValue: number
-  blockUnit: string
   blockPx: number
   boxUnit: number
   dotScale: boolean
@@ -52,13 +50,10 @@ function SegmentBlocks({
   const hatch = estimated
     ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.45) 0, rgba(255,255,255,0.45) 2px, transparent 2px, transparent 5px)' }
     : undefined
-  const title = `${estimated ? '≈ estimated ' : ''}${segment.label}: ${fmtCompact(segment.raw)} tokens · ${blockValue.toFixed(2)} ${blockUnit} · ${dotScale ? '1¢ dots' : '10¢ boxes'}`
-
   return (
     <div
       className="flex h-full min-w-0 shrink-0 items-center gap-px"
       style={stretch ? { width: `${Math.max(0, widthPercent || 0)}%` } : undefined}
-      title={title}
       aria-label={ariaLabel}
     >
       {Array.from({ length: blockCount }, (_, i) => {
@@ -150,10 +145,15 @@ export default function UsageBar({
   const dotScale = blockTotal <= 50
   const boxUnit = dotScale ? 1 : 10
   const blockPx = Math.min(FULL_BLOCK_PX, MAX_BLOCK_LINE_PX / Math.max(1, Math.ceil(blockTotal / boxUnit)))
-  const blockUnit = rates ? '€0.01 blocks' : 'million-token blocks (unpriced)'
   const isMoney = mode === 'money' && rates != null
   const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
   const fmtSeg = (segment: { value: number }) => (isMoney ? fmtCurrency(segment.value, currency) : fmtCompact(segment.value))
+  const totalLabel = isMoney
+    ? `total ${fmtCurrency(total, currency)}`
+    : mode === 'token_units' && rates != null
+      ? `total ${fmtCompact(total)}${refSuffix}`
+      : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`
+  const hoverTitle = estimated ? `≈ estimated ${totalLabel}` : totalLabel
   const blockHeight = thin ? 'h-[3px]' : inlineLabels ? (compact ? 'h-2.5' : 'h-3') : compact ? 'h-1.5' : 'h-1.5'
   const hasBlocks = valuedSegments.length > 0 && blockTotal > 0
   if (thin && !hasBlocks) return null
@@ -161,6 +161,7 @@ export default function UsageBar({
   return (
     <div className={compact ? 'min-w-0' : 'max-w-4xl'}>
       <div
+        title={hoverTitle}
         className={
           thin
             ? `inline-flex min-w-0 items-center gap-px ${blockHeight}`
@@ -175,7 +176,6 @@ export default function UsageBar({
               key={segment.key}
               segment={segment}
               blockValue={segment.blockValue}
-              blockUnit={blockUnit}
               blockPx={blockPx}
               boxUnit={boxUnit}
               dotScale={dotScale}
@@ -193,11 +193,7 @@ export default function UsageBar({
         // Compact cycle/card lines carry their value elsewhere; the top bar prints a total below.
         !compact && (
           <div className="mt-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">
-            {isMoney
-              ? `total ${fmtCurrency(total, currency)}`
-              : mode === 'token_units' && rates != null
-              ? `total ${fmtCompact(total)}${refSuffix}`
-              : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
+            {totalLabel}
           </div>
         )
       ) : (
@@ -210,11 +206,7 @@ export default function UsageBar({
               </span>
             ))}
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              {isMoney
-                ? `total ${fmtCurrency(total, currency)}`
-                : mode === 'token_units' && rates != null
-                ? `total ${fmtCompact(total)}${refSuffix}`
-                : `total ${fmtCompact(tokenTotal)} tokens${cost == null ? '' : ` / ${fmtCurrency(cost, currency)}`}`}
+              {totalLabel}
             </span>
           </div>
         )

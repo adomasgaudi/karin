@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.146',
+    title: 'Show hover totals',
+    summary: 'Hovering any usage bar now reports its total instead of constant block-unit details.',
+  },
+  {
     version: 'v.145',
     title: 'Restore full entry access',
     summary: 'Long replies and prompts regain expansion, while complete titles stay compact without redundant disclosures.',
