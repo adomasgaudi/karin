@@ -485,16 +485,30 @@ export const useKarin = create<KarinStore>((set, get) => ({
 }))
 
 let refreshTimer: number | null = null
+let refreshStopped = true
+
+// A tick where nothing changed is three HEAD requests (see refreshLocalData), so
+// polling fast is cheap. Self-scheduling rather than setInterval: a tick that DID
+// change downloads megabytes and can outlast the gap, and overlapping runs would
+// pile up. The gap is measured from completion, so the loop can never lap itself.
+const REFRESH_GAP_MS = 300
 
 function startLocalRefreshLoop() {
-  if (refreshTimer !== null) return
-  refreshTimer = window.setInterval(() => {
-    void useKarin.getState().refreshLocalData()
-  }, 5000)
+  if (!refreshStopped) return
+  refreshStopped = false
+  const tick = async () => {
+    try {
+      await useKarin.getState().refreshLocalData()
+    } finally {
+      if (!refreshStopped) refreshTimer = window.setTimeout(() => void tick(), REFRESH_GAP_MS)
+    }
+  }
+  refreshTimer = window.setTimeout(() => void tick(), REFRESH_GAP_MS)
 }
 
 function stopLocalRefreshLoop() {
+  refreshStopped = true
   if (refreshTimer === null) return
-  window.clearInterval(refreshTimer)
+  window.clearTimeout(refreshTimer)
   refreshTimer = null
 }

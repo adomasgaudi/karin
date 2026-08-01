@@ -739,8 +739,34 @@ def parse_subagents(path: Path, slug: str,
     return out
 
 
+# Parsed sessions, keyed by (path, mtime, size) → serialized JSON. In --watch a
+# tick usually changes ONE file, but build_projects re-parses all of them; parsing
+# is ~95% of the run (regex redaction over every string). Callers mutate what they
+# get back (split_payload empties the body fields), so the cache holds text and
+# hands out a fresh object per call — json.loads is ~10x cheaper than a re-parse.
+_PARSE_CACHE: dict[tuple[str, float, int], str] = {}
+PARSE_CACHE_MAX = 200
+
+# Session id → the source file's (mtime, size) that produced it, recorded here
+# rather than on the session dict so the payload shape is untouched. split_payload
+# uses it to skip re-serializing a body that cannot have changed.
+_SRC_KEY_BY_ID: dict[str, tuple[float, int]] = {}
+
+
 def parse_session(path: Path, slug: str) -> dict[str, Any]:
-    return enrich_session(path, slug, include_subagents=True)
+    stat = path.stat()
+    key = (str(path), stat.st_mtime, stat.st_size)
+    blob = _PARSE_CACHE.get(key)
+    if blob is None:
+        session = enrich_session(path, slug, include_subagents=True)
+        blob = json.dumps(session, ensure_ascii=False)
+        if len(_PARSE_CACHE) >= PARSE_CACHE_MAX:
+            _PARSE_CACHE.clear()  # cheap eviction: entries are worthless once stale
+        _PARSE_CACHE[key] = blob
+    parsed = json.loads(blob)
+    if parsed.get("id"):
+        _SRC_KEY_BY_ID[str(parsed["id"])] = (stat.st_mtime, stat.st_size)
+    return parsed
 
 
 # --- auto-title-label sessions -------------------------------------------------
@@ -904,42 +930,73 @@ def build_haystack(session: dict[str, Any]) -> str:
     return "\n".join(parts).lower()
 
 
-def split_payload(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """Move each session's heavy arrays into a body dict, leaving a light index.
+# Serialized body per session, keyed by (session id, source mtime+size). A body
+# whose transcript has not changed cannot have changed, so it is never re-dumped —
+# that dump was ~40 MB of JSON per watch tick.
+_BODY_TEXT_CACHE: dict[tuple[str, tuple[float, int]], str] = {}
+BODY_TEXT_CACHE_MAX = 200
+
+
+def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
+    """Move each session's heavy arrays into a body file, leaving a light index.
 
     Mutates the payload in place: heavy keys stay present but empty (so the TS types
-    still hold), with the search haystack precomputed at index level.
+    still hold), with the search haystack precomputed at index level. Returns each
+    body already serialized, so an unchanged one can be served straight from cache.
     """
-    bodies: list[tuple[str, dict[str, Any]]] = []
+    bodies: list[tuple[str, str]] = []
     for project in payload.get("projects") or []:
         for session in project.get("sessions") or []:
             session["haystack"] = build_haystack(session)
+            sid = str(session.get("id") or "")
             body = {"id": session.get("id")}
             for field in BODY_FIELDS:
                 body[field] = session.get(field) or []
                 session[field] = []
-            bodies.append((safe_file_stem(session.get("id") or ""), body))
+            src = _SRC_KEY_BY_ID.get(sid)
+            cache_key = (sid, src) if src else None
+            text = _BODY_TEXT_CACHE.get(cache_key) if cache_key else None
+            if text is None:
+                text = json.dumps(body, ensure_ascii=False)
+                if cache_key:
+                    if len(_BODY_TEXT_CACHE) >= BODY_TEXT_CACHE_MAX:
+                        _BODY_TEXT_CACHE.clear()
+                    _BODY_TEXT_CACHE[cache_key] = text
+            bodies.append((safe_file_stem(sid), text))
     payload["split"] = True
     return bodies
 
 
-def write_bodies(bodies: list[tuple[str, dict[str, Any]]]) -> None:
+# Body text last written this process, keyed by file name — see write_bodies.
+_LAST_BODY_TEXT: dict[str, str] = {}
+
+
+def write_bodies(bodies: list[tuple[str, str]]) -> None:
     """Write one file per session under data/sessions/claude/, drop stale ones, and
     mirror the whole directory into dist/data/ when a built bundle exists."""
     BODIES_DIR.mkdir(parents=True, exist_ok=True)
     wanted = set()
-    for stem, body in bodies:
+    changed = set()
+    for stem, text in bodies:
         name = f"{stem}.json"
         wanted.add(name)
-        (BODIES_DIR / name).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        # Only one session changes per watch tick; rewriting all 40 bodies (and
+        # re-copying them into dist/) was most of the write cost.
+        if _LAST_BODY_TEXT.get(name) == text and (BODIES_DIR / name).exists():
+            continue
+        (BODIES_DIR / name).write_text(text, encoding="utf-8")
+        _LAST_BODY_TEXT[name] = text
+        changed.add(name)
     for stale in BODIES_DIR.glob("*.json"):
         if stale.name not in wanted:
             stale.unlink(missing_ok=True)
+            _LAST_BODY_TEXT.pop(stale.name, None)
     if DIST_DATA_DIR.exists():
         dist_bodies = DIST_DATA_DIR / BODIES_REL
         dist_bodies.mkdir(parents=True, exist_ok=True)
         for name in wanted:
-            shutil.copy2(BODIES_DIR / name, dist_bodies / name)
+            if name in changed or not (dist_bodies / name).exists():
+                shutil.copy2(BODIES_DIR / name, dist_bodies / name)
         for stale in dist_bodies.glob("*.json"):
             if stale.name not in wanted:
                 stale.unlink(missing_ok=True)
@@ -987,7 +1044,8 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="Index every session file (overrides --limit).")
     parser.add_argument("--project", type=str, default=None, help="Only projects whose slug contains this substring.")
     parser.add_argument("--watch", action="store_true", help="Keep indexing when Claude session files change.")
-    parser.add_argument("--interval", type=float, default=5.0, help="Watch polling interval in seconds.")
+    parser.add_argument("--interval", type=float, default=0.25,
+                        help="Watch polling interval in seconds (a tick that finds no mtime change is just stat() calls).")
     args = parser.parse_args()
 
     limit = None if args.all else args.limit
@@ -1004,14 +1062,17 @@ def main() -> int:
 
         if args.watch:
             last_mtime = latest_session_mtime(args.project)
+            last_status_at = 0.0
             while True:
-                time.sleep(max(args.interval, 1.0))
+                time.sleep(max(args.interval, 0.05))
                 files = iter_session_files()
                 if args.project:
                     files = [f for f in files if args.project.lower() in f.parent.name.lower()]
-                status = build_status(files)
-                write_status(status)
                 current_mtime = max((path.stat().st_mtime for path in files), default=0.0)
+                # The heartbeat only feeds a 15s UI poll — don't rewrite it at tick rate.
+                if time.monotonic() - last_status_at >= 1.0:
+                    write_status(build_status(files))
+                    last_status_at = time.monotonic()
                 if current_mtime <= last_mtime:
                     continue
                 payload = index_once(limit, args.project)

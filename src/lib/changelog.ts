@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.180',
+    title: 'Live in under a second',
+    summary: 'A new message reaches the page in ~0.6s instead of ~10s — both polls were slow, and so was re-indexing.',
+    detail:
+      'Two five-second polls used to run back to back: the watcher waited five seconds before noticing a changed transcript, then the page waited five more before asking for the feed. Between them the indexer re-parsed and rewrote all forty sessions even though only one had changed. The watcher now checks four times a second, keeps parsed and serialized sessions cached against each file’s timestamp, and rewrites only the bodies that actually differ; the page polls every 300ms and waits for each poll to finish before scheduling the next. The feed it produces is byte-for-byte identical to before.',
+  },
+  {
     version: 'v.179',
     title: 'Booleans and shorter paths',
     summary: 'true/false are shown as written, and paths inside the project drop the project prefix.',
