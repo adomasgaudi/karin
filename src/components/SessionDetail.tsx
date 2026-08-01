@@ -381,7 +381,7 @@ export default function SessionDetail() {
         )}
       </div>
 
-      <div ref={bodyRef} className="p-1 md:p-[5px]">
+      <div ref={bodyRef} className="p-1 pb-16 md:p-[5px] md:pb-16">
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
         {mode === 'raw' ? (

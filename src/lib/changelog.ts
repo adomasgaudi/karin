@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.130',
+    title: 'Room after the final item',
+    summary: 'Session lists and cycle details now reserve comfortable bottom space after their last visible item.',
+  },
+  {
     version: 'v.129',
     title: 'Quiet locked reasoning',
     summary: 'Locked reasoning rows no longer expose their opaque internal identifier beside the lock label.',
