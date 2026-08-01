@@ -20,6 +20,7 @@ import type {
   TokenUsage,
   UnifiedSession,
   SessionSource,
+  FeedRecord,
 } from '../types'
 import type {
   ClaudeDetailSession,
@@ -38,14 +39,14 @@ import { ownPromptText } from './promptText'
 
 // A single transcript event, tagged by unified kind + source, used to build cycles.
 export type UnifiedEntry =
-  | { kind: 'context'; source: SessionSource; line: number; index: number; item: ContextBlock | ClaudeContext }
-  | { kind: 'message'; source: SessionSource; line: number; index: number; item: Message | ClaudeMessage }
-  | { kind: 'thinking'; source: SessionSource; line: number; index: number; item: Reasoning | ClaudeThinking }
-  | { kind: 'tool'; source: SessionSource; line: number; index: number; item: Tool | ClaudeTool }
-  | { kind: 'edit'; source: SessionSource; line: number; index: number; item: CodeEdit | ClaudeEdit }
-  | { kind: 'usage'; source: SessionSource; line: number; index: number; item: TokenEvent | ClaudeUsageFrame }
-  | { kind: 'runtime'; source: SessionSource; line: number; index: number; item: RuntimeEvent }
-  | { kind: 'subagent'; source: SessionSource; line: number; index: number; item: ClaudeSubagent }
+  | { kind: 'context'; source: SessionSource; line: number; index: number; item: ContextBlock | ClaudeContext; raw?: FeedRecord }
+  | { kind: 'message'; source: SessionSource; line: number; index: number; item: Message | ClaudeMessage; raw?: FeedRecord }
+  | { kind: 'thinking'; source: SessionSource; line: number; index: number; item: Reasoning | ClaudeThinking; raw?: FeedRecord }
+  | { kind: 'tool'; source: SessionSource; line: number; index: number; item: Tool | ClaudeTool; raw?: FeedRecord }
+  | { kind: 'edit'; source: SessionSource; line: number; index: number; item: CodeEdit | ClaudeEdit; raw?: FeedRecord }
+  | { kind: 'usage'; source: SessionSource; line: number; index: number; item: TokenEvent | ClaudeUsageFrame; raw?: FeedRecord }
+  | { kind: 'runtime'; source: SessionSource; line: number; index: number; item: RuntimeEvent; raw?: FeedRecord }
+  | { kind: 'subagent'; source: SessionSource; line: number; index: number; item: ClaudeSubagent; raw?: FeedRecord }
 
 export type Entry = UnifiedEntry
 export type EntryKind = UnifiedEntry['kind']
@@ -73,16 +74,21 @@ function codexEntries(s: Session): UnifiedEntry[] {
   // Before the lazy body arrives, render the call-only index records. Once hydrated,
   // `merge()` combines these with full tools so previews only fill genuinely missing rows.
   const tools = s.tools?.length ? s.tools : (s.tool_previews || [])
+  // Codex's apply_patch path produces both a tool call and a richer code_edit entry.
+  // Claude already suppresses the duplicate edit row; make the same choice here while
+  // keeping the edit representation, which is the one that can show the patch/result.
+  const editCallIds = new Set((s.code_edits || []).map((edit) => edit.call_id).filter(Boolean))
+  const visibleTools = tools.filter((tool) => !tool.call_id || !editCallIds.has(tool.call_id))
   const entries: UnifiedEntry[] = [
     ...(s.contexts || []).map((item, index): UnifiedEntry => ({ kind: 'context', source: src, line: item.line || 0, index, item })),
     ...(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
     ...(s.reasoning || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
     ...(s.runtime_events || []).map((item, index): UnifiedEntry => ({ kind: 'runtime', source: src, line: item.line || 0, index, item })),
-    ...tools.map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
+    ...visibleTools.map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
     ...(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
     ...(s.token_events || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
   ]
-  return entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+  return attachRaw(entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]), s.records)
 }
 
 function claudeEntries(s: ClaudeDetailSession): UnifiedEntry[] {
@@ -102,7 +108,18 @@ function claudeEntries(s: ClaudeDetailSession): UnifiedEntry[] {
     ...(s.usage_frames || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
     ...(s.subagents || []).map((item, index): UnifiedEntry => ({ kind: 'subagent', source: src, line: item.parent_line || 0, index, item })),
   ]
-  return entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+  return attachRaw(entries.sort((a, b) => a.line - b.line || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]), s.records)
+}
+
+function attachRaw(entries: UnifiedEntry[], records?: FeedRecord[]): UnifiedEntry[] {
+  if (!records?.length) return entries
+  const byLine = new Map(records.map((record) => [record._line, record]))
+  return entries.map((entry) => {
+    // A Claude subagent points at its parent tool line but owns a nested transcript;
+    // attaching the parent raw line would falsely imply it is the same record.
+    if (entry.kind === 'subagent') return entry
+    return { ...entry, raw: byLine.get(entry.line) }
+  })
 }
 
 // Warp's indexer emits Codex-shaped arrays (Message/Tool/Reasoning/CodeEdit) precisely so

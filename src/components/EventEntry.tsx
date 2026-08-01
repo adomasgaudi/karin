@@ -523,8 +523,14 @@ function UserPromptBody({ text }: { text: string }) {
 // Session-state Claude context blocks (last-prompt / mode / permission-mode / ai-title) —
 // low-signal, repetitive, and grouped into one row (see SessionMetaGroup) rather than a
 // card each. A readable label per entry.
-function metaLabel(item: ClaudeContext): string {
+function metaLabel(item: ClaudeContext | ContextBlock): string {
   const n = item.name
+  if ('visibility' in item) {
+    if (n === 'session_meta_summary') return 'session meta'
+    if (n === 'turn_context') return 'turn context'
+    if (n === 'base_instructions') return 'base instructions'
+    if (n === 'dynamic_tools') return 'dynamic tools'
+  }
   if (n === 'last-prompt') return 'last prompt'
   if (n === 'ai-title') return 'ai title'
   if (n.startsWith('mode/')) return `mode: ${n.slice(5)}`
@@ -533,15 +539,18 @@ function metaLabel(item: ClaudeContext): string {
 }
 
 export function isSessionMeta(entry: Entry): boolean {
-  if (entry.kind !== 'context' || entry.source !== 'claude') return false
-  const n = (entry.item as ClaudeContext).name
+  if (entry.kind !== 'context') return false
+  const n = (entry.item as ClaudeContext | ContextBlock).name
+  if (entry.source === 'codex') {
+    return n === 'session_meta_summary' || n === 'turn_context' || n === 'base_instructions' || n === 'dynamic_tools'
+  }
   return n === 'last-prompt' || n === 'ai-title' || n.startsWith('mode/') || n.startsWith('permission-mode/')
 }
 
 // A run of consecutive session-state context blocks, collapsed into a single dropdown so
 // the repetitive last-prompt / mode / permission / ai-title records stop taking four rows.
 export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
-  const labels = entries.map((e) => metaLabel(e.item as ClaudeContext)).join(', ')
+  const labels = entries.map((e) => metaLabel(e.item as ClaudeContext | ContextBlock)).join(', ')
   return (
     <details className={`${rowBase} border-l-neutral-300 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
@@ -553,7 +562,7 @@ export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
       </summary>
       <div className="space-y-2 px-2 pb-2 pl-7 pt-1">
         {entries.map((e, i) => {
-          const item = e.item as ClaudeContext
+          const item = e.item as ClaudeContext | ContextBlock
           return (
             <div key={i}>
               <div className="mb-0.5 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
@@ -840,7 +849,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
 // switch. One provider per step keeps the switch showing THIS step's data.
 export default function EventEntry(props: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
   return (
-    <RawItemContext.Provider value={props.entry.item}>
+    <RawItemContext.Provider value={props.entry.raw ?? props.entry.item}>
       <EventEntryBody {...props} />
     </RawItemContext.Provider>
   )

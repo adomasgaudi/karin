@@ -4,6 +4,8 @@
 import { stripAnsi } from './JsonView'
 
 interface PatchHunk {
+  file?: string
+  header?: string
   oldStart?: number
   oldLines?: number
   newStart?: number
@@ -17,6 +19,58 @@ function asHunks(structured: unknown): PatchHunk[] | null {
     (h): h is PatchHunk => !!h && typeof h === 'object' && Array.isArray((h as PatchHunk).lines),
   )
   return hunks.length > 0 ? hunks : null
+}
+
+// Codex commonly invokes apply_patch from an `exec` wrapper, so its normalized edit
+// contains `const patch = "*** Begin Patch\\n..."` rather than Claude's structuredPatch.
+// Recover the same file/hunk shape here instead of making the renderer show the wrapper.
+function parseApplyPatch(raw: string): PatchHunk[] | null {
+  let text = stripAnsi(raw || '')
+  const begin = text.indexOf('*** Begin Patch')
+  if (begin < 0) return null
+  text = text.slice(begin)
+  const end = text.indexOf('*** End Patch')
+  if (end >= 0) text = text.slice(0, end)
+  if (!text.includes('\n') && text.includes('\\n')) {
+    text = text.replace(/\\r?\\n/g, '\n').replace(/\\"/g, '"')
+  }
+
+  const hunks: PatchHunk[] = []
+  let file: string | undefined
+  let current: PatchHunk | null = null
+  const flush = () => {
+    if (current && current.lines && current.lines.length > 0) hunks.push(current)
+    current = null
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const fileMatch = /^\*\*\* (?:Update|Add|Delete) File:\s*(.+)$/.exec(line)
+    if (fileMatch) {
+      flush()
+      file = fileMatch[1].trim()
+      continue
+    }
+    if (line.startsWith('@@')) {
+      flush()
+      const header = line.trim()
+      const match = /@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?/.exec(header)
+      current = {
+        file,
+        header,
+        oldStart: match ? Number(match[1]) : undefined,
+        oldLines: match ? Number(match[2] ?? 1) : undefined,
+        newStart: match ? Number(match[3]) : undefined,
+        newLines: match ? Number(match[4] ?? 1) : undefined,
+        lines: [line],
+      }
+      continue
+    }
+    if (line.startsWith('+') || line.startsWith('-') || line.startsWith(' ')) {
+      if (!current) current = { file, lines: [] }
+      current.lines?.push(line)
+    }
+  }
+  flush()
+  return hunks.length ? hunks : null
 }
 
 // `oldStart`/`newStart` turn on the line-number gutter: a removed line is numbered in
@@ -70,7 +124,7 @@ export function DiffLines({ lines, oldStart, newStart }: { lines: string[]; oldS
 }
 
 export default function DiffView({ structured, patch }: { structured: unknown; patch: string }) {
-  const hunks = asHunks(structured)
+  const hunks = asHunks(structured) ?? parseApplyPatch(patch)
   if (!hunks) {
     return (
       <div className="overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed dark:bg-neutral-950/55">
@@ -82,8 +136,9 @@ export default function DiffView({ structured, patch }: { structured: unknown; p
     <div className="overflow-x-auto rounded-md bg-white/70 font-mono text-xs leading-relaxed dark:bg-neutral-950/55">
       {hunks.map((hunk, hi) => (
         <div key={hi} className="border-b border-neutral-200/60 last:border-b-0 dark:border-neutral-800/60">
+          {hunk.file && <div className="border-b border-neutral-200/60 bg-neutral-50 px-2 py-0.5 text-[0.6rem] text-neutral-500 dark:border-neutral-800/60 dark:bg-neutral-950/50 dark:text-neutral-400">{hunk.file}</div>}
           <div className="bg-neutral-100/70 px-2 py-0.5 text-[0.6rem] text-neutral-500 dark:bg-neutral-900/60 dark:text-neutral-400">
-            @@ -{hunk.oldStart ?? 0},{hunk.oldLines ?? 0} +{hunk.newStart ?? 0},{hunk.newLines ?? 0} @@
+            {hunk.header ?? `@@ -${hunk.oldStart ?? 0},${hunk.oldLines ?? 0} +${hunk.newStart ?? 0},${hunk.newLines ?? 0} @@`}
           </div>
           <DiffLines lines={hunk.lines || []} />
         </div>

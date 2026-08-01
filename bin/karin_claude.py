@@ -49,8 +49,10 @@ BODY_FIELDS = ("records", "subagents", "usage_frames", "tools", "contexts", "cod
 # deferred_tools_delta payloads from bloating the dataset).
 MAX_STRING_CHARS = 8000
 
-# Default: index only the newest N session files globally (by mtime).
-DEFAULT_LIMIT = 40
+# Bodies are lazy-loaded, so the default index must include every transcript just like
+# Codex. A smaller sample remains available explicitly through Karin's -Limit switch or
+# the indexer's --limit option.
+DEFAULT_LIMIT = None
 
 
 SECRET_PATTERNS = [
@@ -244,10 +246,11 @@ def build_attribution(mcp_servers: set[str], mcp_tools: set[str],
     }
 
 
-def read_records(path: Path) -> tuple[list[tuple[int, dict[str, Any]]], int]:
-    """Read a transcript into an ordered (line_no, record) list plus a parse-error count."""
+def read_records(path: Path) -> tuple[list[tuple[int, dict[str, Any]]], int, list[int]]:
+    """Read a transcript into records plus parse-error count and exact line numbers."""
     raw: list[tuple[int, dict[str, Any]]] = []
     parse_errors = 0
+    parse_error_lines: list[int] = []
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for line_no, line in enumerate(handle, 1):
             line = line.strip()
@@ -257,18 +260,21 @@ def read_records(path: Path) -> tuple[list[tuple[int, dict[str, Any]]], int]:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 parse_errors += 1
+                parse_error_lines.append(line_no)
                 continue
             if not isinstance(record, dict):
                 parse_errors += 1
+                parse_error_lines.append(line_no)
                 continue
             raw.append((line_no, record))
-    return raw, parse_errors
+    return raw, parse_errors, parse_error_lines
 
 
 # Records whose content becomes a "context" card (everything not a message / tool).
 CONTEXT_TYPES = {
     "system", "attachment", "mode", "permission-mode", "bridge-session",
-    "file-history-snapshot", "queue-operation", "last-prompt", "ai-title",
+    "file-history-snapshot", "file-history-delta", "queue-operation", "last-prompt", "ai-title",
+    "custom-title", "relocated", "worktree-state", "frame-link",
 }
 
 
@@ -336,7 +342,7 @@ def enrich_session(path: Path, slug: str, include_subagents: bool = True) -> dic
     adds the structured views (messages, thinking, tools, code_edits, usage_frames,
     contexts, turn_contexts, subagents, counts, audit, latest_total_usage).
     """
-    raw_records, parse_errors = read_records(path)
+    raw_records, parse_errors, parse_error_lines = read_records(path)
     mtime = path.stat().st_mtime
 
     # --- existing raw summary (unchanged behavior) ---------------------------
@@ -651,6 +657,7 @@ def enrich_session(path: Path, slug: str, include_subagents: bool = True) -> dic
         "type_counts": dict(type_counts),
         "usage_totals": usage_totals,
         "parse_errors": parse_errors,
+        "parse_error_lines": parse_error_lines,
         "records": records,
         # --- enriched shape ---
         "messages": messages,
@@ -686,7 +693,7 @@ def build_audit(counts: dict[str, int], type_counts: Counter[str],
         {"name": "tool_calls", "count": counts["tool_calls"], "source": "assistant tool_use blocks paired to user tool_result"},
         {"name": "code_edits", "count": counts["code_edits"], "source": "Edit/Write/MultiEdit/NotebookEdit tool_use + structuredPatch"},
         {"name": "usage_frames", "count": counts["usage_frames"], "source": "assistant message.usage (normalized, running total)"},
-        {"name": "contexts", "count": counts["contexts"], "source": "system/attachment/mode/permission-mode/bridge-session/file-history-snapshot/queue-operation/last-prompt/ai-title"},
+        {"name": "contexts", "count": counts["contexts"], "source": "session-state, history, title, worktree, and bridge records"},
         {"name": "subagents", "count": counts["subagents"], "source": "<session>/subagents/agent-*.jsonl"},
     ]
     not_available = [
@@ -1110,7 +1117,7 @@ def start_change_signal() -> "threading.Event | None":
 def main() -> int:
     parser = argparse.ArgumentParser(description="Index local Claude Code sessions for the Karin web app.")
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
-                        help=f"Index only the newest N session files globally by mtime (default {DEFAULT_LIMIT}).")
+                        help="Index only the newest N session files globally by mtime.")
     parser.add_argument("--all", action="store_true", help="Index every session file (overrides --limit).")
     parser.add_argument("--project", type=str, default=None, help="Only projects whose slug contains this substring.")
     parser.add_argument("--watch", action="store_true", help="Keep indexing when Claude session files change.")

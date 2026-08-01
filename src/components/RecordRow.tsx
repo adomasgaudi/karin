@@ -30,6 +30,31 @@ function firstText(content: unknown): string | null {
   return null
 }
 
+function codexPayloadPreview(payload: Record<string, unknown>): string | null {
+  const kind = typeof payload.type === 'string' ? payload.type : ''
+  if (kind === 'message') {
+    const text = firstText(payload.content)
+    return text || (typeof payload.role === 'string' ? `${payload.role} message` : 'message')
+  }
+  if (kind === 'reasoning') {
+    const summary = firstText(payload.summary)
+    return summary || (payload.encrypted_content ? 'encrypted reasoning' : 'reasoning')
+  }
+  if (kind.endsWith('_call') || kind === 'function_call') {
+    const name = typeof payload.name === 'string' ? payload.name : kind.replace(/_call$/, '')
+    const args = payload.arguments ?? payload.input ?? payload.action
+    const text = typeof args === 'string' ? args : args ? JSON.stringify(args) : ''
+    return `→ ${name}${text ? ` ${text}` : ''}`
+  }
+  if (kind.endsWith('_output')) {
+    const output = payload.output
+    const text = typeof output === 'string' ? output : output ? JSON.stringify(output) : ''
+    return text || kind.replace(/_/g, ' ')
+  }
+  if (typeof payload.type === 'string') return payload.type.replace(/_/g, ' ')
+  return null
+}
+
 function recordPreview(rec: FeedRecord): string {
   const msg = rec.message as Record<string, unknown> | undefined
   if (msg && typeof msg === 'object') {
@@ -41,6 +66,12 @@ function recordPreview(rec: FeedRecord): string {
   if (typeof rec.content === 'string') return rec.content
   const t = firstText(rec.content)
   if (t) return t
+  // Codex stores the source JSONL payload under a top-level `payload` object.
+  // Treat it as a first-class record shape instead of falling back to `{ type, payload }`.
+  if (rec.payload && typeof rec.payload === 'object' && !Array.isArray(rec.payload)) {
+    const t = codexPayloadPreview(rec.payload as Record<string, unknown>)
+    if (t) return t
+  }
   // Warp events carry a flat `text` (assistant prose, reasoning, or a tool payload).
   if (typeof rec.text === 'string' && rec.text.trim()) {
     return typeof rec.tool === 'string' ? `→ ${rec.tool} ${rec.text}` : rec.text
@@ -48,6 +79,15 @@ function recordPreview(rec: FeedRecord): string {
   // Fall back to a compact key list so the row is never blank.
   const keys = Object.keys(rec).filter((k) => k !== '_line' && k !== '_type')
   return keys.length ? `{ ${keys.slice(0, 6).join(', ')}${keys.length > 6 ? ', …' : ''} }` : '(empty)'
+}
+
+function recordTypeLabel(record: FeedRecord): string {
+  const payload = record.payload
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const subtype = (payload as Record<string, unknown>).type
+    if (typeof subtype === 'string') return `${record._type}/${subtype}`
+  }
+  return record._type
 }
 
 function oneLine(text: string, max = 160): string {
@@ -88,7 +128,7 @@ export default function RecordRow({ record, now }: { record: FeedRecord; now: Da
         <span className="w-8 shrink-0 text-right font-mono text-[0.62rem] tabular-nums text-neutral-400 dark:text-neutral-500">
           {record._line}
         </span>
-        <TypeTag type={record._type} />
+        <TypeTag type={recordTypeLabel(record)} />
         <span className="min-w-0 flex-1 truncate text-xs text-neutral-700 dark:text-neutral-300">{preview}</span>
         {ts && (
           <span className="shrink-0 font-mono text-[0.62rem] tabular-nums text-neutral-400 dark:text-neutral-500">

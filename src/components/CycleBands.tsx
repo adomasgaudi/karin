@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { UnifiedEntry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
 import { groupActions } from '../lib/unifiedCycles'
-import type { ContextBlock, TokenUsage } from '../types'
+import type { ContextBlock, SessionSource, TokenUsage } from '../types'
 import type { ClaudeContext } from '../lib/claudeModel'
 import {
   addUsage,
@@ -32,6 +32,7 @@ function Chevron() {
 
 // Shared display props threaded to every leaf row.
 export interface BandDisplay {
+  source: SessionSource
   rates: TokenRates | null
   unitMode: UsageUnitMode
   currency: CurrencyMode
@@ -171,12 +172,19 @@ export function ActionBand({
   const total = groups.reduce<TokenUsage>((s, g) => addUsage(s, g.usage ?? {}), {})
   const totalFig = figure(total, d)
 
-  // No more "step N" header rows. Each usage frame's tokens attach to its group's last
-  // action (the one that triggered the frame), rendered as that action's own thin bar.
+  // No more "step N" header rows. Claude usage frames attach to the group's last action;
+  // Codex has no per-card frame, so keep the weighted estimates from the shared adapter.
   const actionUsage = new Map<UnifiedEntry, EntryUsage>()
   for (const g of groups) {
-    const rep = g.actions[g.actions.length - 1]
-    if (rep && g.usage) actionUsage.set(rep, { usage: g.usage, estimated: !g.measured })
+    if (d.source === 'codex') {
+      for (const action of g.actions) {
+        const attributed = d.entryUsage.get(action)
+        if (attributed) actionUsage.set(action, attributed)
+      }
+    } else {
+      const rep = g.actions[g.actions.length - 1]
+      if (rep && g.usage) actionUsage.set(rep, { usage: g.usage, estimated: !g.measured })
+    }
   }
   const actions = groups.flatMap((g) => g.actions)
 

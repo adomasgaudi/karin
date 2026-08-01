@@ -140,6 +140,9 @@ export interface Audit {
 
 export interface Session {
   id: string
+  // The source transcript's session_meta id. It can be shared by parent/child
+  // rollout files; `id` is made stream-unique before the feed is written.
+  logical_id?: string | null
   title: string
   path: string
   cwd: string | null
@@ -164,6 +167,8 @@ export interface Session {
   code_edits: CodeEdit[]
   counts: Counts
   audit: Audit
+  parse_error_lines?: number[]
+  task_completions?: Array<{ timestamp: string | null; line?: number; turn_id?: string | null; duration_ms?: number | null; time_to_first_token_ms?: number | null }>
   latest_total_usage: TokenUsage | null
   // Precomputed by the indexer so the sidebar works without the body fields below,
   // which arrive empty in the index and are filled in by hydrateSession().

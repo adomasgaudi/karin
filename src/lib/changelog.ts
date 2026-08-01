@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.212',
+    title: 'Source coverage parity',
+    summary: 'Codex and Claude now share raw step fidelity, duplicate-edit suppression, line-level audits, and stable stream identities.',
+    detail:
+      'The unified cycle adapter now keeps the original feed record behind every structured step, deduplicates Codex edit/tool pairs, and parses Codex apply_patch wrappers into readable diffs. Context audit is a compact info popover that reports raw versus structured counts and exact unhandled, merged, reclassified, and parse-error lines. Codex rollout files with repeated parent IDs receive stable stream-specific body identities so one transcript cannot overwrite another.',
+  },
+  {
     version: 'v.211',
     title: 'Quieter navigation',
     summary: 'Pages, search, allowance, and pricing controls now open from compact menus instead of crowding the header.',

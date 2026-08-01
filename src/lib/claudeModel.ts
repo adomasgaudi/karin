@@ -188,6 +188,8 @@ export interface ClaudeDetailSession {
   record_count: number
   type_counts: Record<string, number>
   usage_totals: ClaudeUsageTotals
+  parse_errors?: number
+  parse_error_lines?: number[]
   records: ClaudeRecord[] // raw JSONL lines — kept for the Raw toggle
 
   // Enriched structured arrays ---------------------------------------------------

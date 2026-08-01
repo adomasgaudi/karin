@@ -57,7 +57,16 @@ export default function Cycle({
   // Whole-cycle raw view: swaps every card in this cycle for the untouched records
   // behind them. Same idea as a step's Raw JSON switch, one level up.
   const [rawCycle, setRawCycle] = useState(false)
-  const rawItems = useMemo(() => (rawCycle ? cycle.items.map((entry) => entry.item) : []), [rawCycle, cycle])
+  const rawItems = useMemo(() => {
+    if (!rawCycle) return []
+    const seen = new Set<string>()
+    return cycle.items.flatMap((entry) => {
+      const key = entry.raw ? `raw:${entry.raw._line}` : `entry:${entry.kind}:${entry.line}:${entry.index}`
+      if (seen.has(key)) return []
+      seen.add(key)
+      return [entry.raw ?? entry.item]
+    })
+  }, [rawCycle, cycle])
   // The button now sits in the body, so it no longer has to fight <summary>'s
   // click-to-collapse — the cycle is already open whenever it is reachable.
   const toggleRaw = () => setRawCycle((prev) => !prev)
@@ -114,7 +123,7 @@ export default function Cycle({
     cycle.items.forEach((e) => m.set(e, e.line))
     return m
   }, [cycle])
-  const display: BandDisplay = { rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, singleModel, entryUsage, steps, numFor }
+  const display: BandDisplay = { source, rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, singleModel, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
   let hooksBuf: UnifiedEntry[] = []
   let aiBuf: UnifiedEntry[] = []

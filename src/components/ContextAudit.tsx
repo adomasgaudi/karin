@@ -1,26 +1,55 @@
+import { useMemo, useState } from 'react'
+import { Info, X } from 'lucide-react'
 import type { Session, UnifiedSession } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
+import { buildCoverageAudit, type CoverageFinding } from '../lib/coverageAudit'
 import JsonView from './JsonView'
 
 const panelClass = 'overflow-x-auto rounded-md bg-white/70 dark:bg-neutral-950/55'
 
-// Drop empty/absent count maps so the raw-counts block only shows what this source records.
 function present(counts: Record<string, Record<string, number> | undefined>): Record<string, Record<string, number>> {
   const out: Record<string, Record<string, number>> = {}
-  for (const [k, v] of Object.entries(counts)) {
-    if (v && Object.keys(v).length) out[k] = v
+  for (const [key, value] of Object.entries(counts)) {
+    if (value && Object.keys(value).length) out[key] = value
   }
   return out
 }
 
+function lineRanges(lines: number[]): string {
+  const sorted = [...new Set(lines)].sort((a, b) => a - b)
+  const ranges: string[] = []
+  for (const line of sorted) {
+    const previous = ranges[ranges.length - 1]
+    const match = previous?.match(/^(\d+)(?:–(\d+))?$/)
+    if (match && Number(match[2] ?? match[1]) + 1 === line) {
+      ranges[ranges.length - 1] = `${match[1]}–${line}`
+    } else {
+      ranges.push(String(line))
+    }
+  }
+  return ranges.join(', ')
+}
+
+function findingTone(finding: CoverageFinding): string {
+  if (finding.status === 'parse_error') return 'text-rose-700 dark:text-rose-300'
+  if (finding.status === 'unhandled') return 'text-amber-700 dark:text-amber-300'
+  if (finding.status === 'reclassified') return 'text-sky-700 dark:text-sky-300'
+  return 'text-neutral-600 dark:text-neutral-300'
+}
+
+function findingStatus(status: CoverageFinding['status']): string {
+  if (status === 'parse_error') return 'parse error'
+  return status
+}
+
 export default function ContextAudit({ session }: { session: UnifiedSession }) {
-  const audit = (session.raw as Session | ClaudeDetailSession).audit
+  const [open, setOpen] = useState(false)
+  const [talliesOpen, setTalliesOpen] = useState(false)
+  const coverage = useMemo(() => buildCoverageAudit(session), [session])
+  const raw = session.raw as Session | ClaudeDetailSession
+  const audit = raw.audit
   if (!audit) return null
 
-  const visibleCount = audit.visible?.reduce((sum, item) => sum + item.count, 0) ?? 0
-  const blindSpotCount = audit.not_available?.length ?? 0
-
-  // Each source records a different set of raw tallies — show whichever are present.
   const rawCounts =
     session.source === 'claude'
       ? present({
@@ -37,44 +66,71 @@ export default function ContextAudit({ session }: { session: UnifiedSession }) {
           events: (audit as Session['audit']).event_counts,
         })
 
-  // Only buckets that actually recorded something: a list of zeros says nothing about
-  // this session, and the empty rows were most of the old panel's height.
-  const buckets = (audit.visible ?? []).filter((item) => item.count > 0)
-
   return (
-    <details className="context overflow-hidden rounded-md border border-violet-200/80 bg-violet-50/70 dark:border-violet-900/60 dark:bg-violet-950/25">
-      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-violet-950 [&::-webkit-details-marker]:hidden dark:text-violet-100">
-        Context audit
-        <span className="ml-2 font-normal text-violet-700/80 dark:text-violet-300/80">
-          {visibleCount.toLocaleString()} records
-        </span>
-      </summary>
-      <div className="space-y-2 border-t border-violet-200/70 px-3 pb-3 pt-2 dark:border-violet-900/60">
-        {/* count → name, one line each. The old view spent three lines per bucket to
-            say what a number and a label say; the `source` string is a fixed
-            explanation of the extractor, so it moves to each row's tooltip. */}
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-          {buckets.map((item) => (
-            <span key={item.name} className="flex items-baseline gap-1.5 text-xs" title={item.source}>
-              <span className="font-mono text-neutral-700 dark:text-neutral-200">{item.count.toLocaleString()}</span>
-              <span className="text-neutral-500 dark:text-neutral-400">{item.name.replace(/_/g, ' ')}</span>
+    <div className="relative flex justify-end">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Open context coverage audit"
+        aria-expanded={open}
+        title="Show which source records are rendered, merged, or unhandled"
+        className="inline-flex items-center gap-1 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        <Info className="h-3.5 w-3.5" />
+        <span className="font-mono text-[0.58rem] tabular-nums">{coverage.rawRecords.toLocaleString()}</span>
+      </button>
+
+      {open && (
+        <div role="dialog" aria-label="Context coverage audit" className="absolute right-0 top-8 z-30 w-[min(42rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-violet-200 bg-violet-50/95 text-left shadow-xl shadow-neutral-950/10 backdrop-blur dark:border-violet-900/70 dark:bg-violet-950/95">
+          <div className="flex items-center gap-2 border-b border-violet-200/70 px-3 py-2 dark:border-violet-900/70">
+            <span className="text-xs font-semibold text-violet-950 dark:text-violet-100">Context coverage</span>
+            <span className="text-[0.65rem] text-violet-700/80 dark:text-violet-300/80">
+              {coverage.rawRecords.toLocaleString()} raw · {coverage.structuredRows.toLocaleString()} structured rows
             </span>
-          ))}
-        </div>
-        {blindSpotCount > 0 && (
-          <div className="text-[0.65rem] leading-relaxed text-neutral-400 dark:text-neutral-500">
-            Not in any local transcript: {audit.not_available?.map((item) => item.name.replace(/_/g, ' ')).join(', ')}.
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close context coverage audit" className="ml-auto rounded p-0.5 text-violet-500 hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-900/60">
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-        )}
-        {/* The unmassaged tallies are the part worth keeping — they're how you'd spot a
-            record type the indexer doesn't handle — but only when you go looking. */}
-        <details>
-          <summary className="cursor-pointer select-none text-[0.65rem] text-neutral-400 [&::-webkit-details-marker]:hidden hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">
-            Raw transcript tallies
-          </summary>
-          <div className={`mt-1 ${panelClass}`}><JsonView value={rawCounts} /></div>
-        </details>
-      </div>
-    </details>
+          <div className="max-h-[min(70vh,38rem)] space-y-2 overflow-y-auto px-3 pb-3 pt-2 text-[0.68rem]">
+            {!coverage.loaded ? (
+              <p className="text-neutral-500 dark:text-neutral-400">The feed body is still loading; exact source lines will appear when it arrives.</p>
+            ) : coverage.findings.length === 0 ? (
+              <p className="text-emerald-700 dark:text-emerald-300">Every loaded source record has a structured representation.</p>
+            ) : (
+              <div className="space-y-1">
+                <div className="font-medium text-violet-950 dark:text-violet-100">Source lines needing explanation</div>
+                {coverage.findings.map((finding) => (
+                  <div key={`${finding.status}:${finding.name}:${finding.reason}`} className="rounded-md border border-violet-200/70 bg-white/60 px-2 py-1.5 dark:border-violet-900/60 dark:bg-neutral-950/35">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className={`font-medium ${findingTone(finding)}`}>{findingStatus(finding.status)}</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-200">{finding.name}</span>
+                      <span className="font-mono text-neutral-400 dark:text-neutral-500">×{finding.count}</span>
+                      {finding.lines.length > 0 && <span className="font-mono text-neutral-500 dark:text-neutral-400">lines {lineRanges(finding.lines)}</span>}
+                    </div>
+                    <div className="mt-0.5 leading-relaxed text-neutral-500 dark:text-neutral-400">{finding.reason}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {coverage.notAvailable.length > 0 && (
+              <div className="border-t border-violet-200/70 pt-2 dark:border-violet-900/60">
+                <div className="font-medium text-neutral-600 dark:text-neutral-300">Not available in local transcripts</div>
+                <div className="mt-1 space-y-0.5 text-neutral-500 dark:text-neutral-400">
+                  {coverage.notAvailable.map((item) => <div key={item.name}><span className="font-medium">{item.name.replace(/_/g, ' ')}</span> — {item.reason}</div>)}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-violet-200/70 pt-2 dark:border-violet-900/60">
+              <button type="button" onClick={() => setTalliesOpen((value) => !value)} className="text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200">
+                {talliesOpen ? '▾' : '▸'} Raw transcript tallies
+              </button>
+              {talliesOpen && <div className={`mt-1 ${panelClass}`}><JsonView value={rawCounts} /></div>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

@@ -179,6 +179,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
         "fast_mode": None,
         "started_at": None,
         "updated_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+        "logical_id": None,
         "messages": [],
         "records": [],
         "tools": [],
@@ -202,6 +203,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
                 },
             ],
         },
+        "parse_error_lines": [],
         "token_events": [],
         "task_completions": [],
         "code_edits": [],
@@ -220,6 +222,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
+                session["parse_error_lines"].append(line_no)
                 continue
             timestamp = iso_from_timestamp(record.get("timestamp"))
             kind = record.get("type")
@@ -286,6 +289,7 @@ def _parse_session_uncached(path: Path, names: dict[str, str]) -> dict[str, Any]
                     session["task_completions"].append(
                         {
                             "timestamp": timestamp,
+                            "line": line_no,
                             "turn_id": payload.get("turn_id"),
                             "duration_ms": payload.get("duration_ms"),
                             "time_to_first_token_ms": payload.get("time_to_first_token_ms"),
@@ -538,6 +542,24 @@ def cached_split_session(path: Path, names: dict[str, str]) -> tuple[dict[str, A
     return session, (stem, body_text)
 
 
+def duplicate_stream_title(session: dict[str, Any], path: Path) -> str:
+    """Give child rollout streams a useful, stable label instead of the parent chat name."""
+    prompt = ""
+    for message in reversed(session.get("messages") or []):
+        if message.get("role") != "user":
+            continue
+        text = " ".join(str(message.get("text") or "").split()).strip()
+        if len(text) < 8 or "# AGENTS.md instructions" in text or "<environment_context>" in text:
+            continue
+        prompt = text
+        break
+    base = prompt or str(session.get("title") or "Codex session").strip()
+    suffix = path.stem.rsplit("-", 1)[-1][:8]
+    if len(base) > 48:
+        base = f"{base[:48].rstrip()}…"
+    return f"{base} · {suffix}"
+
+
 def build_payload(limit: int | None) -> dict[str, Any]:
     global _PENDING_BODY_TEXTS
     names = load_thread_names()
@@ -545,14 +567,32 @@ def build_payload(limit: int | None) -> dict[str, Any]:
     status = build_status(files)
     if limit:
         files = files[:limit]
-    sessions = []
-    bodies: list[tuple[str, str]] = []
+    parsed_entries: list[tuple[Path, dict[str, Any], tuple[str, str]]] = []
+    logical_counts: Counter[str] = Counter()
     for path in files:
         cached = cached_split_session(path, names)
         if cached:
             parsed, body = cached
-            sessions.append(parsed)
-            bodies.append(body)
+            logical_counts[str(parsed.get("id") or path.stem)] += 1
+            parsed_entries.append((path, parsed, body))
+
+    sessions = []
+    bodies: list[tuple[str, str]] = []
+    for path, parsed, body in parsed_entries:
+        logical_id = str(parsed.get("id") or path.stem)
+        if logical_counts[logical_id] > 1:
+            # Codex child rollouts can repeat the parent session_meta.session_id. The
+            # transcript file is still a distinct stream and must keep its own body;
+            # otherwise the last writer silently replaces the earlier stream.
+            stream_id = f"{logical_id}--{path.stem}"
+            parsed["logical_id"] = logical_id
+            parsed["id"] = stream_id
+            parsed["title"] = duplicate_stream_title(parsed, path)
+            body_obj = json.loads(body[1])
+            body_obj["id"] = stream_id
+            body = (safe_file_stem(stream_id), json.dumps(body_obj, ensure_ascii=False))
+        sessions.append(parsed)
+        bodies.append(body)
     _PENDING_BODY_TEXTS = bodies
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),

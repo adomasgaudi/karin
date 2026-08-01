@@ -33,6 +33,8 @@ export interface ClaudeSession {
   record_count: number
   type_counts: Record<string, number>
   usage_totals: ClaudeUsageTotals
+  parse_errors?: number
+  parse_error_lines?: number[]
   records: ClaudeRecord[]
   // Enriched by the indexer (present on structured data; optional so the raw explorer
   // still type-checks against older files).
