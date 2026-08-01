@@ -37,7 +37,7 @@ function SegmentBlocks({
   blockValue,
   blockPx,
   boxUnit,
-  dotScale,
+  shape,
   estimated,
   ariaLabel,
 }: {
@@ -45,7 +45,7 @@ function SegmentBlocks({
   blockValue: number
   blockPx: number
   boxUnit: number
-  dotScale: boolean
+  shape: BlockShape
   estimated: boolean
   ariaLabel?: string
 }) {
@@ -62,9 +62,12 @@ function SegmentBlocks({
           <span
             key={`${segment.key}-block-${i}`}
             className={`relative block shrink-0 overflow-hidden bg-neutral-300/70 dark:bg-neutral-700/70 ${
-              dotScale ? 'h-[3px] rounded-full' : 'h-full rounded-[2px]'
+              shape === 'box' ? 'h-full rounded-[2px]' : 'rounded-full'
             }`}
-            style={{ width: `${dotScale ? DOT_BLOCK_PX : blockPx}px`, ...(dotScale ? { height: `${DOT_BLOCK_PX}px` } : null) }}
+            style={{
+              width: `${shape === 'box' ? blockPx : BLOCK_PX[shape]}px`,
+              ...(shape === 'box' ? null : { height: `${BLOCK_PX[shape]}px` }),
+            }}
           >
             {fill > 0 && (
               <span
@@ -133,10 +136,10 @@ export default function UsageBar({
   const total = valuedSegments.reduce((sum, segment) => sum + segment.value, 0)
   const blockTotal = valuedSegments.reduce((sum, segment) => sum + segment.blockValue, 0)
   const tokenTotal = parts.total || usage?.total_tokens || 0
-  // Short bars use one small dot per cent. Once a cycle/prompt/session crosses 50 cents,
-  // switch that bar to ten-cent boxes so a large total does not become visual noise.
-  const dotScale = blockTotal <= 50
-  const boxUnit = dotScale ? 1 : 10
+  // Pick the mark size from the total: tenth-cent points under 5c, one-cent dots under
+  // 50c, ten-cent boxes above — see BLOCK_UNIT.
+  const shape: BlockShape = blockTotal <= 5 ? 'point' : blockTotal <= 50 ? 'dot' : 'box'
+  const boxUnit = BLOCK_UNIT[shape]
   const blockPx = Math.min(FULL_BLOCK_PX, MAX_BLOCK_LINE_PX / Math.max(1, Math.ceil(blockTotal / boxUnit)))
   const isMoney = mode === 'money' && rates != null
   const refSuffix = mode === 'token_units' && rates != null ? ` ${TOKEN_UNIT_REF_LABELS[tokenRef]}` : ''
@@ -169,7 +172,7 @@ export default function UsageBar({
               blockValue={segment.blockValue}
               blockPx={blockPx}
               boxUnit={boxUnit}
-              dotScale={dotScale}
+              shape={shape}
               estimated={estimated}
               ariaLabel={hideSegmentLabels ? undefined : segment.label}
             />

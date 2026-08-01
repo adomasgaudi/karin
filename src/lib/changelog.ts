@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.225',
+    title: 'Repeated tools fold up',
+    summary: 'Same-tool runs collapse into one row, token squares stop doubling, points measure 0.1c, char counts are gone.',
+    detail:
+      'Nine consecutive Reads were nine rows differing only by filename. Two or more consecutive calls to the same tool now fold into one row that names the tool, counts them, lists the targets and sums their tokens; opening it gives back the original rows. An expanded row no longer draws its thin summary squares as well as the full labelled bar in its body — the same value twice. The usage bar gained a third mark size: under five cents each mark is a point worth 0.1c, so a one-cent step reads as ten points, not one square. Context rows dropped their per-row char count; the band header still totals the run.',
+  },
+  {
     version: 'v.224',
     title: 'Live updates are live again',
     summary: 'The Claude index dropped from 179 MB to 50 MB, so a change shows up in about a second instead of minutes.',

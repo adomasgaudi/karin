@@ -580,7 +580,6 @@ export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
             <div key={i}>
               <div className="mb-0.5 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
                 <span>{metaLabel(item)}</span>
-                <span className="font-normal normal-case">{item.chars} chars</span>
               </div>
               <MaybeJson text={item.text} className={preClass} />
             </div>
@@ -804,10 +803,9 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
         entry.source === 'claude'
           ? (item as ClaudeContext).attachment_type || (item as ClaudeContext).subtype || (item as ClaudeContext).name
           : (item as ContextBlock).name
-      const meta =
-        entry.source === 'claude'
-          ? `${item.chars} chars`
-          : `${(item as ContextBlock).source} / ${item.chars} chars`
+      // No per-row char count: it repeated on every context row and never changed a
+      // decision. The band header still totals the run, and the expanded body has the text.
+      const meta = entry.source === 'claude' ? '' : (item as ContextBlock).source
       return (
         <Row title={label} meta={meta} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin} dim>
           {isStructuredInstructionPayload((item as ContextBlock | ClaudeContext).name, item.text) ? (
