@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Lock, ChevronRight } from 'lucide-react'
 import type { Entry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
 import type { Message, Reasoning, Tool, CodeEdit, ContextBlock, RuntimeEvent, TokenEvent } from '../types'
@@ -27,6 +27,7 @@ import JsonView, { MaybeJson, stripAnsi } from './JsonView'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { looksLikeStructuredContext } from './BaseInstructions'
+import { summarizeUserPromptTitle } from '../lib/localLlm'
 
 interface UsageProps {
   usage?: EntryUsage
@@ -128,6 +129,7 @@ function StepDur({ step }: { step?: StepDuration }) {
 // exists once expanded and carries the optional usage bar plus the kind-specific content.
 function Row({
   title,
+  overflowTitle,
   meta,
   badge,
   tint,
@@ -145,6 +147,8 @@ function Row({
   children,
 }: {
   title: ReactNode
+  // Optional replacement used only after the clamped title has been measured as overflowing.
+  overflowTitle?: ReactNode
   meta?: ReactNode
   badge?: ReactNode
   tint: string
@@ -188,13 +192,14 @@ function Row({
   }, [expandOnOverflow, title])
   const canExpand = expandable && (!expandOnOverflow || overflows)
   const hasTitle = title !== null && title !== undefined && title !== ''
+  const shownTitle = overflows && overflowTitle !== undefined ? overflowTitle : title
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
       {!disabled && canExpand && <Chevron />}
       {inlineThin && thin}
       {clamp ? (
         <span className="relative min-w-0 flex-1">
-          <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+          <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{shownTitle}</span>
           {expandOnOverflow && (
             <span
               ref={fullRef}
@@ -371,6 +376,29 @@ function preview(text: string | null | undefined): string {
   return text ? text.replace(/\s+/g, ' ').trim() : ''
 }
 
+function UserPromptTitle({ prompt, fallback }: { prompt: string; fallback: string }) {
+  const [summary, setSummary] = useState('')
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void summarizeUserPromptTitle(prompt)
+      .then((title) => {
+        if (active) setSummary(title)
+      })
+      .catch(() => {
+        if (active) setFailed(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [prompt])
+
+  if (summary) return <>user: {summary}</>
+  if (!failed) return <span className="text-neutral-400 dark:text-neutral-500">user: Summarizing…</span>
+  return <>{fallback}</>
+}
+
 // Session-state Claude context blocks (last-prompt / mode / permission-mode / ai-title) —
 // low-signal, repetitive, and grouped into one row (see SessionMetaGroup) rather than a
 // card each. A readable label per entry.
@@ -461,12 +489,14 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
       ) : (
         <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
       )
+      const userTitle = `${item.role}: ${preview(item.text)}`
       return (
         <Row
           clamp
           expandOnOverflow={Boolean(item.text?.trim())}
           expandable={Boolean(item.text?.trim())}
-          title={`${item.role}: ${preview(item.text)}`}
+          title={userTitle}
+          overflowTitle={item.role === 'user' ? <UserPromptTitle prompt={item.text} fallback={userTitle} /> : undefined}
           badge={tag ? <Pill>{tag}</Pill> : undefined}
           tint={tint}
           step={step}

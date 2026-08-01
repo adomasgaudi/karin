@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.149',
+    title: 'Short prompt titles',
+    summary: 'Long user prompt steps now get local Qwen titles capped below seven words; short prompts keep their original text.',
+  },
+  {
     version: 'v.148',
     title: 'Inline tool usage',
     summary: 'Tool usage markers now sit before the title, with the duplicate expanded bar removed.',

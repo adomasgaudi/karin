@@ -13,6 +13,16 @@ export const OLLAMA_URL = 'http://127.0.0.1:11434'
 // instead — the picker lists whatever `/api/tags` reports.
 export const DEFAULT_MODEL = 'qwen3.5:9b'
 
+const USER_PROMPT_TITLE_SYSTEM = [
+  'Create a short title for a user prompt in an AI session transcript.',
+  'Return only one plain-text phrase with six words or fewer.',
+  'Capture the main requested action or question, preserving important technical nouns.',
+  'Do not add a label, explanation, quotation marks, markdown, or invented details.',
+].join(' ')
+const USER_PROMPT_TITLE_INPUT_LIMIT = 12_000
+const userPromptTitleCache = new Map<string, string>()
+const userPromptTitlePending = new Map<string, Promise<string>>()
+
 export interface LocalModel {
   name: string
   size: number
@@ -112,6 +122,58 @@ export async function generate(prompt: string, opts: GenerateOptions = {}): Prom
     }
   }
   return full
+}
+
+function cleanUserPromptTitle(raw: string): string {
+  const firstLine =
+    raw
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) || ''
+  const withoutWrapper = firstLine
+    .replace(/^title\s*:\s*/i, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/^[-*]\s+/, '')
+  return withoutWrapper.split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
+}
+
+function titlePromptInput(prompt: string): string {
+  if (prompt.length <= USER_PROMPT_TITLE_INPUT_LIMIT) return prompt
+  const head = Math.floor(USER_PROMPT_TITLE_INPUT_LIMIT * 0.72)
+  return `${prompt.slice(0, head)}\n… [middle clipped for title generation] …\n${prompt.slice(-(USER_PROMPT_TITLE_INPUT_LIMIT - head))}`
+}
+
+// Summarize only when the title renderer has already measured an overflowing prompt.
+// Results stay in memory for this page lifetime, so repeated prompts do not start another
+// local model request.
+export function summarizeUserPromptTitle(prompt: string): Promise<string> {
+  const cached = userPromptTitleCache.get(prompt)
+  if (cached) return Promise.resolve(cached)
+  const pending = userPromptTitlePending.get(prompt)
+  if (pending) return pending
+
+  const request = generate(
+    `Give this user prompt a concise transcript title.\n\n${titlePromptInput(prompt)}`,
+    {
+      model: DEFAULT_MODEL,
+      system: USER_PROMPT_TITLE_SYSTEM,
+      think: false,
+      temperature: 0.1,
+      numPredict: 24,
+      numCtx: 4096,
+    },
+  )
+    .then((raw) => {
+      const title = cleanUserPromptTitle(raw)
+      if (!title) throw new Error('Qwen returned no prompt title.')
+      userPromptTitleCache.set(prompt, title)
+      return title
+    })
+    .finally(() => userPromptTitlePending.delete(prompt))
+
+  userPromptTitlePending.set(prompt, request)
+  return request
 }
 
 export function fmtModelSize(bytes: number): string {
