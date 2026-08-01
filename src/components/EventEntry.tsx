@@ -77,7 +77,9 @@ const rowBase =
   'overflow-hidden border-l-2 border-b border-b-neutral-100 dark:border-b-neutral-900/70'
 const summaryClass =
   'flex cursor-pointer select-none list-none items-center gap-1.5 px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]'
-const bodyClass = 'space-y-2 px-2 pb-2 pl-7 pt-1 text-sm'
+// pl-2, not pl-7: the old indent reserved room for a chevron that no longer exists, so
+// the body now lines up with the title above it.
+const bodyClass = 'space-y-2 px-2 pb-2 pt-1 text-sm'
 const preClass =
   'overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed text-neutral-700 dark:bg-neutral-950/55 dark:text-neutral-300'
 
@@ -199,7 +201,6 @@ function Row({
   step,
   bar,
   thin,
-  inlineThin,
   hideBar,
   clamp,
   dim,
@@ -220,9 +221,7 @@ function Row({
   // A thin (~4px) always-visible usage bar in the collapsed summary; the full labelled bar
   // lives in the body (expanded). Lets a step show its token weight without a header row.
   thin?: ReactNode
-  // Tool rows place their compact usage markers before the title on the summary line.
-  inlineThin?: boolean
-  // Tool rows already show the compact markers above, so omit the duplicate expanded bar.
+  // The summary already shows the compact markers, so omit the duplicate expanded bar.
   hideBar?: boolean
   // Render `title` as the row's body text, wrapping up to 3 lines (no separate label/meta) —
   // used for assistant replies, which show their own text instead of an "assistant:" label.
@@ -239,8 +238,12 @@ function Row({
   const shownTitle = overflowTitle !== undefined ? overflowTitle : title
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
-      {!disabled && canExpand && <Chevron />}
-      {inlineThin && thin}
+      {/* No chevron: every step row expands, so the marker distinguished nothing and
+          only stole width from the title on each of a cycle's dozens of rows. */}
+      {/* Token markers sit before the text on EVERY row, the way tool rows always did.
+          Rendering them under the text for some kinds made those rows read as a
+          different shape and pushed their titles out of line with the rest. */}
+      {thin}
       {/* No `block` on the clamped title: line-clamp needs display:-webkit-box, and
           `block` overrode it, which let a whitespace-collapsed preview render as a
           full-height wall instead of three lines. */}
@@ -264,7 +267,6 @@ function Row({
   const summary = (
     <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled || !canExpand ? 'cursor-default' : 'cursor-pointer'}`}>
       {header}
-      {!inlineThin && thin && <div className="pl-6">{thin}</div>}
     </div>
   )
   if (disabled) {
@@ -701,7 +703,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
             }
             tint={tint}
             step={step}
-            bar={bar} thin={thin} inlineThin hideBar
+            bar={bar} thin={thin} hideBar
           >
             <ToolResult tool={item} />
           </Row>
@@ -709,7 +711,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
       }
       const item = entry.item as Tool
       return (
-        <Row title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin} inlineThin hideBar>
+        <Row title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin} hideBar>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
           <ReadableToolInput toolName={item.name} argumentsText={item.arguments} />
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>

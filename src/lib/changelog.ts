@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.184',
+    title: 'Compact edits and aligned rows',
+    summary: 'Edits show just the file and a numbered diff; chevrons are gone and token markers sit before every title.',
+    detail:
+      'An edit rendered a separate Input block naming the file and "replace all: false", then a Diff block with an @@ header — three places saying what one line can. When a result diff exists the input block is dropped, the file name becomes the diff’s header shortened to the project-relative path, and the @@ header is replaced by line numbers beside the lines themselves. Rows also lost their chevron, since every row expands and the marker distinguished nothing, and the token markers now sit before the title on every kind rather than under the text on some.',
+  },
+  {
     version: 'v.183',
     title: 'Messages open and summarise',
     summary: 'Prompts and replies are always expandable, preview as clean prose, and can be summarised by Qwen or DeepSeek.',

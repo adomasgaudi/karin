@@ -19,7 +19,13 @@ function asHunks(structured: unknown): PatchHunk[] | null {
   return hunks.length > 0 ? hunks : null
 }
 
-export function DiffLines({ lines }: { lines: string[] }) {
+// `oldStart`/`newStart` turn on the line-number gutter: a removed line is numbered in
+// the OLD file, everything else in the new one, which is the number you would jump to.
+// Without them the gutter is omitted entirely (a bare patch has nothing to count from).
+export function DiffLines({ lines, oldStart, newStart }: { lines: string[]; oldStart?: number; newStart?: number }) {
+  const numbered = oldStart !== undefined && newStart !== undefined
+  let oldNo = oldStart ?? 0
+  let newNo = newStart ?? 0
   return (
     <div className="w-max min-w-full">
       {lines.map((rawLine, li) => {
@@ -28,6 +34,15 @@ export function DiffLines({ lines }: { lines: string[] }) {
         const added = sign === '+' && !line.startsWith('+++')
         const removed = sign === '-' && !line.startsWith('---')
         const hunk = line.startsWith('@@')
+        let lineNo = 0
+        if (numbered && !hunk) {
+          if (added) lineNo = newNo++
+          else if (removed) lineNo = oldNo++
+          else {
+            lineNo = newNo++
+            oldNo++
+          }
+        }
         const cls = hunk
           ? 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-300'
           : added
@@ -38,6 +53,11 @@ export function DiffLines({ lines }: { lines: string[] }) {
         const content = added || removed || sign === ' ' ? line.slice(1) : line
         return (
           <div key={li} className={`flex min-w-max ${cls}`}>
+            {numbered && (
+              <span className="w-10 shrink-0 select-none pr-2 text-right text-neutral-400 tabular-nums dark:text-neutral-600">
+                {lineNo || ''}
+              </span>
+            )}
             <span className="w-5 shrink-0 select-none text-center text-neutral-400 dark:text-neutral-500">
               {added ? '+' : removed ? '−' : ''}
             </span>

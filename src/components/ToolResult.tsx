@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import type { ClaudeTool } from '../lib/claudeModel'
-import { MaybeJson, stripAnsi } from './JsonView'
+import { MaybeJson, stripAnsi, WorkspaceRootContext } from './JsonView'
 import { DiffLines } from './DiffView'
 import { ReadableToolInput, ReadableToolValue } from './ReadableToolPayload'
 
@@ -97,23 +97,40 @@ function readHunks(raw: unknown): Hunk[] {
   return isArr(sp) ? (sp as Hunk[]) : []
 }
 
+// The "@@ -28,7 +28,8 @@" header is gone on purpose: its only real content is the line
+// numbers, and those now sit next to the lines themselves where they are actually useful.
+// Separate hunks are divided by a hairline instead.
 function DiffView({ hunks }: { hunks: Hunk[] }) {
   return (
     <div className={diffPreClass}>
       <div className="w-max">
         {hunks.map((h, hi) => {
-          const header = `@@ -${h.oldStart ?? 0},${h.oldLines ?? 0} +${h.newStart ?? 0},${h.newLines ?? 0} @@`
           const lines = isArr(h.lines) ? h.lines : []
           return (
-            <div key={hi}>
-              <div className="whitespace-pre text-cyan-700 dark:text-cyan-400">{header}</div>
-              <DiffLines lines={lines.map((raw) => str(raw))} />
+            <div key={hi} className={hi > 0 ? 'mt-1 border-t border-neutral-200 pt-1 dark:border-neutral-800' : ''}>
+              <DiffLines
+                lines={lines.map((raw) => str(raw))}
+                oldStart={h.oldStart ?? 1}
+                newStart={h.newStart ?? 1}
+              />
             </div>
           )
         })}
       </div>
     </div>
   )
+}
+
+// Path relative to the project when it sits inside it — the absolute prefix is the same
+// for every file and only pushes the useful part off screen.
+function shortFilePath(path: string, root: string | null): string {
+  if (!path) return ''
+  if (!root) return path
+  const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '')
+  const normalizedRoot = normalize(root)
+  const normalizedPath = normalize(path)
+  if (!normalizedPath.toLowerCase().startsWith(`${normalizedRoot.toLowerCase()}/`)) return path
+  return normalizedPath.slice(normalizedRoot.length + 1)
 }
 
 // --- per-tool bodies -------------------------------------------------------
@@ -143,25 +160,25 @@ function ShellBody({ raw }: { raw: unknown }) {
   )
 }
 
-function EditBody({ raw }: { raw: unknown }) {
+// An edit is one thing: which file, and what changed in it. The file name is the header
+// of the diff rather than a separate Input block repeating it.
+function EditBody({ raw, filePath }: { raw: unknown; filePath?: string }) {
+  const root = useContext(WorkspaceRootContext)
   const hunks = readHunks(raw)
   if (!hunks.length) return <FallbackBody raw={raw} />
+  const path = shortFilePath(filePath || str(get(raw, 'filePath')), root)
   return (
-    <Section label="Diff">
+    <div className="space-y-1">
+      {path && <div className="font-mono text-[0.7rem] text-neutral-500 dark:text-neutral-400">{path}</div>}
       <DiffView hunks={hunks} />
-    </Section>
+    </div>
   )
 }
 
-function WriteBody({ raw }: { raw: unknown }) {
+function WriteBody({ raw, filePath }: { raw: unknown; filePath?: string }) {
   const hunks = readHunks(raw)
-  if (hunks.length) {
-    return (
-      <Section label="Diff">
-        <DiffView hunks={hunks} />
-      </Section>
-    )
-  }
+  // A Write that replaced an existing file reads exactly like an edit.
+  if (hunks.length) return <EditBody raw={raw} filePath={filePath} />
   const content = str(get(raw, 'content'))
   return (
     <div className="space-y-2">
@@ -370,9 +387,9 @@ function OutputBody({ tool }: { tool: ClaudeTool }) {
       return <ShellBody raw={raw} />
     case 'Edit':
     case 'MultiEdit':
-      return <EditBody raw={raw} />
+      return <EditBody raw={raw} filePath={str(get(tool.input, 'file_path'))} />
     case 'Write':
-      return <WriteBody raw={raw} />
+      return <WriteBody raw={raw} filePath={str(get(tool.input, 'file_path'))} />
     case 'Read':
       return <ReadBody raw={raw} text={text} />
     case 'Grep':
@@ -391,25 +408,18 @@ function OutputBody({ tool }: { tool: ClaudeTool }) {
   }
 }
 
-// Edit-family inputs repeat what the result diff already shows (find/replace, file
-// content), so with a result present only the small metadata (file, replace all, …)
-// remains worth rendering. Without a result the full input is still the only record.
+// An edit with a result diff needs NO input section at all: the diff already carries the
+// file name and both sides of the change, and "replace all: false" is a default nobody
+// reads. Without a result the input is the only record of what was attempted, so it stays.
 const EDIT_INPUT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
-const BULKY_EDIT_KEYS = new Set(['old_string', 'new_string', 'content', 'edits', 'new_source'])
 
 export default function ToolResult({ tool }: { tool: ClaudeTool }) {
-  const slimInput =
-    EDIT_INPUT_TOOLS.has(tool.name) && tool.result && isObj(tool.input)
-      ? Object.fromEntries(Object.entries(tool.input).filter(([key]) => !BULKY_EDIT_KEYS.has(key)))
-      : null
+  const diffCarriesInput = EDIT_INPUT_TOOLS.has(tool.name) && readHunks(tool.result?.raw).length > 0
+  if (diffCarriesInput) return <OutputBody tool={tool} />
   return (
     <div className="space-y-2">
       <Section label="Input">
-        {slimInput ? (
-          <ReadableToolValue value={slimInput} />
-        ) : (
-          <ReadableToolInput toolName={tool.name} argumentsText={tool.arguments} value={tool.input} />
-        )}
+        <ReadableToolInput toolName={tool.name} argumentsText={tool.arguments} value={tool.input} />
       </Section>
       <OutputBody tool={tool} />
     </div>
