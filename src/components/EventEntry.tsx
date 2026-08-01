@@ -399,7 +399,6 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           <Row
             num={num}
             title="reasoning"
-            meta={item.id || undefined}
             badge={
               <span className="flex shrink-0 items-center gap-1">
                 <Lock className="h-3 w-3 text-neutral-400 dark:text-neutral-500" />

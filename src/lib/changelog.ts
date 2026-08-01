@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.129',
+    title: 'Quiet locked reasoning',
+    summary: 'Locked reasoning rows no longer expose their opaque internal identifier beside the lock label.',
+  },
+  {
     version: 'v.128',
     title: 'Project labels move up',
     summary: 'Project names now sit beside every session title, leaving token bars purely visual and readable.',
