@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.197',
+    title: 'White card canvas',
+    summary: 'The session canvas is white so white cycle cards sit on a clean white background.',
+  },
+  {
     version: 'v.196',
     title: 'Context text readable',
     summary: 'Context-only prompts and step counts regain contrast on the light card background.',

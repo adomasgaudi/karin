@@ -50,7 +50,7 @@ export default function App() {
   // One sticky nav above every page; each page fills the rest of the viewport.
   return (
     <>
-      <div className="flex h-dvh flex-col bg-neutral-100 dark:bg-black">
+      <div className="flex h-dvh flex-col bg-white dark:bg-black">
         <div className="sticky top-0 z-40">
           <NavBar />
         </div>
