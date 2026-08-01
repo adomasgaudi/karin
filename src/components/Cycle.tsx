@@ -183,6 +183,21 @@ export default function Cycle({
           >
             {prompt}
           </span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              toggleRaw()
+            }}
+            aria-label={rawCycle ? 'Back to the structured cycle' : 'View this cycle as raw JSON'}
+            title={rawCycle ? 'Back to the structured cycle' : 'View this cycle as raw JSON'}
+            className={`hidden shrink-0 items-center rounded-sm p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 group-open:inline-flex dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 ${
+              rawCycle ? 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-100' : ''
+            }`}
+          >
+            <Braces className="h-3.5 w-3.5" />
+          </button>
         </div>
         {/* Step count and token squares read as one measurement of the cycle's size, so
             they share a line — the count first, then the weight it produced. */}
@@ -203,23 +218,6 @@ export default function Cycle({
       {/* This remains part of the cycle card: opening the title grows its original
           surface rather than revealing a second, separately tinted content card. */}
       <div className="rounded-b-md px-[3px] pb-[3px] pt-1">
-        {/* The raw switch lives INSIDE the cycle, next to what it changes — in the header
-            it sat on every collapsed row competing with the prompt for attention. */}
-        <div className="mb-[3px] flex justify-end">
-          <button
-            type="button"
-            onClick={toggleRaw}
-            title={rawCycle ? 'Back to the structured cycle' : 'Replace this whole cycle with its raw JSON records'}
-            className={`inline-flex shrink-0 items-center gap-1 rounded-sm border px-1 py-px text-[0.6rem] ${
-              rawCycle
-                ? 'border-neutral-300 bg-neutral-200 text-neutral-700 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100'
-                : 'border-neutral-200 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:border-neutral-800 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200'
-            }`}
-          >
-            <Braces className="h-3 w-3" />
-            {rawCycle ? 'Structured' : 'JSON'}
-          </button>
-        </div>
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
         {rawCycle ? (
           <div className="max-h-[36rem] overflow-y-auto rounded-md bg-white dark:bg-neutral-950">

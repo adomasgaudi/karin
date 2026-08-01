@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.204',
+    title: 'Icon-only JSON control',
+    summary: 'The JSON control now sits in the open cycle title and uses only its braces icon.',
+  },
+  {
     version: 'v.203',
     title: 'Branded activity marks',
     summary: 'Session rows now use one source logo marker, with tighter tokens and more comfortable left padding.',
