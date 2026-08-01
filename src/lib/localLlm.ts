@@ -23,11 +23,16 @@ export const SIMPLIFIER_PROVIDERS: Array<{ id: SimplifierProvider; label: string
   { id: 'd-pro', label: 'D-Pro', model: 'deepseek-v4-pro' },
 ]
 
-const USER_PROMPT_TITLE_SYSTEM = `
-Create a short title for a user prompt in an AI session transcript.
-Return only one plain-text phrase with six words or fewer.
-Capture the main requested action or question, preserving important technical nouns.
-Do not add a label, explanation, quotation marks, markdown, or invented details.
+// Shortening, NOT titling. The owner has to read the preview and recognise it as their
+// own sentence with some words removed — an invented six-word title fails that even when
+// it is accurate, because it is the model's phrasing rather than theirs.
+const USER_PROMPT_SHORTEN_SYSTEM = `
+You shorten a message its own author will read back, so it must still sound like them.
+Keep the author's exact words and word order. Delete filler, repetition, hedging and greetings.
+Keep every concrete detail: filenames, identifiers, numbers, and the actual request.
+Never paraphrase, never swap a word for a synonym, never add a word that is not already in the message.
+Do not add a label, explanation, quotation marks, or markdown.
+Return only the shortened message, at most 20 words.
 `.trim()
 const USER_PROMPT_TITLE_INPUT_LIMIT = 12_000
 const userPromptTitleCache = new Map<string, string>()
@@ -310,7 +315,7 @@ export async function generate(prompt: string, opts: GenerateOptions = {}): Prom
   }
 }
 
-function cleanUserPromptTitle(raw: string): string {
+function cleanShortenedPrompt(raw: string): string {
   const firstLine =
     raw
       .trim()
@@ -318,10 +323,11 @@ function cleanUserPromptTitle(raw: string): string {
       .map((line) => line.trim())
       .find(Boolean) || ''
   const withoutWrapper = firstLine
-    .replace(/^title\s*:\s*/i, '')
+    .replace(/^(?:shortened|title)\s*:\s*/i, '')
     .replace(/^["'`]+|["'`]+$/g, '')
     .replace(/^[-*]\s+/, '')
-  return withoutWrapper.split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
+  // A model that ignores the word limit gets cut rather than allowed to fill the row.
+  return withoutWrapper.split(/\s+/).filter(Boolean).slice(0, 24).join(' ')
 }
 
 function titlePromptInput(prompt: string): string {
@@ -330,29 +336,29 @@ function titlePromptInput(prompt: string): string {
   return `${prompt.slice(0, head)}\n… [middle clipped for title generation] …\n${prompt.slice(-(USER_PROMPT_TITLE_INPUT_LIMIT - head))}`
 }
 
-// Summarize only when the title renderer has already measured an overflowing prompt.
+// Shorten only when the title renderer has already measured an overflowing prompt.
 // Results stay in memory for this page lifetime, so repeated prompts do not start another
 // local model request.
-export function summarizeUserPromptTitle(prompt: string): Promise<string> {
+export function shortenUserPrompt(prompt: string): Promise<string> {
   const cached = userPromptTitleCache.get(prompt)
   if (cached) return Promise.resolve(cached)
   const pending = userPromptTitlePending.get(prompt)
   if (pending) return pending
 
   const request = generate(
-    `Give this user prompt a concise transcript title.\n\n${titlePromptInput(prompt)}`,
+    `Shorten this message, keeping the author's own words.\n\n${titlePromptInput(prompt)}`,
     {
       model: DEFAULT_MODEL,
-      system: USER_PROMPT_TITLE_SYSTEM,
+      system: USER_PROMPT_SHORTEN_SYSTEM,
       think: false,
       temperature: 0.1,
-      numPredict: 24,
+      numPredict: 64,
       numCtx: 4096,
     },
   )
     .then((raw) => {
-      const title = cleanUserPromptTitle(raw)
-      if (!title) throw new Error('Qwen returned no prompt title.')
+      const title = cleanShortenedPrompt(raw)
+      if (!title) throw new Error('Qwen returned no shortened prompt.')
       userPromptTitleCache.set(prompt, title)
       return title
     })

@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Lock, ChevronRight } from 'lucide-react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Lock, ChevronRight, Braces, Check, Copy } from 'lucide-react'
 import type { Entry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
 import type { Message, Reasoning, Tool, CodeEdit, ContextBlock, RuntimeEvent, TokenEvent } from '../types'
 import type {
@@ -27,7 +27,8 @@ import JsonView, { MaybeJson, stripAnsi } from './JsonView'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { isStructuredInstructionPayload, looksLikeStructuredContext } from './BaseInstructions'
-import { summarizeUserPromptTitle } from '../lib/localLlm'
+import { shortenUserPrompt } from '../lib/localLlm'
+import { hasInjected, injectedLabels, ownPromptText, splitPrompt } from '../lib/promptText'
 
 interface UsageProps {
   usage?: EntryUsage
@@ -81,6 +82,65 @@ const preClass =
 // The indexer emits this exact marker (see karin.py text_from_reasoning).
 function isLockedReasoning(text: string | null | undefined): boolean {
   return !!text && text.startsWith('Encrypted reasoning content recorded by Codex')
+}
+
+// The record behind the currently-rendered step, so every expanded Row can offer the
+// same "Raw JSON" switch the Raw tab's records have — without threading the item
+// through a dozen Row call sites.
+const RawItemContext = createContext<unknown>(undefined)
+
+// Toggles a step's body between its structured rendering and the raw record. Raw
+// REPLACES the structure rather than sitting beside it: the point is to see the
+// untouched data, and two copies of the same thing is what made the old layout noisy.
+function RawSwitch({ item, children }: { item: unknown; children: ReactNode }) {
+  const [raw, setRaw] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const json = useMemo(() => {
+    try {
+      return JSON.stringify(item, null, 2)
+    } catch {
+      return String(item)
+    }
+  }, [item])
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(json)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setCopied(false)
+    }
+  }
+  const btn =
+    'inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 text-[0.62rem] text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800'
+  return (
+    <>
+      <div className="flex items-center justify-end gap-1">
+        {raw && (
+          <button type="button" onClick={() => void copy()} className={btn}>
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copied' : 'Copy JSON'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setRaw((r) => !r)}
+          title={raw ? 'Back to the readable view' : 'Replace this step with its raw JSON record'}
+          className={btn}
+        >
+          <Braces className="h-3 w-3" />
+          {raw ? 'Readable' : 'Raw JSON'}
+        </button>
+      </div>
+      {raw ? (
+        <pre className="max-h-[28rem] overflow-x-auto overflow-y-auto whitespace-pre rounded-md bg-neutral-50 px-2 py-1.5 font-mono text-[0.68rem] leading-relaxed text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+          {json}
+        </pre>
+      ) : (
+        children
+      )}
+    </>
+  )
 }
 
 // Inline disclosure chevron — rotates when its <details> ancestor is open. Replaces the
@@ -172,6 +232,7 @@ function Row({
   expandable?: boolean
   children: ReactNode
 }) {
+  const rawItem = useContext(RawItemContext)
   const previewRef = useRef<HTMLSpanElement>(null)
   const fullRef = useRef<HTMLSpanElement>(null)
   const [overflows, setOverflows] = useState(false)
@@ -244,7 +305,7 @@ function Row({
       </summary>
       <div className={bodyClass}>
         {!hideBar && bar}
-        {children}
+        {rawItem === undefined ? children : <RawSwitch item={rawItem}>{children}</RawSwitch>}
       </div>
     </details>
   )
@@ -378,15 +439,38 @@ function preview(text: string | null | undefined): string {
   return text ? text.replace(/\s+/g, ' ').trim() : ''
 }
 
+// A small faint chip naming something the harness attached to the message — an IDE
+// selection, a system reminder, a slash-command expansion. Keeps attached content
+// visible without letting it masquerade as the owner's own sentence.
+function AttachedChip({ labels }: { labels: string[] }) {
+  if (labels.length === 0) return null
+  return (
+    <span
+      className="shrink-0 rounded-sm bg-neutral-100 px-1 py-px text-[0.55rem] font-normal text-neutral-400 dark:bg-neutral-800/70 dark:text-neutral-500"
+      title={`Attached by the tool, not typed by you: ${labels.join(', ')}`}
+    >
+      +{labels.join(' +')}
+    </span>
+  )
+}
+
+// The collapsed title for a user turn. Shows ONLY what the owner typed; anything the
+// harness attached becomes a chip instead of filling the line. When their own words
+// are still too long, Qwen shortens them locally — keeping their wording, so the line
+// reads as their sentence with words removed, and says so.
 function UserPromptTitle({ prompt, fallback }: { prompt: string; fallback: string }) {
+  const own = ownPromptText(prompt)
+  const labels = injectedLabels(prompt)
   const [summary, setSummary] = useState('')
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let active = true
-    void summarizeUserPromptTitle(prompt)
-      .then((title) => {
-        if (active) setSummary(title)
+    setSummary('')
+    setFailed(false)
+    void shortenUserPrompt(own)
+      .then((short) => {
+        if (active) setSummary(short)
       })
       .catch(() => {
         if (active) setFailed(true)
@@ -394,11 +478,61 @@ function UserPromptTitle({ prompt, fallback }: { prompt: string; fallback: strin
     return () => {
       active = false
     }
-  }, [prompt])
+  }, [own])
 
-  if (summary) return <>user: {summary}</>
-  if (!failed) return <span className="text-neutral-400 dark:text-neutral-500">user: Summarizing…</span>
-  return <>{fallback}</>
+  if (summary) {
+    return (
+      <>
+        user: {summary}{' '}
+        <span className="text-[0.6rem] font-normal text-neutral-400 dark:text-neutral-500" title="Your own words, shortened locally by Qwen — expand for the full text">
+          (shortened)
+        </span>{' '}
+        <AttachedChip labels={labels} />
+      </>
+    )
+  }
+  if (!failed) {
+    return (
+      <span className="text-neutral-400 dark:text-neutral-500">
+        user: {preview(own).slice(0, 90)}… <span className="text-[0.6rem]">shortening…</span>
+      </span>
+    )
+  }
+  // Qwen unavailable: the owner's own words unshortened still beat the injected wall.
+  return (
+    <>
+      {own ? `user: ${preview(own)}` : fallback} <AttachedChip labels={labels} />
+    </>
+  )
+}
+
+// The expanded body of a user turn, rendered as it was actually sent: the owner's own
+// words at full weight, each attached block faint and labelled behind a disclosure.
+// The visual split is the whole point — the owner must be able to tell, at a glance,
+// which words are theirs.
+function UserPromptBody({ text }: { text: string }) {
+  const segments = splitPrompt(text)
+  if (segments.length === 0) return <div className="whitespace-pre-wrap break-words leading-relaxed">{text}</div>
+  return (
+    <div className="space-y-1.5">
+      {segments.map((segment, index) =>
+        segment.kind === 'own' ? (
+          <div key={index} className="whitespace-pre-wrap break-words leading-relaxed text-neutral-800 dark:text-neutral-100">
+            {segment.text}
+          </div>
+        ) : (
+          <details key={index} className="rounded-md border border-dashed border-neutral-200 bg-neutral-50/60 dark:border-neutral-800 dark:bg-neutral-900/40">
+            <summary className="cursor-pointer list-none px-2 py-1 text-[0.62rem] text-neutral-400 marker:hidden [&::-webkit-details-marker]:hidden hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">
+              {segment.label} — attached, not typed by you ({segment.text.length.toLocaleString()} chars)
+            </summary>
+            <div className="whitespace-pre-wrap break-words border-t border-neutral-200 px-2 py-1 font-mono text-[0.68rem] leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+              {segment.text}
+            </div>
+          </details>
+        ),
+      )}
+    </div>
+  )
 }
 
 // Session-state Claude context blocks (last-prompt / mode / permission-mode / ai-title) —
@@ -450,7 +584,7 @@ export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
   )
 }
 
-export default function EventEntry({ entry, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
+function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
   const tint = tintFor(entry)
   const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
   // Thin collapsed indicator: the same usage as a ~4px unlabelled bar, shown in the summary.
@@ -486,12 +620,22 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
         )
       }
       const structuredMessage = item.role === 'user' && looksLikeStructuredContext(item.text)
+      // A user turn with attached blocks renders as segments, so the owner's words stay
+      // visually separate from what the harness stapled on.
+      const segmentedUser = item.role === 'user' && !structuredMessage && hasInjected(item.text || '')
       const messageBody = structuredMessage ? (
         <BaseInstructions text={item.text} />
+      ) : segmentedUser ? (
+        <UserPromptBody text={item.text || ''} />
       ) : (
         <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
       )
-      const userTitle = `${item.role}: ${preview(item.text)}`
+      // Even before it overflows, a user title shows the owner's own words rather than
+      // whatever injected block happened to come first.
+      const userTitle =
+        item.role === 'user'
+          ? `user: ${preview(ownPromptText(item.text || ''))}`
+          : `${item.role}: ${preview(item.text)}`
       return (
         <Row
           clamp
@@ -692,4 +836,14 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
       )
     }
   }
+}
+
+// Publishes this step's underlying record so any Row inside it can offer the Raw JSON
+// switch. One provider per step keeps the switch showing THIS step's data.
+export default function EventEntry(props: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
+  return (
+    <RawItemContext.Provider value={props.entry.item}>
+      <EventEntryBody {...props} />
+    </RawItemContext.Provider>
+  )
 }

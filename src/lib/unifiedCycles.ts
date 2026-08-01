@@ -34,6 +34,7 @@ import type {
 } from './claudeModel'
 import type { WarpSession } from './warpRaw'
 import { addUsage, splitUsage } from './pricing'
+import { ownPromptText } from './promptText'
 
 // A single transcript event, tagged by unified kind + source, used to build cycles.
 export type UnifiedEntry =
@@ -535,7 +536,9 @@ function realUserPrompt(cycle: Cycle): string | null {
     if (!isRealUserMessage(e)) continue
     const raw = (e.item as Message | ClaudeMessage).text?.trim() || ''
     if (!raw || isInjectedContext(raw)) continue
-    const t = oneLine(raw)
+    // A cycle is titled by what the OWNER typed. An IDE selection or system reminder
+    // riding along in the same record is not a title, it is attached context.
+    const t = oneLine(ownPromptText(raw))
     if (t) return t
   }
   return null

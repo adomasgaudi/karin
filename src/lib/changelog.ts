@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.176',
+    title: 'Raw JSON in every step',
+    summary: 'Each expanded step now has the Raw JSON switch, and it replaces the structured view rather than adding to it.',
+    detail:
+      'The switch the Raw tab’s records already had is now on every step inside a cycle. Pressing it swaps that step’s entire structured rendering for its untouched record, with a Copy JSON button beside it; pressing Readable swaps back. Raw replaces rather than appends, so there are never two copies of the same thing on screen.',
+  },
+  {
+    version: 'v.175',
+    title: 'Your words, kept yours',
+    summary: 'Prompt titles now show only what you typed, shortened in your own wording, with attached blocks marked separately.',
+    detail:
+      'An IDE selection or system reminder riding along in the same record used to fill the title while your actual sentence sat at the end. Titles and cycle names now use only your typed text; attached blocks become a faint "+IDE selection" chip and, when expanded, labelled dashed boxes you can tell apart at a glance. When your own words are still too long, Qwen shortens them locally — it now keeps your exact words and word order instead of inventing a six-word title, and the line says "(shortened)" so you know it is not verbatim.',
+  },
+  {
     version: 'v.174',
     title: 'Worked example for the simplifier',
     summary: 'The simplifier prompt now carries a wrong-versus-right example of the mistake the models keep making.',
