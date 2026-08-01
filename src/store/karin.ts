@@ -60,6 +60,12 @@ function initialKeepStepsOpen(): boolean {
   return localStorage.getItem('karin-keep-steps-open') === '1'
 }
 
+// Whether cycle headers show their meaningful AI work-step count. Keep the compact
+// measurement visible by default, but let the owner remove it when reading only prompts.
+function initialShowStepCounts(): boolean {
+  return localStorage.getItem('karin-show-step-counts') !== '0'
+}
+
 function initialCurrency(): CurrencyMode {
   const saved = localStorage.getItem('karin-currency')
   if (saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents') return saved
@@ -107,6 +113,7 @@ interface KarinStore {
   priceBasis: PriceBasis
   subDivisors: Record<SessionSource, number>
   keepStepsOpen: boolean
+  showStepCounts: boolean
   theme: Theme
   view: View
   error: string | null
@@ -129,6 +136,7 @@ interface KarinStore {
   setPriceBasis: (b: PriceBasis) => void
   setSubDivisor: (source: SessionSource, n: number) => void
   setKeepStepsOpen: (keep: boolean) => void
+  setShowStepCounts: (show: boolean) => void
   setError: (msg: string | null) => void
   setView: (v: View) => void
   toggleTheme: () => void
@@ -240,6 +248,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
     warp: initialSubDivisor('karin-subdiv-warp', SUB_DIVISOR_DEFAULTS.warp),
   },
   keepStepsOpen: initialKeepStepsOpen(),
+  showStepCounts: initialShowStepCounts(),
   theme: initialTheme(),
   view: 'sessions',
   error: null,
@@ -472,6 +481,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setKeepStepsOpen: (keep) => {
     localStorage.setItem('karin-keep-steps-open', keep ? '1' : '0')
     set({ keepStepsOpen: keep })
+  },
+  setShowStepCounts: (show) => {
+    localStorage.setItem('karin-show-step-counts', show ? '1' : '0')
+    set({ showStepCounts: show })
   },
   setError: (msg) => set({ error: msg }),
   setView: (v) => set({ view: v }),

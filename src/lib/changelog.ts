@@ -19,6 +19,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.202',
+    title: 'Faster live feeds',
+    summary: 'Codex and Claude watchers cache unchanged sessions and write only feeds that actually changed.',
+    detail:
+      'Codex previously reparsed all historical transcripts and rewrote every split body whenever one chat changed. The indexer now caches parsed light sessions and serialized bodies by file signature, updates only changed files, writes feeds atomically, and throttles the live status heartbeat. Claude keeps its existing parse and body caches and now receives the same atomic writes and timing visibility, so both local sources reach the :4173 bundle without exposing partially-written JSON.',
+  },
+  {
+    version: 'v.201',
+    title: 'Toggle step counts',
+    summary: 'Settings now controls whether cycle headers show their meaningful AI work-step counts.',
+  },
+  {
     version: 'v.200',
     title: 'Expanded card outline',
     summary: 'Expanded cycles get a thin gray outline, and the redundant left guide is removed.',

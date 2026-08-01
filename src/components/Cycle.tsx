@@ -53,6 +53,7 @@ export default function Cycle({
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
+  const showStepCounts = useKarin((s) => s.showStepCounts)
   // Whole-cycle raw view: swaps every card in this cycle for the untouched records
   // behind them. Same idea as a step's Raw JSON switch, one level up.
   const [rawCycle, setRawCycle] = useState(false)
@@ -186,12 +187,14 @@ export default function Cycle({
         {/* Step count and token squares read as one measurement of the cycle's size, so
             they share a line — the count first, then the weight it produced. */}
         <div className="flex min-w-0 items-center gap-1.5">
-          <span
-            className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
-            title="Meaningful AI work entries in this cycle"
-          >
-            {stepCount} {stepCount === 1 ? 'step' : 'steps'}
-          </span>
+          {showStepCounts && (
+            <span
+              className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
+              title="Meaningful AI work entries in this cycle"
+            >
+              {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+            </span>
+          )}
           {hasUsage && (
             <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenMult={tokenMult} tokenRef={tokenRef} compact bare showLegend={false} scaleMax={scaleMax} />
           )}

@@ -12,6 +12,8 @@ export default function SettingsMenu() {
   const toggleTheme = useKarin((s) => s.toggleTheme)
   const keepStepsOpen = useKarin((s) => s.keepStepsOpen)
   const setKeepStepsOpen = useKarin((s) => s.setKeepStepsOpen)
+  const showStepCounts = useKarin((s) => s.showStepCounts)
+  const setShowStepCounts = useKarin((s) => s.setShowStepCounts)
   const [open, setOpen] = useState(false)
 
   return (
@@ -63,6 +65,19 @@ export default function SettingsMenu() {
               <Upload className="h-3.5 w-3.5" />
               Load
             </button>
+            <div className="flex items-center justify-between gap-1.5 px-2 py-1">
+              <span className="text-neutral-700 dark:text-neutral-300" title="Show or hide the meaningful AI work-step count in cycle headers">
+                Show step counts
+              </span>
+              <Switch.Root
+                aria-label="Show step counts"
+                checked={showStepCounts}
+                onCheckedChange={setShowStepCounts}
+                className="relative h-5 w-9 rounded-md bg-neutral-200 outline-none data-[state=checked]:bg-neutral-700 dark:bg-neutral-800 dark:data-[state=checked]:bg-neutral-200"
+              >
+                <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-sm bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px] dark:bg-neutral-950" />
+              </Switch.Root>
+            </div>
             {/* Accordion: expanding a step auto-closes the cycle's other steps; this keeps them open instead. */}
             <div className="flex items-center justify-between gap-1.5 px-2 py-1">
               <span className="text-neutral-700 dark:text-neutral-300" title="When off, expanding a step inside a cycle auto-closes the other open steps">
