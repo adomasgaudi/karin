@@ -468,7 +468,7 @@ function UserPromptTitle({ prompt, fallback }: { prompt: string; fallback: strin
   if (summary) {
     return (
       <>
-        user: {summary}{' '}
+        {summary}{' '}
         <span className="text-[0.6rem] font-normal text-neutral-400 dark:text-neutral-500" title="Your own words, shortened locally by Qwen — expand for the full text">
           (shortened)
         </span>{' '}
@@ -479,14 +479,14 @@ function UserPromptTitle({ prompt, fallback }: { prompt: string; fallback: strin
   if (!failed) {
     return (
       <span className="text-neutral-400 dark:text-neutral-500">
-        user: {preview(own).slice(0, 90)}… <span className="text-[0.6rem]">shortening…</span>
+        {preview(own).slice(0, 90)}… <span className="text-[0.6rem]">shortening…</span>
       </span>
     )
   }
   // Qwen unavailable: the owner's own words unshortened still beat the injected wall.
   return (
     <>
-      {own ? `user: ${preview(own)}` : fallback} <AttachedChip labels={labels} />
+      {own ? preview(own) : fallback} <AttachedChip labels={labels} />
     </>
   )
 }
@@ -622,9 +622,11 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
       )
       // Even before it overflows, a user title shows the owner's own words rather than
       // whatever injected block happened to come first.
+      // No "user:" prefix — the blue left accent already says whose turn this is, and the
+      // label pushed the actual prompt right on every single one.
       const userTitle =
         item.role === 'user'
-          ? `user: ${stripMarkdown(preview(ownPromptText(item.text || '')))}`
+          ? stripMarkdown(preview(ownPromptText(item.text || '')))
           : `${item.role}: ${stripMarkdown(preview(item.text))}`
       return (
         <Row

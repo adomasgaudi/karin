@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.189',
+    title: 'Bands show tokens, reads show content',
+    summary: 'Context and claude band headers carry token squares, the user label is gone, and a read is just its path and content.',
+    detail:
+      'A collapsed band hid its whole cost — only its leaf rows showed weight — so the context and claude headers now carry the same thin token markers their rows do, summed across the band. Prompt rows drop the "user:" prefix, since the blue accent already says whose turn it is and the label pushed every prompt to the right. A Read tool no longer renders an Input block naming the file plus a "File content" heading: the project-relative path heads the content directly.',
+  },
+  {
     version: 'v.188',
     title: 'Quieter, clearer tool rows',
     summary: 'File tools name the file they touched, the yellow strip is gone, and "0s" durations no longer print.',

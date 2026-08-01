@@ -192,14 +192,20 @@ function WriteBody({ raw, filePath }: { raw: unknown; filePath?: string }) {
   )
 }
 
-function ReadBody({ raw, text }: { raw: unknown; text: string }) {
+// A read is: which file, and what was in it. The path heads the content directly — a
+// "File content" label states the obvious, and an Input block repeating the path is a
+// third copy of the one fact.
+function ReadBody({ raw, text, filePath }: { raw: unknown; text: string; filePath?: string }) {
+  const root = useContext(WorkspaceRootContext)
   const fileContent = str(get(get(raw, 'file'), 'content'))
   const body = fileContent || (typeof raw === 'string' ? raw : '') || text
   if (!body) return <FallbackBody raw={raw} />
+  const path = shortFilePath(filePath || str(get(get(raw, 'file'), 'filePath')), root)
   return (
-    <Section label="File content">
+    <div className="space-y-1">
+      {path && <div className="font-mono text-[0.7rem] text-neutral-500 dark:text-neutral-400">{path}</div>}
       <pre className={preClass}>{body}</pre>
-    </Section>
+    </div>
   )
 }
 
@@ -391,7 +397,7 @@ function OutputBody({ tool }: { tool: ClaudeTool }) {
     case 'Write':
       return <WriteBody raw={raw} filePath={str(get(tool.input, 'file_path'))} />
     case 'Read':
-      return <ReadBody raw={raw} text={text} />
+      return <ReadBody raw={raw} text={text} filePath={str(get(tool.input, 'file_path'))} />
     case 'Grep':
       return <GrepBody raw={raw} text={text} />
     case 'Glob':
@@ -408,14 +414,20 @@ function OutputBody({ tool }: { tool: ClaudeTool }) {
   }
 }
 
-// An edit with a result diff needs NO input section at all: the diff already carries the
-// file name and both sides of the change, and "replace all: false" is a default nobody
-// reads. Without a result the input is the only record of what was attempted, so it stays.
+// Some tools need NO input section, because their body already shows the whole input.
+// An edit's diff carries the file name and both sides of the change ("replace all: false"
+// is a default nobody reads); a read's body carries the file name and its content. Without
+// a result the input is the only record of what was attempted, so there it stays.
 const EDIT_INPUT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
+function bodyCarriesInput(tool: ClaudeTool): boolean {
+  if (!tool.result) return false
+  if (tool.name === 'Read') return true
+  return EDIT_INPUT_TOOLS.has(tool.name) && readHunks(tool.result.raw).length > 0
+}
+
 export default function ToolResult({ tool }: { tool: ClaudeTool }) {
-  const diffCarriesInput = EDIT_INPUT_TOOLS.has(tool.name) && readHunks(tool.result?.raw).length > 0
-  if (diffCarriesInput) return <OutputBody tool={tool} />
+  if (bodyCarriesInput(tool)) return <OutputBody tool={tool} />
   return (
     <div className="space-y-2">
       <Section label="Input">

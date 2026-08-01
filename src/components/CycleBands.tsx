@@ -16,6 +16,7 @@ import {
 } from '../lib/pricing'
 import { fmtCompact, fmtCurrency } from '../lib/format'
 import EventEntry, { SessionMetaGroup, isSessionMeta as entryIsSessionMeta } from './EventEntry'
+import UsageBar from './UsageBar'
 
 // Local style tokens mirror EventEntry's compact row look (kept here so the two files
 // don't have to cross-import private constants while both are under active edit).
@@ -138,11 +139,13 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
     nodes.push(leafRow(e, d))
   }
   flushMeta()
+  const bandTokens = bandUsage(entries, d)
 
   return (
     <details className={`${rowBase} border-l-neutral-300 dark:border-l-neutral-700`}>
       <summary className={summaryClass}>
         <Chevron />
+        <BandTokens usage={bandTokens.usage} estimated={bandTokens.estimated} d={d} />
         <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">context</span>
         <span className="min-w-0 flex-1 truncate font-normal italic text-neutral-400 dark:text-neutral-500">
           {entries.length} · {fmtCompact(totalChars)} chars
@@ -183,6 +186,7 @@ export function ClaudeBlock({
     <details open className={`${rowBase} border-l-emerald-400`}>
       <summary className={summaryClass}>
         <Chevron />
+        <BandTokens usage={total} estimated={groups.some((g) => !g.measured)} d={d} />
         <span className="shrink-0 font-semibold text-neutral-800 dark:text-neutral-100">{sourceLabel}:</span>
         {model && (
           <span className="shrink-0 rounded-sm bg-neutral-200/80 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
