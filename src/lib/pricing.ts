@@ -67,6 +67,16 @@ const STANDARD_RATES: Record<string, { short: Omit<TokenRates, 'context' | 'sour
   'chat-latest': { short: { input: 5, cached: 0.5, output: 30 } },
 }
 
+// Codex session logs can carry rollout/endpoint suffixes that do not have a separate
+// published API rate table yet. Keep those sessions convertible instead of silently
+// dropping back to raw tokens; the source string calls the proxy out wherever shown.
+function standardRateTable(model: string): { key: string; table: (typeof STANDARD_RATES)[string] } | null {
+  const exact = STANDARD_RATES[model]
+  if (exact) return { key: model, table: exact }
+  if (/^gpt-5\.6(?:-|$)/.test(model)) return { key: 'gpt-5.5', table: STANDARD_RATES['gpt-5.5'] }
+  return null
+}
+
 // Anthropic $/1M-token rates. cacheWrite5m/1h are the premium cache-creation rates for
 // 5-minute and 1-hour TTLs. All Claude context is treated as 'long'.
 export const CLAUDE_RATES: Record<string, { input: number; cached: number; cacheWrite5m: number; cacheWrite1h: number; output: number }> = {
@@ -306,12 +316,15 @@ export function addUsage(a: TokenUsage | null | undefined, b: TokenUsage | null 
 }
 
 export function ratesForSession(session: Session): TokenRates | null {
-  const table = STANDARD_RATES[normalizeModel(session.model)]
-  if (!table) return null
+  const model = normalizeModel(session.model)
+  const resolved = standardRateTable(model)
+  if (!resolved) return null
+  const { table } = resolved
   const maxContextWindow = Math.max(0, ...(session.token_events || []).map((event) => event.context_window || 0))
   const context = table.long && maxContextWindow > 128000 ? 'long' : 'short'
   const rates = context === 'long' && table.long ? table.long : table.short
-  return { ...rates, context, source: PRICE_SOURCE }
+  const source = resolved.key === model ? PRICE_SOURCE : `${PRICE_SOURCE} (proxy: ${resolved.key} for ${model})`
+  return { ...rates, context, source }
 }
 
 export function usageCost(parts: UsageParts, rates: TokenRates | null): number | null {
@@ -329,7 +342,9 @@ export function usageCost(parts: UsageParts, rates: TokenRates | null): number |
 export function ratesForClaudeModel(model: string | null | undefined): TokenRates | null {
   let key = normalizeModel(model).replace(/\[1m\]$/, '')
   if (key === 'claude-haiku-4-5-20251001') key = 'claude-haiku-4-5'
-  const r = CLAUDE_RATES[key]
+  const pricedAs = key || ''
+  const resolvedKey = CLAUDE_RATES[pricedAs] ? pricedAs : pricedAs === 'claude-opus-5' ? 'claude-opus-4-8' : null
+  const r = resolvedKey ? CLAUDE_RATES[resolvedKey] : null
   if (!r) return null
   return {
     input: r.input,
@@ -338,7 +353,7 @@ export function ratesForClaudeModel(model: string | null | undefined): TokenRate
     cacheWrite5m: r.cacheWrite5m,
     cacheWrite1h: r.cacheWrite1h,
     context: 'long',
-    source: CLAUDE_PRICE_SOURCE,
+    source: resolvedKey === key ? CLAUDE_PRICE_SOURCE : `${CLAUDE_PRICE_SOURCE} (proxy: ${resolvedKey} for ${key})`,
   }
 }
 

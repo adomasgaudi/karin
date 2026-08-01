@@ -19,6 +19,53 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.122',
+    title: 'Tighter cycle cards',
+    summary: 'Cycle cards now use compact spacing, implicit ownership, and model lines only when needed.',
+  },
+  {
+    version: 'v.121',
+    title: 'Blocks become visible',
+    summary: 'Usage block groups now inherit the track height so colored token squares render inside the existing bar.',
+  },
+  {
+    version: 'v.121',
+    title: 'Blocks become visible',
+    summary: 'Token-type blocks now inherit the track height instead of collapsing into an invisible zero-height line.',
+  },
+  {
+    version: 'v.120',
+    title: 'Usage becomes cent blocks',
+    summary: 'Usage tracks now show euro-cent blocks by token type, with clipped partial blocks for sub-cent values.',
+    detail:
+      'Money and token-unit displays use the active rates to draw one block per euro cent, regardless of whether the label is euros or equivalent tokens. ' +
+      'Pure-token mode keeps those same cent blocks but stretches the complete line according to raw-token volume. ' +
+      'Every token type remains a separate colored group, and any incomplete cent ends abruptly instead of receiving rounded corners.',
+  },
+  {
+    version: 'v.119',
+    title: 'All model units convert',
+    summary: 'Current Codex and Claude model aliases now convert consistently to money and token units everywhere.',
+    detail:
+      'The live feeds use rollout IDs such as gpt-5.6-luna and claude-opus-5, while the pricing table previously recognized only older exact model names. ' +
+      'Those aliases now resolve to the nearest published family rates, so sidebar totals, session detail bars, cycles, and timeline values follow the global unit toggle. ' +
+      'The pricing source explicitly labels each proxy, and genuinely unpriceable Warp sessions still remain in raw-token mode.',
+  },
+  {
+    version: 'v.118',
+    title: 'Encrypted reasoning stays closed',
+    summary: 'Codex reasoning without plaintext is now visibly muted and cannot open an empty detail panel.',
+  },
+  {
+    version: 'v.117',
+    title: 'Tool payloads read clearly',
+    summary: 'Nested tool calls, execution metadata, and connector text blocks now render as readable inputs and outputs.',
+    detail:
+      'Tool cards now parse the JavaScript wrapper used by functions.exec, including its nested shell_command payload, and accept JSON, JavaScript, or Python-style data literals. ' +
+      'Execution headers such as status, wall time, exit code, and output become labeled fields, while input_text blocks are flattened into readable text. ' +
+      'The same shared renderer is used by Codex and Claude fallback payloads, while specialized file, diff, todo, and question views remain intact.',
+  },
+  {
     version: 'v.116',
     title: 'Developer message split',
     summary: 'Developer instructions now split by Markdown headings and XML sections into collapsed readable parts.',

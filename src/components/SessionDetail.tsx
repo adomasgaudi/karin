@@ -402,7 +402,7 @@ export default function SessionDetail() {
         )}
       </div>
 
-      <div ref={bodyRef} className="p-3 md:p-4">
+      <div ref={bodyRef} className="p-1 md:p-[5px]">
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
         {mode === 'raw' ? (
@@ -477,6 +477,7 @@ export default function SessionDetail() {
                     scaleMax={scaleMax}
                     model={model}
                     effort={effort}
+                    showModel={i === 0 || model !== cycleInfos[i - 1]?.model || effort !== cycleInfos[i - 1]?.effort}
                     singleModel={(s.models?.length ?? 0) <= 1}
                   />
                 )

@@ -134,6 +134,10 @@ export interface Session {
   counts: Counts
   audit: Audit
   latest_total_usage: TokenUsage | null
+  // Precomputed by the indexer so the sidebar works without the body fields below,
+  // which arrive empty in the index and are filled in by hydrateSession().
+  haystack?: string
+  tool_max_line?: number
 }
 
 export interface KarinData {
@@ -143,6 +147,8 @@ export interface KarinData {
   last_checked_at?: string | null
   last_entry_at?: string | null
   session_file_count?: number | null
+  // True when the feed is an index whose session bodies live in data/sessions/codex/.
+  split?: boolean
   sessions: Session[]
 }
 

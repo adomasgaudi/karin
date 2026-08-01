@@ -27,6 +27,12 @@ DATA_JSON = DATA_DIR / "karin-data.json"
 DATA_JS = DATA_DIR / "karin-data.js"
 DATA_STATUS = DATA_DIR / "karin-status.json"
 DIST_DATA_DIR = KARIN_HOME / "dist" / "data"
+# Per-session bodies live here; the index keeps only light fields (see split_payload).
+BODIES_REL = Path("sessions") / "codex"
+BODIES_DIR = DATA_DIR / BODIES_REL
+
+# Heavy arrays moved out of the index into a per-session body file.
+BODY_FIELDS = ("runtime_events", "tools", "contexts", "code_edits")
 
 
 SECRET_PATTERNS = [
@@ -445,10 +451,78 @@ def build_payload(limit: int | None) -> dict[str, Any]:
     }
 
 
+def safe_file_stem(session_id: str) -> str:
+    """Deterministic filesystem-safe stem for a session id."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", str(session_id))
+
+
+def build_haystack(session: dict[str, Any]) -> str:
+    """Precomputed search text for the index (the body is no longer loaded up front).
+
+    Deliberately excludes tool arguments/output, runtime_events and contexts text —
+    that is ~56 MB of mostly-unique machine output, not something you search for.
+    """
+    parts: list[str] = [
+        str(session.get("title") or ""),
+        str(session.get("id") or ""),
+        str(session.get("cwd") or ""),
+    ]
+    parts.extend(str(m.get("text") or "") for m in session.get("messages") or [])
+    parts.extend(str(r.get("text") or "") for r in session.get("reasoning") or [])
+    parts.extend(str(t.get("name") or "") for t in session.get("tools") or [])
+    parts.extend(str(e.get("name") or "") for e in session.get("code_edits") or [])
+    return "\n".join(parts).lower()
+
+
+def split_payload(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Move each session's heavy arrays into a body dict, leaving a light index.
+
+    Mutates the payload in place: heavy keys stay present but empty (so the TS types
+    still hold), and the list-level fields the frontend can no longer derive
+    (haystack, tool_max_line) are precomputed here.
+    """
+    bodies: list[tuple[str, dict[str, Any]]] = []
+    for session in payload.get("sessions") or []:
+        session["haystack"] = build_haystack(session)
+        session["tool_max_line"] = max((int(t.get("line") or 0) for t in session.get("tools") or []), default=-1)
+        body = {"id": session.get("id")}
+        for field in BODY_FIELDS:
+            body[field] = session.get(field) or []
+            session[field] = []
+        bodies.append((safe_file_stem(session.get("id") or ""), body))
+    payload["split"] = True
+    return bodies
+
+
+def write_bodies(bodies: list[tuple[str, dict[str, Any]]]) -> None:
+    """Write one file per session under data/sessions/codex/, drop stale ones, and
+    mirror the whole directory into dist/data/ when a built bundle exists."""
+    BODIES_DIR.mkdir(parents=True, exist_ok=True)
+    wanted = set()
+    for stem, body in bodies:
+        name = f"{stem}.json"
+        wanted.add(name)
+        (BODIES_DIR / name).write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+    for stale in BODIES_DIR.glob("*.json"):
+        if stale.name not in wanted:
+            stale.unlink(missing_ok=True)
+    if DIST_DATA_DIR.exists():
+        dist_bodies = DIST_DATA_DIR / BODIES_REL
+        dist_bodies.mkdir(parents=True, exist_ok=True)
+        for name in wanted:
+            shutil.copy2(BODIES_DIR / name, dist_bodies / name)
+        for stale in dist_bodies.glob("*.json"):
+            if stale.name not in wanted:
+                stale.unlink(missing_ok=True)
+
+
 def write_data(payload: dict[str, Any]) -> None:
     """Write the plain-JSON dataset. The old karin-data.js wrapper is no longer
-    emitted — it was a byte-for-byte duplicate of a 60 MB+ file that nothing loads."""
+    emitted — it was a byte-for-byte duplicate of a 60 MB+ file that nothing loads.
+    Heavy per-session arrays go to their own body files so the app can lazy-load them."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    bodies = split_payload(payload)
+    write_bodies(bodies)
     text = json.dumps(payload, ensure_ascii=False)
     DATA_JSON.write_text(text, encoding="utf-8")
     DATA_JS.unlink(missing_ok=True)

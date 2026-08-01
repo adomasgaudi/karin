@@ -29,6 +29,7 @@ export default function Cycle({
   scaleMax,
   model,
   effort,
+  showModel,
   singleModel,
 }: {
   cycle: CycleData
@@ -42,6 +43,7 @@ export default function Cycle({
   scaleMax?: number
   model?: string | null
   effort?: string | null
+  showModel?: boolean
   singleModel?: boolean
 }) {
   const usage = cycleUsage(cycle)
@@ -120,19 +122,25 @@ export default function Cycle({
 
   return (
     <details
-      className={`cycle group mb-2 rounded-md border shadow-sm shadow-neutral-950/[0.02] transition-[margin] open:mb-8 open:shadow-md ${
+      className={`cycle group mb-[3px] rounded-md border shadow-sm shadow-neutral-950/[0.02] transition-[margin] open:mb-[11px] open:shadow-md ${
         contextOnly
           ? 'border-neutral-200/70 bg-neutral-50/50 dark:border-neutral-800/70 dark:bg-neutral-900/40'
           : 'border-neutral-200 bg-white open:border-neutral-300 open:ring-1 open:ring-neutral-200 dark:border-neutral-800 dark:bg-neutral-900/80 dark:open:border-neutral-700 dark:open:ring-neutral-800'
       }`}
     >
-      <summary className="flex cursor-pointer select-none flex-col gap-2 rounded-t-md px-3 py-2.5 text-xs [&::-webkit-details-marker]:hidden hover:bg-neutral-50 group-open:sticky group-open:top-0 group-open:z-10 group-open:border-b group-open:border-neutral-200 group-open:bg-white/95 group-open:backdrop-blur dark:hover:bg-neutral-800/60 dark:group-open:border-neutral-800 dark:group-open:bg-neutral-900/95">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="shrink-0 rounded-sm bg-neutral-100 px-1.5 py-0.5 font-mono text-[0.68rem] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+      <summary className="flex cursor-pointer select-none flex-col gap-[3px] rounded-t-md px-1 py-[3px] text-xs [&::-webkit-details-marker]:hidden hover:bg-neutral-50 group-open:sticky group-open:top-0 group-open:z-10 group-open:border-b group-open:border-neutral-200 group-open:bg-white/95 group-open:backdrop-blur dark:hover:bg-neutral-800/60 dark:group-open:border-neutral-800 dark:group-open:bg-neutral-900/95">
+        {showModel && (model || effort) && (
+          <div className="flex items-center gap-1 px-1 text-[0.6rem] text-neutral-400 dark:text-neutral-500">
+            <span>{model || 'model n/a'}</span>
+            {effort && <span>· {effort}</span>}
+          </div>
+        )}
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="shrink-0 rounded-sm bg-neutral-100 px-[2px] py-[1px] font-mono text-[0.68rem] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
             {index + 1}
           </span>
-          {origin !== 'context' && !contextOnly && (
-            <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[0.62rem] font-medium uppercase tracking-wide ${ORIGIN_TAG[origin].cls}`}>
+          {origin !== 'context' && origin !== 'prompt' && !contextOnly && (
+            <span className={`shrink-0 rounded-sm px-[2px] py-[1px] text-[0.62rem] font-medium uppercase tracking-wide ${ORIGIN_TAG[origin].cls}`}>
               {ORIGIN_TAG[origin].label}
             </span>
           )}
@@ -153,18 +161,13 @@ export default function Cycle({
               ⏱ {fmtDuration(timing.workingMs)}
             </span>
           )}
-          {(model || effort) && (
-            <span className="shrink-0 whitespace-nowrap text-[0.6rem] text-neutral-400 dark:text-neutral-500">
-              {model || 'model n/a'}{effort ? ` · ${effort}` : ''}
-            </span>
-          )}
         </div>
         {hasUsage && (
           <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact showLegend={false} scaleMax={scaleMax} />
         )}
       </summary>
-      <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-2 dark:border-neutral-800/80 dark:bg-neutral-950/30">
-        <div className="mb-2 flex flex-wrap gap-x-2 gap-y-1 px-1 text-[0.68rem] text-neutral-500 dark:text-neutral-400">
+      <div className="rounded-b-md border-t border-neutral-100 bg-neutral-50/50 p-[3px] dark:border-neutral-800/80 dark:bg-neutral-950/30">
+        <div className="mb-[3px] flex flex-wrap gap-x-[3px] gap-y-px px-[1px] text-[0.68rem] text-neutral-500 dark:text-neutral-400">
           <span>line {cycle.startLine}</span>
           {timing.startMs != null && (
             <span title="When this cycle started → when it ended (wall clock)">
@@ -193,16 +196,16 @@ export default function Cycle({
         {/* Expanded view: this bar fills full width (scaled to the cycle's own total),
             and every card bar below is proportional to it via the same cardScaleMax. */}
         {hasUsage && (
-          <div className="mb-2 rounded-md bg-neutral-50 px-2 py-2 dark:bg-neutral-950/60">
+          <div className="mb-[3px] rounded-md bg-neutral-50 px-[3px] py-[3px] dark:bg-neutral-950/60">
             <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} compact inlineLabels scaleMax={cardScaleMax} />
           </div>
         )}
         {/* Indent + left guide so the cards read as nested inside this cycle. */}
-        <div className="ml-1 border-l-2 border-neutral-200/80 pl-2 dark:border-neutral-800">
+        <div className="ml-[1px] border-l-2 border-neutral-200/80 pl-[3px] dark:border-neutral-800">
           {eventNodes}
         </div>
         {/* Explicit boundary so a long expanded cycle has an unmistakable end. */}
-        <div className="mt-2 flex items-center gap-2 px-1 text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
+        <div className="mt-[3px] flex items-center gap-[3px] px-[1px] text-[0.6rem] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
           <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
           end of cycle {index + 1}
           <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />

@@ -24,6 +24,7 @@ import {
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
 import JsonView, { MaybeJson } from './JsonView'
+import { parseToolInvocation, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { looksLikeStructuredContext } from './BaseInstructions'
 
@@ -145,6 +146,7 @@ function Row({
   clamp,
   dim,
   dashed,
+  disabled,
   children,
 }: {
   num: number
@@ -162,31 +164,43 @@ function Row({
   clamp?: boolean
   dim?: boolean
   dashed?: boolean
+  disabled?: boolean
   children: ReactNode
 }) {
+  const header = (
+    <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
+      {!disabled && <Chevron />}
+      <NumBadge n={num} />
+      {clamp ? (
+        <span className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+      ) : (
+        <>
+          <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
+          {badge}
+          {meta != null && meta !== '' && (
+            <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
+          )}
+        </>
+      )}
+      {clamp && badge}
+      <StepDur step={step} />
+    </div>
+  )
+  const summary = (
+    <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled ? 'cursor-default' : 'cursor-pointer'}`}>
+      {header}
+      {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
+          almost no vertical space. The full labelled bar lives in the expanded body. */}
+      {thin && <div className="pl-6">{thin}</div>}
+    </div>
+  )
+  if (disabled) {
+    return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} opacity-60 grayscale`}>{summary}</div>
+  }
   return (
     <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>
       <summary className="flex cursor-pointer select-none list-none flex-col gap-px px-2 py-1 text-xs marker:hidden [&::-webkit-details-marker]:hidden hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
-        <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
-          <Chevron />
-          <NumBadge n={num} />
-          {clamp ? (
-            <span className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
-          ) : (
-            <>
-              <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
-              {badge}
-              {meta != null && meta !== '' && (
-                <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{meta}</span>
-              )}
-            </>
-          )}
-          {clamp && badge}
-          <StepDur step={step} />
-        </div>
-        {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
-            almost no vertical space. The full labelled bar lives in the expanded body. */}
-        {thin && <div className="pl-6">{thin}</div>}
+        {summary}
       </summary>
       <div className={bodyClass}>
         {bar}
@@ -260,7 +274,10 @@ function toolSummaryCodex(argsJson: string): string {
     const o = JSON.parse(argsJson)
     if (o && typeof o === 'object') return toolSummary(o as Record<string, unknown>)
   } catch {
-    // not JSON — fall through
+    const invocation = parseToolInvocation(argsJson)
+    if (invocation?.input && typeof invocation.input === 'object' && !Array.isArray(invocation.input)) {
+      return toolSummary(invocation.input as Record<string, unknown>)
+    }
   }
   return argsJson.replace(/\s+/g, ' ').trim()
 }
@@ -394,6 +411,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
             bar={bar} thin={thin}
             dim
             dashed
+            disabled
           >
             <div className="flex items-start gap-2 rounded-md border border-dashed border-neutral-300 bg-white/50 p-2 font-mono text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-950/40 dark:text-neutral-400">
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -447,9 +465,9 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row num={num} title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
-          <MaybeJson text={item.arguments} className={preClass} />
+          <ReadableToolInput toolName={item.name} argumentsText={item.arguments} />
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
-          <MaybeJson text={item.output ?? ''} className={preClass} />
+          <ReadableToolOutput output={item.output} />
         </Row>
       )
     }

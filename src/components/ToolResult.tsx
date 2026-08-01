@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ClaudeTool } from '../lib/claudeModel'
-import JsonView, { MaybeJson } from './JsonView'
+import { MaybeJson } from './JsonView'
+import { ReadableToolInput, ReadableToolValue } from './ReadableToolPayload'
 
 // Structural renderer for a Claude tool_use result. Dispatches on `tool.name` to render
 // `tool.result?.raw` in a shape that fits the tool (stdout/stderr, unified diff, file
@@ -359,19 +360,9 @@ function FallbackBody({ raw, text }: { raw: unknown; text?: string }) {
     }
     return <div className="text-xs italic text-neutral-400 dark:text-neutral-500">no result</div>
   }
-  // Structured payloads read as a key/value tree; plain text stays a <pre>.
-  if (isObj(raw) || isArr(raw)) {
-    return (
-      <Section label="Output">
-        <div className="overflow-x-auto rounded-md bg-white/70 dark:bg-neutral-950/55">
-          <JsonView value={raw} />
-        </div>
-      </Section>
-    )
-  }
   return (
     <Section label="Output">
-      <MaybeJson text={str(raw) || text || ''} className={preClass} />
+      <ReadableToolValue value={raw} text={text} />
     </Section>
   )
 }
@@ -417,9 +408,7 @@ export default function ToolResult({ tool }: { tool: ClaudeTool }) {
   return (
     <div className="space-y-2">
       <Section label="Input">
-        <div className="overflow-x-auto rounded-md bg-white/70 dark:bg-neutral-950/55">
-          <JsonView value={tool.input} />
-        </div>
+        <ReadableToolInput toolName={tool.name} argumentsText={tool.arguments} value={tool.input} />
       </Section>
       <OutputBody tool={tool} />
     </div>
