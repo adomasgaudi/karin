@@ -86,12 +86,18 @@ function codexEntries(s: Session): UnifiedEntry[] {
 
 function claudeEntries(s: ClaudeDetailSession): UnifiedEntry[] {
   const src: SessionSource = 'claude'
+  // The Claude indexer records every Edit/Write tool_use in BOTH tools and code_edits
+  // (same call_id). The tool row already renders the readable input and the result diff,
+  // so showing the code_edit too would draw the same edit twice — keep only edits whose
+  // tool row is absent.
+  const toolCallIds = new Set((s.tools || []).map((t) => t.call_id))
+  const soloEdits = (s.code_edits || []).filter((e) => !e.call_id || !toolCallIds.has(e.call_id))
   const entries: UnifiedEntry[] = [
     ...(s.contexts || []).map((item, index): UnifiedEntry => ({ kind: 'context', source: src, line: item.line || 0, index, item })),
     ...(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
     ...(s.thinking || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
     ...(s.tools || []).map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
-    ...(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
+    ...soloEdits.map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
     ...(s.usage_frames || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
     ...(s.subagents || []).map((item, index): UnifiedEntry => ({ kind: 'subagent', source: src, line: item.parent_line || 0, index, item })),
   ]

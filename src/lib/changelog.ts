@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.167',
+    title: 'No duplicate edit rows',
+    summary: 'Claude file edits no longer render twice as both a tool call and an edit entry.',
+    detail:
+      'The Claude indexer records every Edit/Write tool use in both its tools and code_edits arrays under the same call id. The cycle builder now keeps the richer tool row (readable input, simplifier, result diff) and drops the edit row whenever its tool row exists, so each edit appears exactly once.',
+  },
+  {
     version: 'v.166',
     title: 'Clean simplified steps',
     summary: 'Simplified steps now show only the simplified text, keep their numbers, and carry a left outline.',
