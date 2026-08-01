@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.192',
+    title: 'Context audit in one line',
+    summary: 'The audit is now a row of count-and-name pairs; the blind spots shrink to a footnote and the raw tallies hide behind a toggle.',
+    detail:
+      'Each bucket used to spend three lines — name, count, and a fixed sentence about where the extractor read it — so seven buckets filled a screen to carry seven numbers. Now every bucket that recorded anything is one "413 tool calls" pair, with that sentence as its tooltip and empty buckets dropped. The two blind spots, identical on every session, become one faint line instead of a panel. The raw transcript tallies stay, since they are how you spot a record type the indexer misses, but they sit behind a toggle.',
+  },
+  {
     version: 'v.191',
     title: 'Bare local-summary controls',
     summary: 'The "Local summary" label and its bot icon are gone; the row is just the model selector and the run button.',
