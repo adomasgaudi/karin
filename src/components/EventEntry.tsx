@@ -28,6 +28,7 @@ import RawJson from './RawJson'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { isStructuredInstructionPayload, looksLikeStructuredContext } from './BaseInstructions'
+import Markdown from './Markdown'
 import { shortenUserPrompt } from '../lib/localLlm'
 import { hasInjected, injectedLabels, ownPromptText, splitPrompt } from '../lib/promptText'
 
@@ -261,7 +262,9 @@ function Row({
       {inlineThin && thin}
       {clamp ? (
         <span className="relative min-w-0 flex-1">
-          <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{shownTitle}</span>
+          {/* No `block` here: line-clamp needs display:-webkit-box, and `block` overrode it,
+              which let a whitespace-collapsed preview render as a full-height wall. */}
+          <span ref={previewRef} className="line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{shownTitle}</span>
           {expandOnOverflow && (
             <span
               ref={fullRef}
@@ -518,8 +521,8 @@ function UserPromptBody({ text }: { text: string }) {
     <div className="space-y-1.5">
       {segments.map((segment, index) =>
         segment.kind === 'own' ? (
-          <div key={index} className="whitespace-pre-wrap break-words leading-relaxed text-neutral-800 dark:text-neutral-100">
-            {segment.text}
+          <div key={index} className="break-words text-neutral-800 dark:text-neutral-100">
+            <Markdown text={segment.text} />
           </div>
         ) : (
           <details key={index} className="rounded-md border border-dashed border-neutral-200 bg-neutral-50/60 dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -616,7 +619,9 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
             step={step}
             bar={bar} thin={thin}
           >
-            <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
+            {/* Replies are written in markdown; shown raw, fenced ASCII diagrams and
+                ** ** emphasis are what make a long answer unreadable. */}
+            <Markdown text={item.text || ''} />
           </Row>
         )
       }
@@ -629,7 +634,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
       ) : segmentedUser ? (
         <UserPromptBody text={item.text || ''} />
       ) : (
-        <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
+        <Markdown text={item.text || ''} />
       )
       // Even before it overflows, a user title shows the owner's own words rather than
       // whatever injected block happened to come first.

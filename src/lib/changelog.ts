@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.182',
+    title: 'Readable replies',
+    summary: 'Message bodies now render markdown, and a broken clamp that turned previews into walls of text is fixed.',
+    detail:
+      'Two separate faults made a long reply unreadable. The collapsed preview was styled "block line-clamp-3", and because both set display, block won and the three-line clamp never applied — so a whitespace-collapsed preview rendered at full height. Separately, bodies showed raw markdown, which buried fenced ASCII diagrams and ** ** emphasis. Messages now render through a small dependency-free markdown renderer: fenced blocks keep their alignment in a scrollable monospace box, and headings, bullets, inline code, bold and italics read as intended.',
+  },
+  {
     version: 'v.181',
     title: 'Variables shown in italics',
     summary: 'A fourth example teaches string and variable handling, and {$name} markers now render in italics.',
