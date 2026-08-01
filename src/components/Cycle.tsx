@@ -64,6 +64,12 @@ export default function Cycle({
   // What human touchpoint opened this cycle: a fresh prompt, a mid-turn interjection,
   // or the owner's answer to an AI question. A small tag makes the shape legible.
   const origin = cycleOrigin(cycle)
+  // The cycle title already names a cycle containing only its opening prompt. Do not
+  // repeat that same prompt as the sole child when there is no additional cycle data.
+  const onlyPromptCycle =
+    cycle.items.length === 1 &&
+    cycle.items[0]?.kind === 'message' &&
+    (cycle.items[0].item as { role?: string }).role === 'user'
 
   // Split the cycle into authorship bands: each human touchpoint is its own row, the
   // injected context it did not choose folds into a hooks band, and everything the AI
@@ -93,6 +99,7 @@ export default function Cycle({
     seg++
   }
   for (const entry of cycle.items) {
+    if (onlyPromptCycle) continue
     const band = entryBand(entry)
     if (band === 'human') {
       flushBands()

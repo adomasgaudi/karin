@@ -491,8 +491,14 @@ function isRealUserMessage(e: UnifiedEntry): e is Extract<UnifiedEntry, { kind: 
   return isHumanPrompt(e)
 }
 
-const clip = (raw: string): string | null => {
+const oneLine = (raw: string): string | null => {
   const t = raw.replace(/\s+/g, ' ').trim()
+  if (!t) return null
+  return t
+}
+
+const clip = (raw: string): string | null => {
+  const t = oneLine(raw)
   if (!t) return null
   return t.length > 40 ? `${t.slice(0, 40)}…` : t
 }
@@ -502,7 +508,7 @@ function realUserPrompt(cycle: Cycle): string | null {
     if (!isRealUserMessage(e)) continue
     const raw = (e.item as Message | ClaudeMessage).text?.trim() || ''
     if (!raw || isInjectedContext(raw)) continue
-    const t = clip(raw)
+    const t = oneLine(raw)
     if (t) return t
   }
   return null

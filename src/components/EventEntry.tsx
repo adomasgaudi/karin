@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Lock, ChevronRight } from 'lucide-react'
 import type { Entry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
 import type { Message, Reasoning, Tool, CodeEdit, ContextBlock, RuntimeEvent, TokenEvent } from '../types'
@@ -144,6 +144,7 @@ function Row({
   bar,
   thin,
   clamp,
+  expandOnOverflow,
   dim,
   dashed,
   disabled,
@@ -163,18 +164,34 @@ function Row({
   // Render `title` as the row's body text, wrapping up to 3 lines (no separate label/meta) —
   // used for assistant replies, which show their own text instead of an "assistant:" label.
   clamp?: boolean
+  // Only make a clamped row expandable when its text actually exceeds the visible lines.
+  expandOnOverflow?: boolean
   dim?: boolean
   dashed?: boolean
   disabled?: boolean
   expandable?: boolean
   children: ReactNode
 }) {
+  const previewRef = useRef<HTMLSpanElement>(null)
+  const [overflows, setOverflows] = useState(false)
+  useLayoutEffect(() => {
+    if (!expandOnOverflow) return
+    const node = previewRef.current
+    if (!node) return
+    const measure = () => setOverflows(node.scrollHeight > node.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [expandOnOverflow, title])
+  const canExpand = expandable && (!expandOnOverflow || overflows)
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
-      {!disabled && expandable && <Chevron />}
+      {!disabled && canExpand && <Chevron />}
       <NumBadge n={num} />
       {clamp ? (
-        <span className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+        <span ref={previewRef} className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
       ) : (
         <>
           <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
@@ -189,7 +206,7 @@ function Row({
     </div>
   )
   const summary = (
-    <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled || !expandable ? 'cursor-default' : 'cursor-pointer'}`}>
+    <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled || !canExpand ? 'cursor-default' : 'cursor-pointer'}`}>
       {header}
       {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
           almost no vertical space. The full labelled bar lives in the expanded body. */}
@@ -199,7 +216,7 @@ function Row({
   if (disabled) {
     return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} opacity-60 grayscale`}>{summary}</div>
   }
-  if (!expandable) {
+  if (!canExpand) {
     return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>{summary}</div>
   }
   return (
@@ -395,9 +412,10 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row
           num={num}
-          expandable={structuredMessage}
-          title={`${item.role}:`}
-          meta={preview(item.text)}
+          clamp
+          expandOnOverflow={!structuredMessage}
+          expandable={Boolean(item.text?.trim())}
+          title={`${item.role}: ${preview(item.text)}`}
           badge={tag ? <Pill>{tag}</Pill> : undefined}
           tint={tint}
           step={step}
