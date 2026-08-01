@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync, createReadStream, mkdirSync, copyFileSync, cpSync } from 'node:fs'
+import { existsSync, createReadStream, mkdirSync, copyFileSync, cpSync, openSync, closeSync } from 'node:fs'
 import { Readable } from 'node:stream'
+import { execFile, spawn } from 'node:child_process'
 
 const root = dirname(fileURLToPath(import.meta.url))
 // Every top-level feed the app fetches. A file missing here never reaches dist/data/, so the
@@ -128,6 +129,91 @@ function deepSeekProxy(apiKey: string | undefined) {
   }
 }
 
+// The three feed watchers, as started by karin.ps1. The page cannot spawn processes, but
+// the Vite server that serves it runs on the owner's PC — so it checks and restarts them.
+// Each indexer takes a per-source lock file, so starting an already-running watcher is a
+// no-op (the duplicate prints "already running" and exits).
+const WATCHERS = [
+  { id: 'codex', script: 'karin.py', log: 'karin-watch' },
+  { id: 'claude', script: 'karin_claude.py', log: 'claude-watch' },
+  { id: 'warp', script: 'karin_warp.py', log: 'warp-watch' },
+] as const
+
+// Which watchers are alive right now, by scanning process command lines for
+// "<script> --watch". Heartbeat files can't answer this: the Warp watcher only rewrites
+// its status when the sqlite changes, so a stale file there just means "idle".
+function queryWatchers(): Promise<Record<string, boolean>> {
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        `Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%--watch%'" | Select-Object -ExpandProperty CommandLine`,
+      ],
+      { windowsHide: true, timeout: 15000 },
+      (error, stdout) => {
+        const commandLines = error ? '' : stdout
+        resolve(Object.fromEntries(WATCHERS.map((w) => [w.id, commandLines.includes(w.script)])))
+      },
+    )
+  })
+}
+
+function startWatchers() {
+  const logDir = join(root, 'data')
+  mkdirSync(logDir, { recursive: true })
+  for (const w of WATCHERS) {
+    // Append to the same logs karin.ps1 writes, then detach — the watcher must outlive
+    // this request and keep running even if the Vite server is later restarted.
+    const out = openSync(join(logDir, `${w.log}.log`), 'a')
+    const err = openSync(join(logDir, `${w.log}.err.log`), 'a')
+    const child = spawn('python', [join(root, 'bin', w.script), '--watch'], {
+      cwd: root,
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', out, err],
+    })
+    child.unref()
+    closeSync(out)
+    closeSync(err)
+  }
+}
+
+// GET /api/watchers → which watchers run; POST /api/watchers/start → start the missing
+// ones and report the resulting state. Active for both :5173 dev and :4173 preview.
+function watcherControl() {
+  const handler = (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
+    const respond = (running: Record<string, boolean>) => {
+      res.setHeader('content-type', 'application/json')
+      res.setHeader('cache-control', 'no-store')
+      res.end(JSON.stringify({ running }))
+    }
+    const path = req.url?.split('?')[0] || '/'
+    if (req.method === 'GET' && (path === '/' || path === '')) {
+      void queryWatchers().then(respond)
+      return
+    }
+    if (req.method === 'POST' && path === '/start') {
+      startWatchers()
+      // Give the spawned processes a moment to appear (or to exit on the lock),
+      // so the response reflects reality instead of the pre-start snapshot.
+      setTimeout(() => void queryWatchers().then(respond), 1500)
+      return
+    }
+    res.statusCode = 404
+    res.end('Unknown watcher endpoint.')
+  }
+  const attach = (server: { middlewares: { use: (path: string, middleware: typeof handler) => void } }) => {
+    server.middlewares.use('/api/watchers', handler)
+  }
+  return {
+    name: 'karin-watcher-control',
+    configureServer: attach,
+    configurePreviewServer: attach,
+  }
+}
+
 // Karin builds for the LOCAL target only: relative asset paths ('./') so the bundle
 // serves from any origin — localhost:4173, a Cloudflare tunnel, or a bare file path.
 // The public GitHub Pages deploy was removed; to bring it back you'd reintroduce an
@@ -145,6 +231,6 @@ export default defineConfig(({ mode }) => {
     base: './',
     server: { allowedHosts: tunnelHosts },
     preview: { allowedHosts: tunnelHosts },
-    plugins: [react(), tailwindcss(), serveLocalData(), deepSeekProxy(deepSeekKey), ...(isLocal ? [bundleLocalData()] : [])],
+    plugins: [react(), tailwindcss(), serveLocalData(), deepSeekProxy(deepSeekKey), watcherControl(), ...(isLocal ? [bundleLocalData()] : [])],
   }
 })

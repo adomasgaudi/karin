@@ -19,6 +19,48 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.165',
+    title: 'Per-step simplification',
+    summary: 'Shell commands split into steps now simplify each step with its own model request.',
+    detail:
+      'One provider click fans out one request per command step instead of sending all steps as a single prompt. Each step streams into its own row, results are cached per step so repeated commands answer instantly, and local Qwen requests queue one at a time while DeepSeek runs a small parallel fan-out.',
+  },
+  {
+    version: 'v.164',
+    title: 'Watcher restart button',
+    summary: 'The nav bar now shows watcher health and can restart dead feed watchers with one click.',
+    detail:
+      'The serving Vite process checks which of the Codex, Claude, and Warp watchers are running by scanning for their --watch processes. A green dot means all three are alive; an amber button appears when any died and restarts them on this PC. The per-source lock files make restarting an already-running watcher harmless.',
+  },
+  {
+    version: 'v.163',
+    title: 'Readable control flow',
+    summary: 'Validation, timing, lookup, and export logic now expose decisions through named steps and explicit branches.',
+    detail:
+      'Several compact expressions hid their meaning behind nested ternaries, inline casts, and dense arithmetic. Persisted-setting validation, fast-mode labeling, export timestamps, local-model estimates, provider errors, hydration fallback, pricing lookup, and empty-text checks now name their intermediate decisions. Simple guards and real data pipelines remain compact when their intent is already obvious.',
+  },
+  {
+    version: 'v.162',
+    title: 'Readable multiline prompts',
+    summary: 'System prompts now use multiline literals so each instruction remains easy to scan and edit.',
+    detail:
+      'Prompt instructions in the local summary, title generator, and tool simplifier were previously stored as arrays joined with spaces. They now use trimmed multiline template literals, preserving the same rules while making boundaries visible in source and in the resulting prompt.',
+  },
+  {
+    version: 'v.161',
+    title: 'Unblock local simplifier',
+    summary: 'Qwen simplification now allows five minutes and uses a smaller request budget for faster local inference.',
+    detail:
+      'The simplifier was still hard-capped at 90 seconds, even though local Qwen can spend several seconds loading weights before generation. Its request also allowed a 500-token response and an 8192-token context for a short command. The limit is now five minutes, while the focused tool request uses 256 output tokens and a 4096 context to reduce memory pressure without changing the required formatting prompt.',
+  },
+  {
+    version: 'v.160',
+    title: 'Section startup context',
+    summary: 'Named startup context payloads now always receive readable titles, paragraphs, lists, and line breaks.',
+    detail:
+      'Some injected AGENTS.md payloads arrive with the stable startup_context name even when their text markers have been flattened or normalized. Text-only detection could therefore fall through to the raw preformatted wall of text shown in the screenshot. Karin now recognizes the payload name directly and sends it through the same structured section renderer.',
+  },
+  {
     version: 'v.159',
     title: 'Stream proxy responses',
     summary: 'The local DeepSeek proxy now forwards streamed responses without compression-header decoding failures.',

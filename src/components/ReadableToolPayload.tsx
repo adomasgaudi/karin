@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import JsonView, { stripAnsi } from './JsonView'
-import { generate, SIMPLIFIER_PROVIDERS, type GenerateProgress, type SimplifierProvider } from '../lib/localLlm'
+import { generate, LOCAL_LLM_TIMEOUT_MS, SIMPLIFIER_PROVIDERS, type GenerateProgress, type SimplifierProvider } from '../lib/localLlm'
 
 type Obj = Record<string, unknown>
 
@@ -11,16 +11,16 @@ const preClass =
   'overflow-x-auto rounded-md bg-white/70 p-2 font-mono text-xs leading-relaxed text-neutral-700 dark:bg-neutral-950/55 dark:text-neutral-300'
 const labelClass = 'text-xs font-semibold text-neutral-600 dark:text-neutral-300'
 
-const SIMPLE_SYSTEM = [
-  'You simplify coding-tool inputs for a developer reading an AI session transcript.',
-  'Return a prettier, near-identical command walkthrough, not the original JSON wrapper and not a vague summary.',
-  'Keep every meaningful step, order, path, filename, search pattern, flag, literal, and command argument.',
-  'Keep recognizable command keywords such as Get-Content, ForEach-Object, Select-Object, Test-Path, and their original order.',
-  'Format the steps across readable lines, using arrows or short annotations only when they clarify the same step.',
-  'Do not replace a precise keyword with a broader word when the keyword makes the source easier to track.',
-  'Output exactly two sections: CODE: followed by the formatted walkthrough, then EXPLANATION: followed by one sentence under 20 words.',
-  'Do not add markdown fences, a preamble, invented results, edits, or intent.',
-].join(' ')
+const SIMPLE_SYSTEM = `
+You simplify code for a developer trying to understand.
+Return a version of the code that keeps the order, keywords, strucuture like nesting, but change the filenames to only show the non-obvious part, the code function names not syntax like "const" or "function" something like "Get-Content .\src\lib\localLlm.ts | Select-Object -Skip 1 -First 150" would get simplified to "Get localLlm.ts -> skip line 1, first 150 lines." so i could've said "read" but i chose get to keep it recognisable, but simplified, it, while the complex parts that are specific to a language i make them more readable like adding the word "line" or changing pipe to ->. This is just one example, take the principles and use them  ,
+`.trim()
+
+const SIMPLE_PROVIDER_GUIDANCE: Record<SimplifierProvider, string> = {
+  qwen: 'Be conservative: preserve exact shell syntax while making the structure obvious.',
+  'd-flash': 'Be concise and decisive: remove wrapper punctuation and expose the command steps immediately.',
+  'd-pro': 'Be meticulous: preserve every argument while grouping command steps and execution metadata clearly.',
+}
 
 const SIMPLE_INPUT_LIMIT = 18_000
 const simpleCache = new Map<string, string>()
@@ -88,10 +88,94 @@ function parseSimpleParts(text: string): SimpleParts {
 }
 
 function formatEta(etaMs: number | null): string {
-  if (etaMs === null) return 'estimating time'
+  if (etaMs === null) return 'calculating'
   if (etaMs < 1000) return 'finishing'
   const seconds = Math.ceil(etaMs / 1000)
   return seconds < 60 ? `about ${seconds}s left` : `about ${Math.ceil(seconds / 60)}m left`
+}
+
+function formatEtaCompact(etaMs: number | null): string {
+  if (etaMs === null) return '…'
+  return etaMs < 1000 ? '<1s' : `~${Math.ceil(etaMs / 1000)}s`
+}
+
+function formatElapsed(elapsedMs: number): string {
+  return `${Math.floor(Math.max(0, elapsedMs) / 1000)}s elapsed`
+}
+
+// One simplification request for one piece of text — shared by the whole-payload
+// simplifier and the per-step shell simplifier. Caches per provider+text, so a step
+// that repeats across commands is only ever explained once.
+async function generateSimple(
+  provider: SimplifierProvider,
+  text: string,
+  signal: AbortSignal,
+  onProgress?: (progress: GenerateProgress) => void,
+  onToken?: (chunk: string) => void,
+): Promise<string> {
+  const result = await generate(
+    `Simplify this coding-tool input. Preserve its useful details.\n\n${promptInput(text)}`,
+    {
+      provider,
+      system: `${SIMPLE_SYSTEM} ${SIMPLE_PROVIDER_GUIDANCE[provider]}`,
+      signal,
+      think: false,
+      temperature: 0.15,
+      // The simplifier needs a short answer, not a large generation budget.
+      // Keeping the context window modest also avoids pushing qwen3.5:9b off VRAM.
+      numPredict: 256,
+      numCtx: 4096,
+      timeoutMs: LOCAL_LLM_TIMEOUT_MS,
+      onProgress,
+      onToken,
+    },
+  )
+  const cleaned = result.trim()
+  if (!cleaned) throw new Error(`${SIMPLIFIER_PROVIDERS.find((item) => item.id === provider)?.label || provider} returned no explanation.`)
+  simpleCache.set(simpleCacheKey(provider, text), cleaned)
+  return cleaned
+}
+
+// The Original / provider toggle row shared by both simplifier surfaces.
+function SimplifierToggle({
+  mode,
+  provider,
+  busy,
+  etaMs,
+  onOriginal,
+  onProvider,
+}: {
+  mode: 'original' | 'simple'
+  provider: SimplifierProvider
+  busy: boolean
+  etaMs: number | null
+  onOriginal: () => void
+  onProvider: (id: SimplifierProvider) => void
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <span className="mr-auto text-[0.58rem] text-neutral-400 dark:text-neutral-500">simplifier</span>
+      <button
+        type="button"
+        onClick={onOriginal}
+        className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${mode === 'original' ? 'bg-neutral-200 font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`}
+      >
+        Original
+      </button>
+      <div className="flex overflow-hidden rounded-sm border border-neutral-200 dark:border-neutral-800" role="group" aria-label="Choose simplifier">
+        {SIMPLIFIER_PROVIDERS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onProvider(item.id)}
+            className={`border-r border-neutral-200 px-1.5 py-0.5 text-[0.6rem] last:border-r-0 dark:border-neutral-800 ${mode === 'simple' && provider === item.id ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-900 dark:hover:text-neutral-300'}`}
+          >
+            {busy && provider === item.id ? `${item.label} ${formatEtaCompact(etaMs)}` : item.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode }) {
@@ -137,25 +221,7 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
     setProgress(null)
     setError(null)
     try {
-      const result = await generate(
-        `Simplify this coding-tool input. Preserve its useful details.\n\n${promptInput(raw)}`,
-        {
-          provider: nextProvider,
-          system: SIMPLE_SYSTEM,
-          signal: ac.signal,
-          think: false,
-          temperature: 0.15,
-          numPredict: 500,
-          numCtx: 8192,
-          expectedTokens: 160,
-          timeoutMs: 90_000,
-          onProgress: setProgress,
-          onToken: (chunk) => setDraft((prev) => prev + chunk),
-        },
-      )
-      const cleaned = result.trim()
-      if (!cleaned) throw new Error(`${SIMPLIFIER_PROVIDERS.find((item) => item.id === nextProvider)?.label || nextProvider} returned no explanation.`)
-      simpleCache.set(simpleCacheKey(nextProvider, raw), cleaned)
+      const cleaned = await generateSimple(nextProvider, raw, ac.signal, setProgress, (chunk) => setDraft((prev) => prev + chunk))
       setSimple(cleaned)
     } catch (e) {
       if (!ac.signal.aborted) setError(e instanceof Error ? e.message : String(e))
@@ -174,34 +240,20 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
   const simpleCode = simpleParts.code || (busy ? 'Waiting for the first token…' : '')
   const annotation = mode === 'simple' && (simpleParts.explanation || busy) ? (
     <div className="border-t border-neutral-200/70 pt-1 font-sans text-[0.68rem] leading-relaxed text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-      {busy ? `${providerLabel} ${progress?.percent ?? 0}% · ${formatEta(progress?.etaMs ?? null)}` : simpleParts.explanation}
+      {busy ? `${providerLabel} · ${formatEta(progress?.etaMs ?? null)} · ${formatElapsed(progress?.elapsedMs ?? 0)}` : simpleParts.explanation}
       {busy && <span className="animate-pulse text-neutral-400"> ▍</span>}
     </div>
   ) : null
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-end gap-1">
-        <span className="mr-auto text-[0.58rem] text-neutral-400 dark:text-neutral-500">simplifier</span>
-        <button
-          type="button"
-          onClick={() => setMode('original')}
-          className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${mode === 'original' ? 'bg-neutral-200 font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`}
-        >
-          Original
-        </button>
-        <div className="flex overflow-hidden rounded-sm border border-neutral-200 dark:border-neutral-800" role="group" aria-label="Choose simplifier">
-          {SIMPLIFIER_PROVIDERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => void simplify(item.id)}
-              className={`border-r border-neutral-200 px-1.5 py-0.5 text-[0.6rem] last:border-r-0 dark:border-neutral-800 ${mode === 'simple' && provider === item.id ? 'bg-amber-100 font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-neutral-900 dark:hover:text-neutral-300'}`}
-            >
-              {busy && provider === item.id ? `${item.label} ${progress?.percent ?? 0}%` : item.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <SimplifierToggle
+        mode={mode}
+        provider={provider}
+        busy={busy}
+        etaMs={progress?.etaMs ?? null}
+        onOriginal={() => setMode('original')}
+        onProvider={(id) => void simplify(id)}
+      />
       {mode === 'simple' ? (
         <div className="space-y-2">
           <pre className={`${preClass} whitespace-pre-wrap break-words`}>{simpleCode}</pre>
@@ -596,8 +648,242 @@ function readableToolName(name: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+interface ShellCommandPayload {
+  command: string
+  workdir?: string
+  timeout?: string
+}
+
+function decodeLooseString(body: string): string {
+  let result = ''
+  for (let index = 0; index < body.length; index += 1) {
+    const char = body[index]
+    if (char !== '\\' || index + 1 >= body.length) {
+      result += char
+      continue
+    }
+    const escaped = body[++index]
+    const simple: Record<string, string> = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', v: '\v' }
+    if (simple[escaped] !== undefined) result += simple[escaped]
+    else if (escaped === '\\' || escaped === '"' || escaped === "'" || escaped === '`') result += escaped
+    else result += `\\${escaped}`
+  }
+  return result
+}
+
+// The recorded argument can be valid JSON, JavaScript-like data, or a display
+// string whose command contains unescaped quotes. Extract the useful fields from
+// all three without executing or rewriting the original payload.
+function extractLooseField(raw: string, key: string): string | undefined {
+  const marker = new RegExp(`(?:["']?${key}["']?)\\s*:\\s*`, 'g')
+  let match: RegExpExecArray | null
+  while ((match = marker.exec(raw))) {
+    const start = match.index + match[0].length
+    const quote = raw[start]
+    if (quote === '"' || quote === "'" || quote === '`') {
+      for (let index = start + 1; index < raw.length; index += 1) {
+        if (raw[index] === '\\') {
+          index += 1
+          continue
+        }
+        if (raw[index] !== quote) continue
+        const rest = raw.slice(index + 1)
+        // Inner quotes in a shell search pattern are sometimes not escaped in
+        // the saved display string. Only a quote followed by the next field or
+        // object end can be the actual value terminator.
+        if (/^\s*(?:,|}|$)/.test(rest)) return decodeLooseString(raw.slice(start + 1, index))
+      }
+    } else {
+      const token = raw.slice(start).match(/^[^,}\n]+/)?.[0]?.trim()
+      if (token) return token
+    }
+  }
+  return undefined
+}
+
+function shellPayloadFrom(value: unknown, raw: string): ShellCommandPayload | null {
+  const candidates: unknown[] = [value]
+  if (typeof value === 'string') candidates.push(parseLoosePayload(value))
+  candidates.push(parseLoosePayload(raw))
+  for (const candidate of candidates) {
+    if (!isObj(candidate) || typeof candidate.command !== 'string' || !candidate.command.trim()) continue
+    const workdir = typeof candidate.workdir === 'string' ? candidate.workdir : typeof candidate.cwd === 'string' ? candidate.cwd : undefined
+    const timeoutValue = candidate.timeout_ms ?? candidate.timeout
+    return {
+      command: candidate.command,
+      workdir,
+      timeout: timeoutValue === undefined || timeoutValue === null ? undefined : String(timeoutValue),
+    }
+  }
+
+  const command = extractLooseField(raw, 'command')
+  if (!command?.trim()) return null
+  return {
+    command,
+    workdir: extractLooseField(raw, 'workdir') || extractLooseField(raw, 'cwd'),
+    timeout: extractLooseField(raw, 'timeout_ms') || extractLooseField(raw, 'timeout'),
+  }
+}
+
+function shellSteps(command: string): string[] {
+  const steps: string[] = []
+  let current = ''
+  let quote = ''
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index]
+    if (quote) {
+      current += char
+      if (char === '\\' && index + 1 < command.length) current += command[++index]
+      else if (char === quote) quote = ''
+      continue
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char
+      current += char
+    } else if (char === ';') {
+      if (current.trim()) steps.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  if (current.trim()) steps.push(current.trim())
+  return steps.length ? steps : [command.trim()]
+}
+
+interface StepSimple {
+  text: string
+  draft: string
+  error: string | null
+  busy: boolean
+}
+
+function stepStatesFor(provider: SimplifierProvider, steps: string[], busyWhenMissing: boolean): StepSimple[] {
+  return steps.map((step) => {
+    const cached = simpleCache.get(simpleCacheKey(provider, step)) || ''
+    return { text: cached, draft: '', error: null, busy: busyWhenMissing && !cached }
+  })
+}
+
+function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw: string }) {
+  const steps = shellSteps(payload.command)
+  // Each step is simplified by its OWN model request (fanned out on one click), so a
+  // long compound command never has to fit a single generation, and repeated steps
+  // are served from the per-step cache.
+  const [mode, setMode] = useState<'original' | 'simple'>('original')
+  const [provider, setProvider] = useState<SimplifierProvider>('qwen')
+  const [states, setStates] = useState<StepSimple[]>(() => stepStatesFor('qwen', steps, false))
+  const abort = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    abort.current?.abort()
+    setMode('original')
+    setProvider('qwen')
+    setStates(stepStatesFor('qwen', shellSteps(payload.command), false))
+    return () => abort.current?.abort()
+  }, [payload.command])
+
+  const patch = (index: number, partial: Partial<StepSimple>) =>
+    setStates((prev) => prev.map((s, i) => (i === index ? { ...s, ...partial } : s)))
+
+  const simplify = async (nextProvider: SimplifierProvider) => {
+    abort.current?.abort()
+    const ac = new AbortController()
+    abort.current = ac
+    setProvider(nextProvider)
+    setMode('simple')
+    const init = stepStatesFor(nextProvider, steps, true)
+    setStates(init)
+    const pending = steps.map((_, index) => index).filter((index) => !init[index].text)
+    if (pending.length === 0) return
+    // Local qwen answers one request at a time anyway — queue instead of piling onto
+    // the GPU. The DeepSeek endpoints handle a small fan-out fine.
+    const limit = nextProvider === 'qwen' ? 1 : 4
+    let cursor = 0
+    const worker = async () => {
+      while (cursor < pending.length && !ac.signal.aborted) {
+        const index = pending[cursor++]
+        try {
+          const cleaned = await generateSimple(nextProvider, steps[index], ac.signal, undefined, (chunk) => {
+            setStates((prev) => prev.map((s, i) => (i === index ? { ...s, draft: s.draft + chunk } : s)))
+          })
+          patch(index, { text: cleaned, draft: '', busy: false })
+        } catch (e) {
+          if (ac.signal.aborted) return
+          patch(index, { error: e instanceof Error ? e.message : String(e), busy: false })
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, pending.length) }, () => worker()))
+  }
+
+  const busy = states.some((s) => s.busy)
+  return (
+    <div className="space-y-2">
+      <SimplifierToggle
+        mode={mode}
+        provider={provider}
+        busy={busy}
+        etaMs={null}
+        onOriginal={() => setMode('original')}
+        onProvider={(id) => void simplify(id)}
+      />
+      <div className="space-y-1">
+        <div className={labelClass}>Command · {steps.length} step{steps.length === 1 ? '' : 's'}</div>
+        <div className="space-y-1">
+          {steps.map((step, index) => {
+            const state = states[index]
+            const simple = mode === 'simple' && state ? state : null
+            const simpleCode = simple ? parseSimpleParts(simple.text || simple.draft).code : ''
+            return (
+              <div key={`${index}-${step}`} className="flex items-start gap-2 px-1 py-1">
+                <span className="mt-0.5 shrink-0 rounded-sm bg-neutral-200/80 px-1 font-mono text-[0.6rem] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">{index + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <code className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-800 dark:text-neutral-200">
+                    {simple ? simpleCode || (simple.busy ? '' : step) : step}
+                    {simple?.busy && <span className="animate-pulse text-neutral-400"> ▍</span>}
+                  </code>
+                  {simple?.error && <div className="text-[0.65rem] text-red-600 dark:text-red-400">{simple.error}</div>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {(payload.workdir || payload.timeout) && (
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+          {payload.workdir && (
+            <>
+              <span className="font-mono text-neutral-500 dark:text-neutral-400">Working directory</span>
+              <code className="min-w-0 break-all text-neutral-700 dark:text-neutral-300">{payload.workdir}</code>
+            </>
+          )}
+          {payload.timeout && (
+            <>
+              <span className="font-mono text-neutral-500 dark:text-neutral-400">Timeout</span>
+              <span className="text-neutral-700 dark:text-neutral-300">{payload.timeout} ms</span>
+            </>
+          )}
+        </div>
+      )}
+      <details className="rounded-md border border-dashed border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-2 py-1 text-[0.65rem] text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">Raw payload</summary>
+        <pre className={`${preClass} rounded-none border-t border-neutral-200 whitespace-pre-wrap break-words dark:border-neutral-800`}>{stripAnsi(raw)}</pre>
+      </details>
+    </div>
+  )
+}
+
 function renderInputValue(value: unknown | null, raw: string) {
-  const original = value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={`${preClass} whitespace-pre-wrap break-words`}>{stripAnsi(raw) || '(no arguments)'}</pre>
+  const shell = shellPayloadFrom(value, raw)
+  // Shell commands carry their own PER-STEP simplifier (one request per step);
+  // everything else is simplified whole.
+  if (shell) return <ShellCommandInput payload={shell} raw={raw} />
+  const original = value !== null && value !== undefined ? (
+    renderScalar(value, raw)
+  ) : (
+    <pre className={`${preClass} whitespace-pre-wrap break-words`}>{stripAnsi(raw) || '(no arguments)'}</pre>
+  )
   return <SimplifiableInput raw={raw} original={original} />
 }
 

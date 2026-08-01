@@ -3,6 +3,7 @@ import { CalendarClock, LayoutList, ListChecks } from 'lucide-react'
 import { useKarin, type View } from '../store/karin'
 import { cn } from '../lib/cn'
 import SettingsMenu from './SettingsMenu'
+import WatcherStatus from './WatcherStatus'
 import KarinLogo from './KarinLogo'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import { APP_VERSION } from '../lib/appVersion'
@@ -124,6 +125,7 @@ export default function NavBar() {
       onLogoClick={() => useKarin.getState().select(null)}
       right={
         <>
+          <WatcherStatus />
           <AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />
           <SettingsMenu />
         </>
