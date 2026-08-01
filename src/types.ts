@@ -155,6 +155,9 @@ export interface Session {
   // which arrive empty in the index and are filled in by hydrateSession().
   haystack?: string
   tool_max_line?: number
+  // Lightweight call headers remain in the live index so active tools never vanish
+  // while the full lazy body (arguments + outputs) catches up.
+  tool_previews?: Tool[]
 }
 
 export interface KarinData {

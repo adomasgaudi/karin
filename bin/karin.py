@@ -488,7 +488,23 @@ def split_payload(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     bodies: list[tuple[str, dict[str, Any]]] = []
     for session in payload.get("sessions") or []:
         session["haystack"] = build_haystack(session)
-        session["tool_max_line"] = max((int(t.get("line") or 0) for t in session.get("tools") or []), default=-1)
+        tools = session.get("tools") or []
+        session["tool_max_line"] = max((int(t.get("line") or 0) for t in tools), default=-1)
+        # Keep tiny call-only records in the live index. Reasoning/messages already stay
+        # there, while full tools (especially outputs) live in the lazy body. Without
+        # these previews, an active session can show fresh reasoning beside a cached body
+        # that is a few calls behind, making those tool calls temporarily disappear.
+        session["tool_previews"] = [
+            {
+                "timestamp": tool.get("timestamp"),
+                "line": tool.get("line") or 0,
+                "call_id": tool.get("call_id"),
+                "name": tool.get("name") or "tool",
+                "arguments": "",
+                "output": None,
+            }
+            for tool in tools
+        ]
         body = {"id": session.get("id")}
         for field in BODY_FIELDS:
             body[field] = session.get(field) or []

@@ -69,12 +69,15 @@ const KIND_ORDER: Record<EntryKind, number> = {
 
 function codexEntries(s: Session): UnifiedEntry[] {
   const src: SessionSource = 'codex'
+  // Before the lazy body arrives, render the call-only index records. Once hydrated,
+  // `merge()` combines these with full tools so previews only fill genuinely missing rows.
+  const tools = s.tools?.length ? s.tools : (s.tool_previews || [])
   const entries: UnifiedEntry[] = [
     ...(s.contexts || []).map((item, index): UnifiedEntry => ({ kind: 'context', source: src, line: item.line || 0, index, item })),
     ...(s.messages || []).map((item, index): UnifiedEntry => ({ kind: 'message', source: src, line: item.line || 0, index, item })),
     ...(s.reasoning || []).map((item, index): UnifiedEntry => ({ kind: 'thinking', source: src, line: item.line || 0, index, item })),
     ...(s.runtime_events || []).map((item, index): UnifiedEntry => ({ kind: 'runtime', source: src, line: item.line || 0, index, item })),
-    ...(s.tools || []).map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
+    ...tools.map((item, index): UnifiedEntry => ({ kind: 'tool', source: src, line: item.line || 0, index, item })),
     ...(s.code_edits || []).map((item, index): UnifiedEntry => ({ kind: 'edit', source: src, line: item.line || 0, index, item })),
     ...(s.token_events || []).map((item, index): UnifiedEntry => ({ kind: 'usage', source: src, line: item.line || 0, index, item })),
   ]

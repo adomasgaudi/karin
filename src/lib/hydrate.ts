@@ -44,10 +44,36 @@ function stampOf(s: Record<string, unknown>): string {
   return String(s.updated_at ?? '')
 }
 
+function toolKey(tool: Record<string, unknown>): string {
+  const callId = String(tool.call_id ?? '')
+  return callId ? `call:${callId}` : `line:${String(tool.line ?? '')}:${String(tool.name ?? '')}`
+}
+
+// A cached body may trail the live index during an active turn. Preserve every fresh
+// call-only preview, then let a matching full body record replace it with arguments/output.
+function mergeCodexTools(bodyTools: unknown, previews: unknown): unknown[] {
+  const byKey = new Map<string, Record<string, unknown>>()
+  if (Array.isArray(previews)) {
+    for (const tool of previews) {
+      if (tool && typeof tool === 'object') byKey.set(toolKey(tool as Record<string, unknown>), tool as Record<string, unknown>)
+    }
+  }
+  if (Array.isArray(bodyTools)) {
+    for (const tool of bodyTools) {
+      if (tool && typeof tool === 'object') byKey.set(toolKey(tool as Record<string, unknown>), tool as Record<string, unknown>)
+    }
+  }
+  return [...byKey.values()].sort((a, b) => Number(a.line ?? 0) - Number(b.line ?? 0))
+}
+
 function merge(session: Record<string, unknown>, body: Record<string, unknown>, source: 'codex' | 'claude'): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...session }
   for (const field of BODY_FIELDS[source]) {
-    if (Array.isArray(body[field])) merged[field] = body[field]
+    if (source === 'codex' && field === 'tools') {
+      merged[field] = mergeCodexTools(body[field], session.tool_previews)
+    } else if (Array.isArray(body[field])) {
+      merged[field] = body[field]
+    }
   }
   return merged
 }

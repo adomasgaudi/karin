@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.144',
+    title: 'Keep tool rows visible',
+    summary: 'Active Codex sessions retain fresh tool-call rows while full lazy bodies catch up.',
+    detail:
+      'Reasoning and messages update through the lightweight live index, but tool arguments and outputs are loaded from a separate cached session body. When that body lagged behind an active transcript, new reasoning appeared immediately while adjacent tool calls vanished. The index now carries tiny tool-call previews, and hydration merges them with cached or full records by call id.',
+  },
+  {
     version: 'v.143',
     title: 'Keep active logs live',
     summary: 'Selected sessions retry body loading and duplicate source watchers can no longer race the local feed.',
