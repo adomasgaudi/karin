@@ -19,6 +19,13 @@ const ORIGIN_TAG: Record<'prompt' | 'interjection' | 'answer', { label: string; 
   answer: { label: 'answer', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' },
 }
 
+// queue/enqueue + queue/dequeue are bookkeeping for the prompt queue: same fixed shape
+// every time, no information the cycle doesn't already show. Hidden from the structured
+// view; they stay in the feed, so the Raw JSON toggle still has them.
+function isQueueOp(entry: UnifiedEntry): boolean {
+  return entry.kind === 'context' && String((entry.item as { name?: string }).name ?? '').startsWith('queue/')
+}
+
 export default function Cycle({
   cycle,
   source,
@@ -126,7 +133,7 @@ export default function Cycle({
   let seg = 0
   const flushBands = () => {
     if (hooksBuf.length) {
-      eventNodes.push(<HooksBand key={`hooks-${seg}`} entries={hooksBuf} d={display} />)
+      eventNodes.push(<HooksBand key={`hooks-${seg}`} entries={hooksBuf} d={display} hideLabel={contextOnly} />)
       hooksBuf = []
     }
     if (aiBuf.length) {
@@ -137,6 +144,7 @@ export default function Cycle({
   }
   for (const entry of cycle.items) {
     if (hideOnlyPrompt) continue
+    if (isQueueOp(entry)) continue
     const band = entryBand(entry)
     if (band === 'human') {
       flushBands()

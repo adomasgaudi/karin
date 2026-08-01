@@ -66,6 +66,29 @@ function mergeCodexTools(bodyTools: unknown, previews: unknown): unknown[] {
   return [...byKey.values()].sort((a, b) => Number(a.line ?? 0) - Number(b.line ?? 0))
 }
 
+// Claude's auto-title ops are nested sessions whose own heavy arrays live in the PARENT's
+// body (see split_payload in bin/karin_claude.py) — keeping them in the index cost 103 MB.
+// Re-attach each op's arrays by id; an op with no stored body is left as-is.
+function mergeTitleOps(sessionOps: unknown, bodyOps: unknown): unknown[] | null {
+  if (!Array.isArray(sessionOps) || sessionOps.length === 0) return null
+  if (!Array.isArray(bodyOps)) return null
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const op of bodyOps) {
+    if (op && typeof op === 'object') byId.set(String((op as Record<string, unknown>).id ?? ''), op as Record<string, unknown>)
+  }
+  return sessionOps.map((op) => {
+    if (!op || typeof op !== 'object') return op
+    const light = op as Record<string, unknown>
+    const stored = byId.get(String(light.id ?? ''))
+    if (!stored) return op
+    const filled: Record<string, unknown> = { ...light }
+    for (const field of BODY_FIELDS.claude) {
+      if (Array.isArray(stored[field])) filled[field] = stored[field]
+    }
+    return filled
+  })
+}
+
 function merge(session: Record<string, unknown>, body: Record<string, unknown>, source: 'codex' | 'claude'): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...session }
   for (const field of BODY_FIELDS[source]) {
@@ -74,6 +97,10 @@ function merge(session: Record<string, unknown>, body: Record<string, unknown>, 
     } else if (Array.isArray(body[field])) {
       merged[field] = body[field]
     }
+  }
+  if (source === 'claude') {
+    const ops = mergeTitleOps(session.title_ops, body.title_ops)
+    if (ops) merged.title_ops = ops
   }
   return merged
 }

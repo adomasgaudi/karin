@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.223',
+    title: 'Quieter context cycles',
+    summary: 'A "context only" cycle no longer repeats the word "context", and queue rows are hidden.',
+    detail:
+      'A context-only cycle titled itself "context only" and then showed a band headed "context" — the same word twice for the same thing. The band now shows just its count and char total when the title already said it. The queue/enqueue and queue/dequeue rows are dropped from the structured view too: they are fixed-shape prompt-queue bookkeeping that carried no information. Both still exist in the feed, so the cycle\'s Raw JSON toggle shows them unchanged.',
+  },
+  {
     version: 'v.222',
     title: 'Room around an open cycle',
     summary: 'An expanded cycle gets real margin above and below, and the "end of cycle" divider is gone.',

@@ -118,7 +118,9 @@ function bandUsage(entries: UnifiedEntry[], d: BandDisplay): { usage: TokenUsage
 // --- Hooks band: injected context the AI did not choose --------------------
 // Collapsed by default (low signal). Consecutive session-state blocks fold into one
 // SessionMetaGroup; the rest render as their normal (dimmed) context rows.
-export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisplay }) {
+// `hideLabel`: in a context-only cycle the title already reads "context only", so the
+// band's own "context" word is the same word twice. Drop it and keep the counts.
+export function HooksBand({ entries, d, hideLabel }: { entries: UnifiedEntry[]; d: BandDisplay; hideLabel?: boolean }) {
   const totalChars = entries.reduce((s, e) => s + contextChars(e), 0)
   const nodes: ReactNode[] = []
   let metaRun: UnifiedEntry[] = []
@@ -144,7 +146,9 @@ export function HooksBand({ entries, d }: { entries: UnifiedEntry[]; d: BandDisp
       <summary className={summaryClass}>
         <Chevron />
         <BandTokens usage={bandTokens.usage} estimated={bandTokens.estimated} d={d} />
-        <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">context</span>
+        {!hideLabel && (
+          <span className="shrink-0 font-medium italic text-neutral-500 dark:text-neutral-400">context</span>
+        )}
         <span className="min-w-0 flex-1 truncate font-normal italic text-neutral-400 dark:text-neutral-500">
           {entries.length} · {fmtCompact(totalChars)} chars
         </span>

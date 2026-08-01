@@ -940,10 +940,12 @@ def build_haystack(session: dict[str, Any]) -> str:
     return "\n".join(parts).lower()
 
 
-# Serialized body per session, keyed by (session id, source mtime+size). A body
-# whose transcript has not changed cannot have changed, so it is never re-dumped —
-# that dump was ~40 MB of JSON per watch tick.
-_BODY_TEXT_CACHE: dict[tuple[str, tuple[float, int]], str] = {}
+# Serialized body per session, keyed by (session id, source mtime+size) — plus the
+# same key for every nested title-op, since a parent's body now carries their arrays
+# too and an op can change while its parent file does not. A body whose sources have
+# not changed cannot have changed, so it is never re-dumped — that dump was ~40 MB of
+# JSON per watch tick.
+_BODY_TEXT_CACHE: dict[tuple[Any, ...], str] = {}
 BODY_TEXT_CACHE_MAX = 200
 
 
@@ -963,8 +965,22 @@ def split_payload(payload: dict[str, Any]) -> list[tuple[str, str]]:
             for field in BODY_FIELDS:
                 body[field] = session.get(field) or []
                 session[field] = []
+            # A title-op child is a whole nested session, and its heavy arrays were
+            # riding along in the "light" index — 103 MB of the 179 MB feed, rewritten
+            # and re-downloaded on every keystroke. They move into the parent's body
+            # under `title_ops`, matched back by op id in src/lib/hydrate.ts.
+            op_bodies = []
+            for op in session.get("title_ops") or []:
+                op_body = {"id": op.get("id")}
+                for field in BODY_FIELDS:
+                    op_body[field] = op.get(field) or []
+                    op[field] = []
+                op_bodies.append(op_body)
+            if op_bodies:
+                body["title_ops"] = op_bodies
             src = _SRC_KEY_BY_ID.get(sid)
-            cache_key = (sid, src) if src else None
+            op_srcs = tuple(_SRC_KEY_BY_ID.get(str(o.get("id") or "")) for o in op_bodies)
+            cache_key = (sid, src, op_srcs) if src else None
             text = _BODY_TEXT_CACHE.get(cache_key) if cache_key else None
             if text is None:
                 text = json.dumps(body, ensure_ascii=False)
