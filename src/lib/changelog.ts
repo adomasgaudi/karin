@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.181',
+    title: 'Variables shown in italics',
+    summary: 'A fourth example teaches string and variable handling, and {$name} markers now render in italics.',
+    detail:
+      'Qwen stripped the quotes from a string and kept PowerShell’s $( … ) interpolation noise. The prompt now teaches four more rules: keep the quotes because they show it is a string, mark a substituted value the common way as {$name}, simplify the variable name itself, and leave a plain-English parenthetical exactly as written. Those {$name} markers now render in italic blue in the simplified output, so a substituted value is distinguishable from literal text at a glance.',
+  },
+  {
     version: 'v.180',
     title: 'Assignments and short paths',
     summary: 'A third simplifier example teaches it to keep variable assignments and cut in-project paths down.',

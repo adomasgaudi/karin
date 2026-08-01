@@ -44,6 +44,20 @@ Never drop an assignment. "$t =" means this result is STORED and used by a later
 Rename a cryptic short name to a readable one. "$t" becomes "$time". This is the one place renaming is allowed, because a one-letter name carries no meaning to preserve.
 Cut a path down to the part that identifies the file. Inside the current project, keep only the tail that names it — "\\bin\\karin_claude.py", not the full absolute path. Only a path OUTSIDE the project keeps its full location, because there the location is the point.
 Drop an interpreter the filename already implies. A ".py" file is obviously run by python, so the word "python" adds nothing.
+
+Fourth example, WRONG and RIGHT for the same string.
+Command:
+"help: $($t.TotalSeconds)s (python startup baseline)"
+WRONG:
+help: $($t.TotalSeconds) seconds -> python startup baseline
+RIGHT:
+"help: {$time} (python startup baseline)"
+
+Why the wrong one is wrong, and the rules it adds:
+Keep the quotes. They are what shows this is a string rather than a command, so removing them changes what the reader thinks they are looking at.
+Mark a variable inside a string the common way: wrap it in braces as {$name}. Language-specific interpolation noise like "$( ... )" is exactly the ceremony to remove, but the fact that a value is substituted here must survive.
+Simplify the variable name itself. "$t.TotalSeconds" becomes "$time" — a long accessor chain is ceremony too, and the short readable name says the same thing.
+Leave a parenthetical alone. "(python startup baseline)" is already plain English, so it stays exactly as written; do not turn it into an arrow or a clause.
 `.trim()
 
 const SIMPLE_PROVIDER_GUIDANCE: Record<SimplifierProvider, string> = {
@@ -144,6 +158,31 @@ function formatEtaCompact(etaMs: number | null): string {
 
 function formatElapsed(elapsedMs: number): string {
   return `${Math.floor(Math.max(0, elapsedMs) / 1000)}s elapsed`
+}
+
+// The simplifier marks a substituted value as {$name}. Rendering those in italics makes
+// "this part is a variable, not literal text" visible at a glance. Deliberately narrow:
+// only braces around an identifier match, so a real brace in code or JSON is left alone.
+const VARIABLE_MARKER = /(\{\$?[A-Za-z_][\w.]*\})/g
+
+function SimpleText({ text }: { text: string }) {
+  if (!text) return null
+  // split() with ONE capture group puts every match at an odd index, so position alone
+  // identifies the variables — no second .test() against a stateful /g regex.
+  const parts = text.split(VARIABLE_MARKER)
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <em key={index} className="italic text-sky-700 dark:text-sky-300">
+            {part}
+          </em>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  )
 }
 
 // One simplification request for one piece of text — shared by the whole-payload
@@ -317,7 +356,7 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
         <pre className={`${preClass} whitespace-pre-wrap break-words`}>{raw}</pre>
       ) : mode === 'simple' ? (
         <div className="space-y-2">
-          <pre className={`${preClass} whitespace-pre-wrap break-words`}>{simpleCode}</pre>
+          <pre className={`${preClass} whitespace-pre-wrap break-words`}><SimpleText text={simpleCode} /></pre>
           {annotation}
         </div>
       ) : original}
@@ -935,7 +974,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
                     <div className="whitespace-pre-wrap break-words font-mono text-[0.58rem] leading-snug text-neutral-400/60 dark:text-neutral-600/70">{step}</div>
                   )}
                   <code className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-neutral-800 dark:text-neutral-200">
-                    {simple ? simpleCode || (simple.busy ? '' : step) : step}
+                    {simple ? <SimpleText text={simpleCode || (simple.busy ? '' : step)} /> : step}
                     {simple?.busy && <span className="animate-pulse text-neutral-400"> ▍</span>}
                   </code>
                   {simple?.error && <div className="text-[0.65rem] text-red-600 dark:text-red-400">{simple.error}</div>}
