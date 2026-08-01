@@ -12,7 +12,7 @@ import { cn } from '../lib/cn'
 
 // Contrast note: these trees often sit inside a dimmed context band, so the palette runs
 // one step brighter than a normal label would — muted must still be READABLE.
-const KEY = 'shrink-0 font-mono text-[0.66rem] text-neutral-500 dark:text-neutral-400'
+const KEY = 'shrink-0 font-sans text-[0.66rem] text-neutral-500 dark:text-neutral-400'
 const VAL = 'min-w-0 font-mono text-[0.68rem] break-words text-neutral-800 dark:text-neutral-100'
 
 // Long prose is the common case in transcripts, so it gets a block of its own
@@ -107,6 +107,36 @@ function TextBlock({ text }: { text: string }) {
 // as a label when it has one ("tool_use", "assistant", …).
 const ID_KEYS = ['name', 'type', 'kind', 'label', 'tool', 'role', 'id']
 
+const FRIENDLY_KEYS: Record<string, string> = {
+  cwd: 'working directory',
+  file_path: 'file',
+  old_string: 'find',
+  new_string: 'replace with',
+  subagent_type: 'agent type',
+  run_in_background: 'background',
+  max_output_chars: 'max output',
+  replace_all: 'replace all',
+  multiSelect: 'multiple choice',
+}
+
+function readableKey(key: string): string {
+  if (!key) return ''
+  const exact = FRIENDLY_KEYS[key]
+  if (exact) return exact
+  const indexed = /^(\d+\.)\s*(.*)$/.exec(key)
+  const prefix = indexed ? `${indexed[1]} ` : ''
+  const body = indexed ? indexed[2] : key
+  return (
+    prefix +
+    body
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^\w/, (char) => char.toUpperCase())
+  )
+}
+
 function itemLabel(item: unknown, i: number): string {
   if (isObj(item)) {
     for (const key of ID_KEYS) {
@@ -134,6 +164,7 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
 
   const branch = Array.isArray(v) || isObj(v)
   const empty = branch && (Array.isArray(v) ? v.length === 0 : Object.keys(v as object).length === 0)
+  const label = readableKey(k)
 
   // An array of plain values (the common `["a","b"]` case) reads as a bullet list —
   // numeric index keys would be pure noise there.
@@ -141,7 +172,7 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
     return (
       <div className="mt-0.5">
         <div className="flex items-baseline gap-2">
-          <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
+          <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{label}</span>
           <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
           {tag}
         </div>
@@ -164,7 +195,7 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
     return (
       <div className="mt-0.5">
         <div className="flex items-baseline gap-2">
-          <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{k}</span>
+          <span className={cn(KEY, 'text-neutral-500 dark:text-neutral-400')}>{label}</span>
           <span className="text-[0.6rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span>
           {tag}
         </div>
@@ -181,7 +212,7 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
   if (asText) {
     return (
       <div className="mt-0.5">
-        <span className={KEY}>{k}</span>
+        <span className={KEY}>{label}</span>
         <TextBlock text={v as string} />
       </div>
     )
@@ -189,8 +220,8 @@ function Node({ k, v: raw }: { k: string; v: unknown }) {
 
   return (
     <div className="flex items-baseline gap-2">
-      <span className={cn(KEY, 'w-28 truncate text-right')} title={k}>
-        {k}
+      <span className={cn(KEY, 'w-28 truncate text-right')} title={label}>
+        {label}
       </span>
       {empty ? <span className="font-mono text-[0.66rem] text-neutral-400 dark:text-neutral-500">{branchLabel(v)}</span> : <Scalar k={k} v={v} />}
     </div>

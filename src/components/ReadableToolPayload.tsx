@@ -69,7 +69,7 @@ class LiteralParser {
     const char = this.source[this.pos]
     if (char === '{') return this.object()
     if (char === '[') return this.array()
-    if (char === '"' || char === "'") return this.string()
+    if (char === '"' || char === "'" || char === '`') return this.string()
     return this.atom()
   }
 
@@ -154,7 +154,7 @@ class LiteralParser {
         // JavaScript line continuation.
       } else if (escaped === '\r') {
         if (this.source[this.pos] === '\n') this.pos += 1
-      } else if (escaped === '\\' || escaped === '"' || escaped === "'") {
+      } else if (escaped === '\\' || escaped === '"' || escaped === "'" || escaped === '`') {
         result += escaped
       } else {
         // Preserve unknown escapes such as a Windows path's \U instead of silently
@@ -218,17 +218,71 @@ function balancedEnd(source: string, start: number): number | null {
 
 export interface ToolInvocation {
   name: string
-  input: unknown
+  input: unknown | null
+  rawArgs: string
+}
+
+function quotedEnd(source: string, start: number): number | null {
+  const quote = source[start]
+  for (let i = start + 1; i < source.length; i += 1) {
+    if (source[i] === '\\') {
+      i += 1
+    } else if (source[i] === quote) {
+      return i
+    }
+  }
+  return null
+}
+
+function expressionEnd(source: string, start: number): number {
+  const char = source[start]
+  if (char === '"' || char === "'" || char === '`') return quotedEnd(source, start) ?? source.length - 1
+  if (char === '{' || char === '[' || char === '(') return balancedEnd(source, start) ?? source.length - 1
+  let end = start
+  while (end < source.length && source[end] !== ';' && source[end] !== '\n' && source[end] !== '\r') end += 1
+  return end - 1
+}
+
+function localLiteralBindings(source: string): Map<string, unknown> {
+  const bindings = new Map<string, unknown>()
+  const declaration = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g
+  let match: RegExpExecArray | null
+  while ((match = declaration.exec(source))) {
+    const start = match.index + match[0].length
+    const end = expressionEnd(source, start)
+    const expression = source.slice(start, end + 1).trim().replace(/;$/, '')
+    if (!expression || /^[A-Za-z_$][\w$]*$/.test(expression)) continue
+    const value = parseLoosePayload(expression)
+    if (value !== null) bindings.set(match[1], value)
+  }
+  return bindings
+}
+
+function invocationInput(rawArgs: string, bindings: Map<string, unknown>): unknown | null {
+  const text = rawArgs.trim()
+  if (!text) return null
+  if (/^[A-Za-z_$][\w$]*$/.test(text)) return bindings.get(text) ?? null
+  return parseLoosePayload(text)
+}
+
+export function parseToolInvocations(raw: string): ToolInvocation[] {
+  const bindings = localLiteralBindings(raw)
+  const calls: ToolInvocation[] = []
+  const call = /\btools\.([A-Za-z_$][\w$]*)\s*\(/g
+  let match: RegExpExecArray | null
+  while ((match = call.exec(raw))) {
+    const open = raw.indexOf('(', match.index)
+    const close = balancedEnd(raw, open)
+    if (close === null) continue
+    const rawArgs = raw.slice(open + 1, close)
+    calls.push({ name: match[1], input: invocationInput(rawArgs, bindings), rawArgs })
+    call.lastIndex = close + 1
+  }
+  return calls
 }
 
 export function parseToolInvocation(raw: string): ToolInvocation | null {
-  const match = /\btools\.([A-Za-z_$][\w$]*)\s*\(/.exec(raw)
-  if (!match || match.index === undefined) return null
-  const open = raw.indexOf('(', match.index)
-  const close = balancedEnd(raw, open)
-  if (close === null) return null
-  const input = parseLoosePayload(raw.slice(open + 1, close))
-  return input === null ? null : { name: match[1], input }
+  return parseToolInvocations(raw)[0] || null
 }
 
 export interface ToolOutputParts {
@@ -327,14 +381,42 @@ function renderScalar(value: unknown, raw: string) {
   return <pre className={preClass}>{raw}</pre>
 }
 
+function readableToolName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function renderInputValue(value: unknown | null, raw: string) {
+  return value !== null && value !== undefined ? renderScalar(value, raw) : <pre className={preClass}>{raw || '(no arguments)'}</pre>
+}
+
 export function ReadableToolInput({ toolName, argumentsText, value }: { toolName?: string; argumentsText?: string; value?: unknown }) {
-  const invocation = argumentsText ? parseToolInvocation(argumentsText) : null
-  const parsed = value !== undefined ? value : invocation?.input ?? (argumentsText ? parseLoosePayload(argumentsText) : null)
-  const nestedName = invocation && invocation.name !== toolName ? invocation.name : null
+  // Claude gives us the already-parsed input object. Codex/exec wrapper calls may
+  // contain several nested tool invocations, so show every one instead of only the first.
+  if (value !== undefined) {
+    return <div className="space-y-1">{renderScalar(value, argumentsText || '')}</div>
+  }
+
+  const invocations = argumentsText ? parseToolInvocations(argumentsText) : []
+  if (invocations.length > 0) {
+    return (
+      <div className="space-y-2">
+        {invocations.map((invocation, index) => (
+          <Section key={`${invocation.name}-${index}`} label={readableToolName(invocation.name)}>
+            {renderInputValue(invocation.input, invocation.rawArgs)}
+          </Section>
+        ))}
+      </div>
+    )
+  }
+
+  const parsed = argumentsText ? parseLoosePayload(argumentsText) : null
   return (
     <div className="space-y-1">
-      {nestedName && <div className="font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400">{nestedName}</div>}
-      {parsed !== null && parsed !== undefined ? renderScalar(parsed, argumentsText || '') : <pre className={preClass}>{argumentsText || ''}</pre>}
+      {toolName && <div className="text-[0.62rem] font-semibold text-neutral-500 dark:text-neutral-400">{readableToolName(toolName)}</div>}
+      {renderInputValue(parsed, argumentsText || '')}
     </div>
   )
 }

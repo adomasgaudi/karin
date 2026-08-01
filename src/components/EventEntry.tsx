@@ -24,7 +24,7 @@ import {
 import UsageBar from './UsageBar'
 import ToolResult from './ToolResult'
 import JsonView, { MaybeJson } from './JsonView'
-import { parseToolInvocation, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
+import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { looksLikeStructuredContext } from './BaseInstructions'
 
@@ -279,10 +279,19 @@ function toolSummaryCodex(argsJson: string): string {
     const o = JSON.parse(argsJson)
     if (o && typeof o === 'object') return toolSummary(o as Record<string, unknown>)
   } catch {
-    const invocation = parseToolInvocation(argsJson)
-    if (invocation?.input && typeof invocation.input === 'object' && !Array.isArray(invocation.input)) {
-      return toolSummary(invocation.input as Record<string, unknown>)
-    }
+    // Wrapper-style source is handled below.
+  }
+  const invocations = parseToolInvocations(argsJson)
+  if (invocations.length > 0) {
+    return invocations
+      .map((invocation) => {
+        if (invocation.input && typeof invocation.input === 'object' && !Array.isArray(invocation.input)) {
+          return toolSummary(invocation.input as Record<string, unknown>)
+        }
+        return invocation.name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')
+      })
+      .filter(Boolean)
+      .join(' · ')
   }
   return argsJson.replace(/\s+/g, ' ').trim()
 }

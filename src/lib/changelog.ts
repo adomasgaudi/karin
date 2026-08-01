@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.133',
+    title: 'Read every tool input',
+    summary: 'All nested tool calls now render as readable sections, including multiple calls and locally defined arguments.',
+  },
+  {
     version: 'v.132',
     title: 'Trim empty expansion',
     summary: 'Rows now show an expansion affordance only when their detail view contains additional content.',
