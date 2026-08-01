@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { CalendarClock, LayoutList, ListChecks } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { CalendarClock, LayoutList, ListChecks, Menu, X } from 'lucide-react'
 import { useKarin, type View } from '../store/karin'
 import { cn } from '../lib/cn'
 import SettingsMenu from './SettingsMenu'
@@ -104,6 +104,49 @@ const tabs: NavTab<View>[] = [
   { id: 'summary', label: 'Summary', icon: ListChecks, title: 'What happened across all sessions and where the effort went' },
 ]
 
+function ViewMenu({ active, onSelect }: { active: View; onSelect: (view: View) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label="Open page navigation"
+        title="Pages: Sessions, Timeline, Summary"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
+      >
+        {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-label="Close page navigation" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-50 mt-1 w-44 rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+            {tabs.map(({ id, label, icon: Icon, title }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  onSelect(id)
+                  setOpen(false)
+                }}
+                title={title}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800',
+                  active === id ? 'font-semibold text-neutral-950 dark:text-neutral-50' : 'text-neutral-600 dark:text-neutral-300',
+                )}
+              >
+                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function NavBar() {
   const view = useKarin((s) => s.view)
   const setView = useKarin((s) => s.setView)
@@ -116,15 +159,13 @@ export default function NavBar() {
   )
   return (
     <NavBarShell
-      tabs={tabs}
-      active={view}
-      onSelect={setView}
       versionLabel={APP_VERSION}
       onVersionClick={() => setView('v2')}
       versionTitle="Open Karin v.2.0 (work in progress)"
       onLogoClick={() => useKarin.getState().select(null)}
       right={
         <>
+          <ViewMenu active={view} onSelect={setView} />
           <WatcherStatus />
           <AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />
           <SettingsMenu />

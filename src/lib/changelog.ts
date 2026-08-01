@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.211',
+    title: 'Quieter navigation',
+    summary: 'Pages, search, allowance, and pricing controls now open from compact menus instead of crowding the header.',
+  },
+  {
     version: 'v.210',
     title: 'Collapsible folder groups',
     summary: 'Folder sections can collapse, and matching Codex and Claude Windows project paths share one group.',

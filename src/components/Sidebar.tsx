@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, Folder, List, Search } from 'lucide-react'
+import { ChevronRight, Folder, Info, List, Search } from 'lucide-react'
 import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
@@ -70,11 +70,11 @@ function resetLabel(epochSeconds: number | null): string {
   return `resets ${new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(epochSeconds * 1000)}`
 }
 
-function RemainingUsage({ limits }: { limits: RateLimits | null }) {
+function RemainingUsage({ limits, className }: { limits: RateLimits | null; className?: string }) {
   if (!limits) return null
   const windows = [limits.primary, limits.secondary].filter(Boolean)
   if (windows.length === 0 && limits.credits?.unlimited) {
-    return <div className="border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400">unlimited usage</div>
+    return <div className={cn('border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400', className)}>unlimited usage</div>
   }
   if (windows.length === 0) return null
   const label = windows
@@ -82,7 +82,7 @@ function RemainingUsage({ limits }: { limits: RateLimits | null }) {
     .join(' · ')
   const title = windows.map((window) => resetLabel(window!.resets_at)).join(' · ')
   return (
-    <div className="flex items-center gap-1 border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400" title={title}>
+    <div className={cn('flex items-center gap-1 border-b border-neutral-200/70 px-2 py-1 text-[0.65rem] text-neutral-500 dark:border-neutral-800/70 dark:text-neutral-400', className)} title={title}>
       <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
       <span className="font-semibold text-neutral-700 dark:text-neutral-200">{label}</span>
     </div>
@@ -111,6 +111,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const setPriceBasis = useKarin((s) => s.setPriceBasis)
   const subDivisors = useKarin((s) => s.subDivisors)
   const setSubDivisor = useKarin((s) => s.setSubDivisor)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const [priceInfoOpen, setPriceInfoOpen] = useState(false)
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
 
@@ -150,19 +152,56 @@ export default function Sidebar({ className }: SidebarProps) {
       )}
     >
       <div className="shrink-0 border-b border-neutral-200/80 px-2 py-1.5 dark:border-neutral-800">
-        {/* Search, units and the source toggle share one row — brand and pages moved to the nav bar. */}
+        {/* The quiet header exposes actions, not persistent controls. Search and pricing
+            still exist, but open only when the owner asks for them. */}
         <div className="relative flex items-center gap-1.5">
-        <label className="flex h-7 flex-1 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-1.5 text-sm text-neutral-500 focus-within:border-neutral-400 focus-within:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:focus-within:border-neutral-600 dark:focus-within:bg-neutral-950">
-          <Search className="h-3.5 w-3.5 shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sessions, prompts, tools"
-            className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
-          />
-        </label>
+          <button
+            type="button"
+            onClick={() => setSearchOpen((open) => {
+              if (!open) setInfoOpen(false)
+              return !open
+            })}
+            aria-expanded={searchOpen}
+            title="Search sessions, prompts, and tools"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search
+          </button>
+          <button
+            type="button"
+            onClick={() => setInfoOpen((open) => {
+              if (!open) setSearchOpen(false)
+              if (open) setPriceInfoOpen(false)
+              return !open
+            })}
+            aria-expanded={infoOpen}
+            title="Usage allowance, display units, and pricing"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            <Info className="h-3.5 w-3.5" />
+            Info
+          </button>
 
+          {searchOpen && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-neutral-200 bg-white p-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+              <label className="flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 px-2 text-sm text-neutral-500 focus-within:border-neutral-400 focus-within:bg-white dark:border-neutral-800 dark:bg-neutral-950 dark:focus-within:border-neutral-600">
+                <Search className="h-3.5 w-3.5 shrink-0" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search sessions, prompts, tools"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400 dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                />
+              </label>
+            </div>
+          )}
+
+          {infoOpen && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border border-neutral-200 bg-white p-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+              <RemainingUsage limits={rateLimits} className="mb-2 rounded-md border" />
           {/* Every unit control reads as ONE pill ("money · € · plan") — separate borders
               made three independent-looking widgets out of one setting. */}
           <div className="inline-flex shrink-0 items-center divide-x divide-neutral-200 rounded-md border border-neutral-200 bg-neutral-50 text-[0.65rem] dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
@@ -266,10 +305,10 @@ export default function Sidebar({ className }: SidebarProps) {
               posClass="left-0 right-0 top-full"
             />
           )}
+            </div>
+          )}
         </div>
       </div>
-
-      <RemainingUsage limits={rateLimits} />
 
       <div className="flex-1 overflow-y-auto px-1 pt-1 pb-16">
         {list.length === 0 ? (
