@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.196',
+    title: 'Context text readable',
+    summary: 'Context-only prompts and step counts regain contrast on the light card background.',
+  },
+  {
     version: 'v.192',
     title: 'Context audit in one line',
     summary: 'The audit is now a row of count-and-name pairs; the blind spots shrink to a footnote and the raw tallies hide behind a toggle.',

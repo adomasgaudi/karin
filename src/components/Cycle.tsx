@@ -188,7 +188,7 @@ export default function Cycle({
             ref={promptRef}
             className={`min-w-0 flex-1 truncate ${
               contextOnly
-                ? 'text-[0.7rem] font-normal italic text-neutral-400 dark:text-neutral-500'
+                ? 'text-[0.7rem] font-normal italic text-neutral-500 dark:text-neutral-400'
                 : 'font-medium text-neutral-900 dark:text-neutral-100'
             }`}
           >
