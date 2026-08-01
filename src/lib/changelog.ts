@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.174',
+    title: 'Worked example for the simplifier',
+    summary: 'The simplifier prompt now carries a wrong-versus-right example of the mistake the models keep making.',
+    detail:
+      'Qwen turned an rg search into an English sentence, summarised the search pattern as "patterns like context or instructions", and named only one of the command’s three targets. The prompt now shows that answer as WRONG next to the owner’s own RIGHT version, with the rules it breaks: keep the command’s shape, keep literal arguments verbatim and elide their middle, never drop a target, and delete obvious noise like node_modules excludes instead of spelling it out.',
+  },
+  {
     version: 'v.173',
     title: 'JSON tab for a session',
     summary: 'A third top tab dumps the session’s feed records untouched, with copy and download.',

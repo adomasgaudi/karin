@@ -14,6 +14,22 @@ const labelClass = 'text-xs font-semibold text-neutral-600 dark:text-neutral-300
 const SIMPLE_SYSTEM = `
 You simplify code for a developer trying to understand.
 Return a version of the code that keeps the order, keywords, strucuture like nesting, but change the filenames to only show the non-obvious part, the code function names not syntax like "const" or "function" something like "Get-Content .\src\lib\localLlm.ts | Select-Object -Skip 1 -First 150" would get simplified to "Get localLlm.ts -> skip line 1, first 150 lines." so i could've said "read" but i chose get to keep it recognisable, but simplified, it, while the complex parts that are specific to a language i make them more readable like adding the word "line" or changing pipe to ->. This is just one example, take the principles and use them  ,
+
+Second example, a WRONG and a RIGHT answer for the same command, because this is the
+mistake to avoid.
+Command:
+rg -n --glob '!node_modules/**' --glob '!dist/**' "context only|message|content|AGENTS|INSTRUCTIONS|markdown|render" src package.json CLAUDE.md | Select-Object -First 240
+WRONG:
+Search files in 'src', excluding node_modules and dist, matching patterns like context or instructions, then read the first 240 lines.
+RIGHT:
+rg search "context only|message|...|render" in src, package.json, claude.md
+
+Why the wrong one is wrong, and the rules it breaks:
+Do not rewrite the command as an English sentence. Keep the command's own shape and the order of its parts. "rg" stays "rg" because that is what makes it recognisable; only add a plain word like "search" next to it.
+Never describe or summarise a literal argument. The search pattern is kept verbatim; when it is long, elide the MIDDLE with "..." and keep the first and last parts. Turning it into "patterns like context or instructions" invents content and loses the real pattern.
+Never drop a target. The command searches src, package.json and CLAUDE.md; naming only src silently loses two of the three.
+Drop the obvious noise instead. Excluding node_modules and dist is the default expectation, not the point of the command, so it is removed entirely rather than spelled out. Same for a trailing output limit like Select-Object -First 240 when it does not change what the command is for.
+Shorter is not the goal; keeping every real detail while removing ceremony is.
 `.trim()
 
 const SIMPLE_PROVIDER_GUIDANCE: Record<SimplifierProvider, string> = {
