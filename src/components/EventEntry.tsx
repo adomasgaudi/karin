@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Lock, ChevronRight, Braces, Check, Copy } from 'lucide-react'
 import type { Entry, EntryUsage, StepDuration } from '../lib/unifiedCycles'
 import type { Message, Reasoning, Tool, CodeEdit, ContextBlock, RuntimeEvent, TokenEvent } from '../types'
@@ -28,7 +28,8 @@ import RawJson from './RawJson'
 import { parseToolInvocations, ReadableToolInput, ReadableToolOutput } from './ReadableToolPayload'
 import DiffView from './DiffView'
 import BaseInstructions, { isStructuredInstructionPayload, looksLikeStructuredContext } from './BaseInstructions'
-import Markdown from './Markdown'
+import Markdown, { stripMarkdown } from './Markdown'
+import MessageBody from './MessageBody'
 import { shortenUserPrompt } from '../lib/localLlm'
 import { hasInjected, injectedLabels, ownPromptText, splitPrompt } from '../lib/promptText'
 
@@ -201,7 +202,6 @@ function Row({
   inlineThin,
   hideBar,
   clamp,
-  expandOnOverflow,
   dim,
   dashed,
   disabled,
@@ -209,7 +209,8 @@ function Row({
   children,
 }: {
   title: ReactNode
-  // Optional replacement used only after the clamped title has been measured as overflowing.
+  // Optional replacement for the collapsed title — a caller passes this when it has a
+  // better line to show (e.g. a locally shortened prompt) and it simply wins.
   overflowTitle?: ReactNode
   meta?: ReactNode
   badge?: ReactNode
@@ -226,8 +227,6 @@ function Row({
   // Render `title` as the row's body text, wrapping up to 3 lines (no separate label/meta) —
   // used for assistant replies, which show their own text instead of an "assistant:" label.
   clamp?: boolean
-  // Only make a clamped row expandable when its text actually exceeds the visible lines.
-  expandOnOverflow?: boolean
   dim?: boolean
   dashed?: boolean
   disabled?: boolean
@@ -235,45 +234,19 @@ function Row({
   children: ReactNode
 }) {
   const rawItem = useContext(RawItemContext)
-  const previewRef = useRef<HTMLSpanElement>(null)
-  const fullRef = useRef<HTMLSpanElement>(null)
-  const [overflows, setOverflows] = useState(false)
-  useLayoutEffect(() => {
-    if (!expandOnOverflow) {
-      setOverflows(false)
-      return
-    }
-    const previewNode = previewRef.current
-    const fullNode = fullRef.current
-    if (!previewNode || !fullNode) return
-    const measure = () => setOverflows(fullNode.scrollHeight > previewNode.clientHeight + 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(previewNode)
-    return () => observer.disconnect()
-  }, [expandOnOverflow, title])
-  const canExpand = expandable && (!expandOnOverflow || overflows)
+  const canExpand = expandable
   const hasTitle = title !== null && title !== undefined && title !== ''
-  const shownTitle = overflows && overflowTitle !== undefined ? overflowTitle : title
+  const shownTitle = overflowTitle !== undefined ? overflowTitle : title
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
       {!disabled && canExpand && <Chevron />}
       {inlineThin && thin}
+      {/* No `block` on the clamped title: line-clamp needs display:-webkit-box, and
+          `block` overrode it, which let a whitespace-collapsed preview render as a
+          full-height wall instead of three lines. */}
       {clamp ? (
-        <span className="relative min-w-0 flex-1">
-          {/* No `block` here: line-clamp needs display:-webkit-box, and `block` overrode it,
-              which let a whitespace-collapsed preview render as a full-height wall. */}
-          <span ref={previewRef} className="line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{shownTitle}</span>
-          {expandOnOverflow && (
-            <span
-              ref={fullRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 block invisible break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200"
-            >
-              {title}
-            </span>
-          )}
+        <span className="line-clamp-3 min-w-0 flex-1 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">
+          {shownTitle}
         </span>
       ) : (
         <>
@@ -611,9 +584,12 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
         return (
           <Row
             clamp
-            expandOnOverflow={Boolean(item.text?.trim())}
+            // Always expandable: the body now carries rendered markdown, the summariser
+            // and the raw record, so there is something worth opening even for one line.
+            // It also drops a height measurement that silently failed inside a collapsed
+            // cycle, leaving long replies with no chevron at all.
             expandable={Boolean(item.text?.trim())}
-            title={preview(item.text) || '(no text)'}
+            title={stripMarkdown(preview(item.text)) || '(no text)'}
             badge={!singleModel && tag ? <Pill>{tag}</Pill> : undefined}
             tint={tint}
             step={step}
@@ -621,7 +597,7 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
           >
             {/* Replies are written in markdown; shown raw, fenced ASCII diagrams and
                 ** ** emphasis are what make a long answer unreadable. */}
-            <Markdown text={item.text || ''} />
+            <MessageBody text={item.text || ''} />
           </Row>
         )
       }
@@ -634,21 +610,27 @@ function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tok
       ) : segmentedUser ? (
         <UserPromptBody text={item.text || ''} />
       ) : (
-        <Markdown text={item.text || ''} />
+        <MessageBody text={item.text || ''} />
       )
       // Even before it overflows, a user title shows the owner's own words rather than
       // whatever injected block happened to come first.
       const userTitle =
         item.role === 'user'
-          ? `user: ${preview(ownPromptText(item.text || ''))}`
-          : `${item.role}: ${preview(item.text)}`
+          ? `user: ${stripMarkdown(preview(ownPromptText(item.text || '')))}`
+          : `${item.role}: ${stripMarkdown(preview(item.text))}`
       return (
         <Row
           clamp
-          expandOnOverflow={Boolean(item.text?.trim())}
+          // Always expandable, for the same reason as an assistant reply — see above.
           expandable={Boolean(item.text?.trim())}
           title={userTitle}
-          overflowTitle={item.role === 'user' ? <UserPromptTitle prompt={item.text} fallback={userTitle} /> : undefined}
+          // Shortening is worth a local model request only once the prompt is long
+          // enough that three clamped lines would cut it off anyway.
+          overflowTitle={
+            item.role === 'user' && ownPromptText(item.text || '').length > 220 ? (
+              <UserPromptTitle prompt={item.text} fallback={userTitle} />
+            ) : undefined
+          }
           badge={tag ? <Pill>{tag}</Pill> : undefined}
           tint={tint}
           step={step}

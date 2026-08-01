@@ -17,6 +17,23 @@ import type { ReactNode } from 'react'
 
 const FENCE = /^\s*```/
 
+/**
+ * Markdown syntax removed for a one-line preview. A collapsed row shows prose, not
+ * the asterisks and backticks that carry formatting — those are noise at 3 lines.
+ */
+export function stripMarkdown(text: string): string {
+  return (text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/\[([^\]\n]+)\]\([^)\n]*\)/g, '$1')
+    .replace(/^#{1,4}\s+/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // Inline: `code`, **bold**, *italic*, and [text](target) reduced to its text.
 // One pass with a single alternation keeps the segments in source order.
 const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^)\n]*\))/g

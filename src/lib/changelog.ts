@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.183',
+    title: 'Messages open and summarise',
+    summary: 'Prompts and replies are always expandable, preview as clean prose, and can be summarised by Qwen or DeepSeek.',
+    detail:
+      'Message rows depended on a height measurement to decide whether to show a chevron, and that measurement silently failed inside a collapsed cycle — leaving long replies with no way to open them at all. Messages are now always expandable and the measurement is deleted. The collapsed line shows prose with markdown syntax stripped instead of raw asterisks and backticks. The expanded body adds a provider row — Qwen, D-Flash, D-Pro — that summarises the message in place, alongside the Raw JSON switch every other step already had. Both apply to prompts and replies.',
+  },
+  {
     version: 'v.182',
     title: 'Readable replies',
     summary: 'Message bodies now render markdown, and a broken clamp that turned previews into walls of text is fixed.',
