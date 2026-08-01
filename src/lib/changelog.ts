@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.187',
+    title: 'Roomier session footer',
+    summary: 'The space below the last cycle is three times larger, so the end of a session can scroll clear of the bottom edge.',
+  },
+  {
     version: 'v.186',
     title: 'The watcher stops polling',
     summary: 'Windows now wakes the indexer the moment a transcript changes, instead of it asking four times a second.',

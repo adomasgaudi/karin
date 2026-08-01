@@ -441,7 +441,9 @@ export default function SessionDetail() {
         )}
       </div>
 
-      <div ref={bodyRef} className="p-1 pb-16 md:p-[5px] md:pb-16">
+      {/* pb-48 (3× the old pb-16): enough room below the last cycle to scroll it up to
+          the middle of the screen instead of leaving it pinned to the bottom edge. */}
+      <div ref={bodyRef} className="p-1 pb-48 md:p-[5px] md:pb-48">
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
         {mode === 'json' ? (
