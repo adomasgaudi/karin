@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.216',
+    title: 'Resilient local feed',
+    summary: 'The preview server now reads the live local feed without risking a process crash during a bundle refresh.',
+  },
+  {
     version: 'v.215',
     title: 'A quieter welcome',
     summary: 'The session sidebar gains a private-workspace introduction and its search and info controls become icon-only.',

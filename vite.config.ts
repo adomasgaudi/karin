@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import type { PreviewServer, ViteDevServer } from 'vite'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -24,24 +25,33 @@ const DATA_FILES = [
 // app auto-loads real Codex data during `pnpm dev`. NOT part of the build, so a plain
 // `pnpm build` bundle never ships any transcript data (only `build:local` bakes it in).
 function serveLocalData() {
+  const attach = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url?.split('?')[0]
+      if (url && url.startsWith('/data/')) {
+        const file = join(root, decodeURIComponent(url))
+        if (existsSync(file)) {
+          res.setHeader('content-type', url.endsWith('.json') ? 'application/json' : 'text/plain')
+          res.setHeader('cache-control', 'no-store')
+          const stream = createReadStream(file)
+          // A rebuilt preview can briefly release its old dist/data file while a browser
+          // is fetching it. Serve the live source feed instead, and fail a request rather
+          // than letting Node's unhandled stream error take down the whole preview server.
+          stream.on('error', () => {
+            if (!res.headersSent) res.statusCode = 503
+            res.end()
+          })
+          stream.pipe(res)
+          return
+        }
+      }
+      next()
+    })
+  }
   return {
     name: 'karin-serve-local-data',
-    apply: 'serve' as const,
-    configureServer(server: import('vite').ViteDevServer) {
-      server.middlewares.use((req, res, next) => {
-        const url = req.url?.split('?')[0]
-        if (url && url.startsWith('/data/')) {
-          const file = join(root, decodeURIComponent(url))
-          if (existsSync(file)) {
-            res.setHeader('content-type', url.endsWith('.json') ? 'application/json' : 'text/plain')
-            res.setHeader('cache-control', 'no-store')
-            createReadStream(file).pipe(res)
-            return
-          }
-        }
-        next()
-      })
-    },
+    configureServer: attach,
+    configurePreviewServer: attach,
   }
 }
 
