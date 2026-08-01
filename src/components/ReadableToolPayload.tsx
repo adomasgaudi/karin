@@ -149,34 +149,46 @@ async function generateSimple(
   return cleaned
 }
 
-// The Original / provider toggle row shared by both simplifier surfaces.
+// original = the readable formatted view · raw = the exact source-feed payload,
+// verbatim · simple = a provider's simplification.
+type SimplifierMode = 'original' | 'raw' | 'simple'
+
+// The Original / JSON / provider toggle row shared by both simplifier surfaces.
 function SimplifierToggle({
   mode,
   provider,
   busy,
   etaMs,
   onOriginal,
+  onRaw,
   onProvider,
   extra,
 }: {
-  mode: 'original' | 'simple'
+  mode: SimplifierMode
   provider: SimplifierProvider
   busy: boolean
   etaMs: number | null
   onOriginal: () => void
+  onRaw: () => void
   onProvider: (id: SimplifierProvider) => void
   extra?: ReactNode
 }) {
+  const plainBtn = (active: boolean) =>
+    `rounded-sm px-1.5 py-0.5 text-[0.6rem] ${active ? 'bg-neutral-200 font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`
   return (
     <div className="flex items-center justify-end gap-1">
       <span className="mr-auto text-[0.58rem] text-neutral-400 dark:text-neutral-500">simplifier</span>
       {extra}
+      <button type="button" onClick={onOriginal} className={plainBtn(mode === 'original')}>
+        Original
+      </button>
       <button
         type="button"
-        onClick={onOriginal}
-        className={`rounded-sm px-1.5 py-0.5 text-[0.6rem] ${mode === 'original' ? 'bg-neutral-200 font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200' : 'text-neutral-400 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300'}`}
+        onClick={onRaw}
+        title="The exact payload as recorded in the source feed — no formatting, no splitting"
+        className={plainBtn(mode === 'raw')}
       >
-        Original
+        JSON
       </button>
       <div className="flex overflow-hidden rounded-sm border border-neutral-200 dark:border-neutral-800" role="group" aria-label="Choose simplifier">
         {SIMPLIFIER_PROVIDERS.map((item) => (
@@ -195,7 +207,7 @@ function SimplifierToggle({
 }
 
 function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode }) {
-  const [mode, setMode] = useState<'original' | 'simple'>('original')
+  const [mode, setMode] = useState<SimplifierMode>('original')
   const [provider, setProvider] = useState<SimplifierProvider>('qwen')
   const [simple, setSimple] = useState(() => simpleCache.get(simpleCacheKey('qwen', raw)) || '')
   const [draft, setDraft] = useState('')
@@ -268,9 +280,12 @@ function SimplifiableInput({ raw, original }: { raw: string; original: ReactNode
         busy={busy}
         etaMs={progress?.etaMs ?? null}
         onOriginal={() => setMode('original')}
+        onRaw={() => setMode('raw')}
         onProvider={(id) => void simplify(id)}
       />
-      {mode === 'simple' ? (
+      {mode === 'raw' ? (
+        <pre className={`${preClass} whitespace-pre-wrap break-words`}>{raw}</pre>
+      ) : mode === 'simple' ? (
         <div className="space-y-2">
           <pre className={`${preClass} whitespace-pre-wrap break-words`}>{simpleCode}</pre>
           {annotation}
@@ -786,7 +801,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
   // Each step is simplified by its OWN model request (fanned out on one click), so a
   // long compound command never has to fit a single generation, and repeated steps
   // are served from the per-step cache.
-  const [mode, setMode] = useState<'original' | 'simple'>('original')
+  const [mode, setMode] = useState<SimplifierMode>('original')
   const [provider, setProvider] = useState<SimplifierProvider>('qwen')
   const [states, setStates] = useState<StepSimple[]>(() => stepStatesFor('qwen', steps, false))
   // Faint original line above each simplified step; the "orig" toggle hides it and the
@@ -852,6 +867,7 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
         busy={busy}
         etaMs={null}
         onOriginal={() => setMode('original')}
+        onRaw={() => setMode('raw')}
         onProvider={(id) => void simplify(id)}
         extra={
           mode === 'simple' ? (
@@ -866,6 +882,12 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
           ) : undefined
         }
       />
+      {mode === 'raw' ? (
+        // The exact payload as recorded in the source feed — verbatim, no splitting,
+        // no metadata rows. Replaces the old bottom "Raw payload" disclosure.
+        <pre className={`${preClass} whitespace-pre-wrap break-words`}>{raw}</pre>
+      ) : (
+      <>
       <div className="space-y-1">
         <div className={labelClass}>Command · {steps.length} step{steps.length === 1 ? '' : 's'}</div>
         {/* In simplified mode a left outline marks the list as the SAME box as the
@@ -909,10 +931,8 @@ function ShellCommandInput({ payload, raw }: { payload: ShellCommandPayload; raw
           )}
         </div>
       )}
-      <details className="rounded-md border border-dashed border-neutral-200 dark:border-neutral-800">
-        <summary className="cursor-pointer px-2 py-1 text-[0.65rem] text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300">Raw payload</summary>
-        <pre className={`${preClass} rounded-none border-t border-neutral-200 whitespace-pre-wrap break-words dark:border-neutral-800`}>{stripAnsi(raw)}</pre>
-      </details>
+      </>
+      )}
     </div>
   )
 }

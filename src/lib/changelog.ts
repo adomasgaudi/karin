@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.171',
+    title: 'JSON mode in simplifier',
+    summary: 'A JSON button in the simplifier row shows the exact source-feed payload verbatim.',
+    detail:
+      'Next to Original and the providers, JSON renders the payload exactly as recorded in the source feed — no step splitting, no metadata rows, no styling. It replaces the old "Raw payload" disclosure at the bottom of shell commands and is available on every simplifiable input.',
+  },
+  {
     version: 'v.170',
     title: 'Edit input trimmed to diff',
     summary: 'Edit tool rows keep the file and replace-all metadata but drop the find/replace blocks the diff already shows.',
