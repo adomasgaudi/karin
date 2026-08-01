@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpLeft, ChevronsDown, ChevronsUp, Info, MoreVertical, PanelTopOpen } from 'lucide-react'
+import { ArrowUpLeft, Braces, ChevronsDown, ChevronsUp, Info, ListTree, MoreVertical, PanelTopOpen, Rows3 } from 'lucide-react'
 import type { FeedRecord, Session, TokenUsage } from '../types'
 import type { ClaudeDetailSession } from '../lib/claudeModel'
 import type { ClaudeSession } from '../lib/claudeRaw'
 import { useKarin } from '../store/karin'
-import { buildCycles, cycleUsage, cycleModelEffort } from '../lib/unifiedCycles'
+import { buildCycles, cycleModelEffort } from '../lib/unifiedCycles'
 import { fmtNum, shortAge } from '../lib/format'
 import {
   CURRENCY_LABELS,
@@ -19,7 +19,6 @@ import {
   stepTokenMult,
   tokenUnitRefs,
   unitModes,
-  usageUnitTotal,
 } from '../lib/pricing'
 import PriceModelPanel from './PriceModelPanel'
 import AgeIndicator, { useLiveNow } from './AgeIndicator'
@@ -35,7 +34,13 @@ import { WorkspaceRootContext } from './JsonView'
 // feed records dumped as JSONL, no formatting of any kind.
 type DetailMode = 'structured' | 'raw' | 'json'
 const DETAIL_MODES: DetailMode[] = ['structured', 'raw', 'json']
-const DETAIL_MODE_LABELS: Record<DetailMode, string> = { structured: 'Structured', raw: 'Raw', json: 'JSON' }
+// One button cycles the three views, so the header carries an icon instead of a
+// three-wide segmented control.
+const DETAIL_MODE_META: Record<DetailMode, { label: string; Icon: typeof Braces }> = {
+  structured: { label: 'Structured', Icon: ListTree },
+  raw: { label: 'Raw', Icon: Rows3 },
+  json: { label: 'JSON', Icon: Braces },
+}
 
 const selectClass =
   'h-8 min-w-0 max-w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-800 outline-none focus:border-neutral-400 focus:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-600 dark:focus:bg-neutral-950'
@@ -193,11 +198,6 @@ export default function SessionDetail() {
     const own = s?.source === 'claude' ? ratesForClaudeModel(model) : null
     return { cycle, model, effort, rates: effectiveRates(own ?? apiRates, priceBasis, subDivisor) }
   })
-  // One shared ruler for the top session-total bar AND every cycle bar.
-  const scaleMax = Math.max(
-    usageUnitTotal(u, rates, unitMode, tokenRef, tokenMult),
-    ...cycleInfos.map((ci) => usageUnitTotal(cycleUsage(ci.cycle), ci.rates, unitMode, tokenRef, tokenMult)),
-  )
 
   // Reset the raw-mode type filter whenever the selected session changes.
   useEffect(() => {
@@ -218,6 +218,8 @@ export default function SessionDetail() {
   // in the one shared detail page, rather than splitting into source-specific pages.
   const hasRaw = Array.isArray(s.rawRecords)
   const mode: DetailMode = hasRaw ? rawModeByUid[s.uid] || 'structured' : 'structured'
+  const nextMode = DETAIL_MODES[(DETAIL_MODES.indexOf(mode) + 1) % DETAIL_MODES.length]
+  const ModeIcon = DETAIL_MODE_META[mode].Icon
   const records: FeedRecord[] = hasRaw ? s.rawRecords ?? [] : []
   const typeCounts = s.recordTypeCounts ?? {}
   const typeKeys = Object.keys(typeCounts)
@@ -270,22 +272,15 @@ export default function SessionDetail() {
           </div>
 
           {hasRaw && (
-            <div className="ml-auto inline-flex shrink-0 rounded-md border border-neutral-200 bg-neutral-50 p-0.5 dark:border-neutral-800 dark:bg-neutral-900">
-              {DETAIL_MODES.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setRawModeByUid((prev) => ({ ...prev, [s.uid]: m }))}
-                  className={`shrink-0 rounded-sm px-2 py-0.5 text-[0.68rem] ${
-                    mode === m
-                      ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-800 dark:text-neutral-50'
-                      : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {DETAIL_MODE_LABELS[m]}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setRawModeByUid((prev) => ({ ...prev, [s.uid]: nextMode }))}
+              aria-label={`View: ${DETAIL_MODE_META[mode].label}`}
+              title={`View: ${DETAIL_MODE_META[mode].label} — click for ${DETAIL_MODE_META[nextMode].label}`}
+              className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              <ModeIcon className="h-4 w-4" />
+            </button>
           )}
           {hasRaw && mode !== 'structured' && (
             <select className={`${selectClass} shrink-0`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -310,24 +305,11 @@ export default function SessionDetail() {
             {metaOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMetaOpen(false)} />
-                <div className="absolute right-0 z-50 mt-1 w-72 rounded-md border border-neutral-200 bg-white p-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="absolute right-0 z-50 mt-1 w-80 rounded-md border border-neutral-200 bg-white p-2 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
                   <div className="mb-1 px-1 text-[0.65rem] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
-                    Session metadata
+                    Usage units
                   </div>
-                  <div className="grid gap-1">
-                    {s.meta.map((row) => (
-                      <Meta key={row.label} label={row.label} value={row.value} />
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-1.5 flex min-w-0 flex-col gap-1">
-          <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} inlineLabels />
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <div className="mb-2 flex flex-wrap items-center justify-start gap-1.5">
           {/* One pill cycling tokens → token units → money. */}
           <button
             type="button"
@@ -456,6 +438,22 @@ export default function SessionDetail() {
             )}
             </div>
           </div>
+                  <div className="mb-1 border-t border-neutral-100 px-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-wide text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+                    Session metadata
+                  </div>
+                  <div className="grid gap-1">
+                    {s.meta.map((row) => (
+                      <Meta key={row.label} label={row.label} value={row.value} />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-1.5 flex min-w-0 flex-col gap-1">
+          <UsageBar usage={u} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} inlineLabels />
         </div>
         {/* Persistent basis caption so money figures are never ambiguous — states which
             price this is and points to the traceable pricing model. */}
@@ -495,33 +493,25 @@ export default function SessionDetail() {
             <LocalSummary session={s} />
             <ContextAudit session={s} />
 
-            <div className="mb-2 mt-4 flex justify-end">
-              <div className="flex max-w-full flex-wrap gap-2">
+            {/* Icon-only: three labelled buttons were a sentence-wide toolbar for three
+                actions whose icons already say it. Titles carry the wording. */}
+            <div className="mb-2 mt-4 flex justify-end gap-1">
+              {[
+                { m: 'all' as const, Icon: ChevronsDown, title: 'Expand all' },
+                { m: 'none' as const, Icon: ChevronsUp, title: 'Collapse all' },
+                { m: 'cycles' as const, Icon: PanelTopOpen, title: 'Cycles only' },
+              ].map(({ m, Icon, title }) => (
                 <button
+                  key={m}
                   type="button"
-                  onClick={() => setAllOpen('all')}
-                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  onClick={() => setAllOpen(m)}
+                  title={title}
+                  aria-label={title}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
                 >
-                  <ChevronsDown className="h-3.5 w-3.5" />
-                  Expand all
+                  <Icon className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAllOpen('none')}
-                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                >
-                  <ChevronsUp className="h-3.5 w-3.5" />
-                  Collapse
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAllOpen('cycles')}
-                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                >
-                  <PanelTopOpen className="h-3.5 w-3.5" />
-                  Cycles only
-                </button>
-              </div>
+              ))}
             </div>
 
             {cycles.length === 0 ? (
@@ -550,7 +540,6 @@ export default function SessionDetail() {
                       currency={currency}
                       tokenRef={tokenRef}
                       tokenMult={tokenMult}
-                      scaleMax={scaleMax}
                       singleModel={(s.models?.length ?? 0) <= 1}
                     />
                   </div>

@@ -19,6 +19,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.220',
+    title: 'Quieter session header',
+    summary: 'Squares replace token bars, unit controls move into the ⋮ menu, and Summarize picks its own model.',
+    detail:
+      'The detail header carried two "ago" stamps, a three-wide view switcher, a labelled expand toolbar and a row of unit pills above the usage bar. Now: the nav drops its global age stamp, Structured/Raw/JSON is one cycling icon, expand/collapse/cycles-only are icons, and every money and token-unit control lives in the ⋮ menu next to the session metadata. UsageBar renders discrete cent squares only — the grey track and the proportional stretch bar are gone, along with the scaleMax plumbing that fed them. Summarize is now a single button whose menu lists the pulled Ollama models plus DeepSeek D-Flash and D-Pro; picking one runs it.',
+  },
+  {
+    version: 'v.219',
+    title: 'Live feeds actually refresh',
+    summary: 'The local server now tags every feed, so the page stops re-downloading 200 MB every five seconds.',
+    detail:
+      'The 5s poll was meant to send a cheap HEAD and only download a feed whose ETag moved. But the middleware that serves /data/ set no ETag and no Last-Modified, so the tag came back null — which the store reads as "assume changed" — and every tick re-downloaded and re-parsed the whole Codex and Claude feeds on the main thread. New sessions could take minutes to appear, or never. The server now stats each file and returns an ETag, a Last-Modified and a Content-Length, and answers a HEAD without touching the body.',
+  },
+  {
     version: 'v.218',
     title: 'Focused child sessions',
     summary: 'Child views hide inherited fork context and link directly back to the original parent session.',

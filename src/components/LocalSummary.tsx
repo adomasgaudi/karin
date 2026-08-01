@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Square } from 'lucide-react'
+import { ChevronDown, Loader2, Sparkles, Square } from 'lucide-react'
 import type { UnifiedSession } from '../types'
 import { buildSessionDigest } from '../lib/aiExport'
-import { DEFAULT_MODEL, fmtModelSize, generate, probe, type LocalModel } from '../lib/localLlm'
+import {
+  DEFAULT_MODEL,
+  SIMPLIFIER_PROVIDERS,
+  fmtModelSize,
+  generate,
+  probe,
+  type LocalModel,
+  type SimplifierProvider,
+} from '../lib/localLlm'
 
 // Summarize the open session with a model running on THIS machine (Ollama). Nothing
 // leaves localhost, which is the only way a summary feature fits Karin's "transcripts
@@ -12,6 +20,23 @@ import { DEFAULT_MODEL, fmtModelSize, generate, probe, type LocalModel } from '.
 // muted line instead of shouting an error at someone who never asked for a local model.
 
 const MODEL_KEY = 'karin-local-model'
+const PROVIDER_KEY = 'karin-summary-provider'
+
+// One choice = a provider plus the concrete model it runs. Ollama contributes whatever is
+// pulled locally; DeepSeek contributes its two hosted endpoints.
+interface Choice {
+  provider: SimplifierProvider
+  model: string
+  label: string
+  note: string
+}
+
+const DEEPSEEK_CHOICES: Choice[] = SIMPLIFIER_PROVIDERS.filter((p) => p.id !== 'qwen').map((p) => ({
+  provider: p.id,
+  model: p.model,
+  label: p.label,
+  note: 'DeepSeek',
+}))
 
 const SYSTEM = `
 You summarize logs of AI coding sessions for the developer who ran them.
@@ -26,6 +51,10 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
   const [models, setModels] = useState<LocalModel[]>([])
   const [up, setUp] = useState<boolean | null>(null)
   const [model, setModel] = useState<string>(() => localStorage.getItem(MODEL_KEY) || DEFAULT_MODEL)
+  const [provider, setProvider] = useState<SimplifierProvider>(
+    () => (localStorage.getItem(PROVIDER_KEY) as SimplifierProvider) || 'qwen',
+  )
+  const [menuOpen, setMenuOpen] = useState(false)
   const [out, setOut] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,8 +67,9 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
     void probe(ac.signal).then((r) => {
       setUp(r.up)
       setModels(r.models)
-      // Fall back to whatever IS installed when the remembered model was removed.
-      if (r.up && r.models.length && !r.models.some((m) => m.name === model)) {
+      // Fall back to whatever IS installed when the remembered Ollama model was removed.
+      // A remembered DeepSeek choice is untouched — it isn't in this list by design.
+      if (provider === 'qwen' && r.up && r.models.length && !r.models.some((m) => m.name === model)) {
         setModel(r.models[0].name)
       }
     })
@@ -55,7 +85,11 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
     setElapsed(null)
   }, [session.uid])
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (choice: Choice) => {
+    setProvider(choice.provider)
+    setModel(choice.model)
+    localStorage.setItem(PROVIDER_KEY, choice.provider)
+    localStorage.setItem(MODEL_KEY, choice.model)
     abort.current?.abort()
     const ac = new AbortController()
     abort.current = ac
@@ -69,7 +103,8 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
       // a 700-token answer. Bigger windows spill the KV cache off an 8 GB card.
       const digest = buildSessionDigest(session, 12_000)
       await generate(`Summarize this session.\n\n${digest}`, {
-        model,
+        provider: choice.provider,
+        model: choice.model,
         system: SYSTEM,
         signal: ac.signal,
         onToken: (chunk) => setOut((prev) => prev + chunk),
@@ -81,47 +116,65 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
       if (abort.current === ac) abort.current = null
       setBusy(false)
     }
-  }, [session, model])
+  }, [session])
 
+  // Ollama being down no longer hides the panel: the DeepSeek endpoints don't need it.
   if (up === null) return null
-  if (!up) {
-    return (
-      <p className="mb-2 text-[0.68rem] text-neutral-400 dark:text-neutral-500">
-        Local summary unavailable — Ollama isn’t responding on 127.0.0.1:11434.
-      </p>
-    )
-  }
+  const ollamaChoices: Choice[] = models.map((m) => ({
+    provider: 'qwen',
+    model: m.name,
+    label: m.name,
+    note: fmtModelSize(m.size) ? `Ollama · ${fmtModelSize(m.size)}` : 'Ollama',
+  }))
+  const choices = [...ollamaChoices, ...DEEPSEEK_CHOICES]
+  if (choices.length === 0) return null
+  const current = choices.find((c) => c.provider === provider && c.model === model) ?? choices[0]
 
   return (
     <div className="mb-3 rounded-md border border-neutral-200 bg-white/70 dark:border-neutral-800 dark:bg-neutral-950/40">
       <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
-        <select
-          value={model}
-          onChange={(e) => {
-            setModel(e.target.value)
-            localStorage.setItem(MODEL_KEY, e.target.value)
-          }}
-          disabled={busy}
-          className="h-6 max-w-[14rem] rounded-md border border-neutral-200 bg-neutral-50 px-1 text-[0.68rem] text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
-        >
-          {models.map((m) => (
-            <option key={m.name} value={m.name}>
-              {m.name} {fmtModelSize(m.size) && `· ${fmtModelSize(m.size)}`}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={busy ? () => abort.current?.abort() : () => void run()}
-          disabled={models.length === 0}
-          className="inline-flex h-6 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-[0.68rem] text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          {busy ? <Square className="h-3 w-3" /> : <Loader2 className="h-3 w-3" />}
-          {busy ? 'Stop' : out ? 'Again' : 'Summarize'}
-        </button>
+        {/* The model choice IS the Summarize action — one button opens the list and
+            picking a model starts that run, instead of a separate picker nobody
+            re-reads before clicking. */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={busy ? () => abort.current?.abort() : () => setMenuOpen((o) => !o)}
+            title={busy ? 'Stop this run' : `Summarize with… (last used: ${current.label})`}
+            className="inline-flex h-6 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-[0.68rem] text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            {busy ? <Square className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+            {busy ? 'Stop' : out ? 'Again' : 'Summarize'}
+            {!busy && <ChevronDown className="h-3 w-3 text-neutral-400" />}
+          </button>
+          {menuOpen && !busy && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute left-0 z-50 mt-1 w-60 rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+                {choices.map((c) => (
+                  <button
+                    key={`${c.provider}:${c.model}`}
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      void run(c)
+                    }}
+                    className={`flex w-full items-baseline justify-between gap-2 rounded px-2 py-1 text-left text-[0.7rem] hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                      c === current ? 'font-semibold text-neutral-950 dark:text-neutral-50' : 'text-neutral-700 dark:text-neutral-300'
+                    }`}
+                  >
+                    <span className="truncate">{c.label}</span>
+                    <span className="shrink-0 text-[0.62rem] text-neutral-400 dark:text-neutral-500">{c.note}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        {busy && <Loader2 className="h-3 w-3 animate-spin text-neutral-400" />}
         {models.length === 0 && (
           <span className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
-            no models pulled — run <code>ollama pull {DEFAULT_MODEL}</code>
+            Ollama offline — run <code>ollama pull {DEFAULT_MODEL}</code> for local models
           </span>
         )}
         {elapsed != null && (

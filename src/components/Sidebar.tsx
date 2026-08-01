@@ -16,7 +16,6 @@ import {
   stepTokenMult,
   tokenUnitRefs,
   unitModes,
-  usageUnitTotal,
 } from '../lib/pricing'
 import PriceModelPanel from './PriceModelPanel'
 import UsageBar from './UsageBar'
@@ -120,16 +119,13 @@ export default function Sidebar({ className }: SidebarProps) {
   const list = sessions.filter(
     (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
   )
-  // Each session's bar is drawn against the largest visible session's total (in the active
-  // unit), so every session's input/cached/output bar is proportional to the others.
   const rows = list.map((s) => {
     // Apply the active price basis (÷divisor for the plan estimate) at the rates level so
-    // row totals and bars reflect the chosen basis. Divisor is per source — each row's
-    // own plan (Codex vs Claude).
+    // row totals reflect the chosen basis. Divisor is per source — each row's own plan
+    // (Codex vs Claude).
     const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisors[s.source])
-    return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
+    return { session: s, rates }
   })
-  const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
   // Codex parallel rollouts and Claude's explicitly linked sessions carry a source-local
   // parent id. Keep them in the data model as separate streams, but render the children
   // directly below the visible parent so collaboration reads as one session tree.
@@ -201,11 +197,9 @@ export default function Sidebar({ className }: SidebarProps) {
               tokenRef={tokenRef}
               tokenMult={tokenMult}
               compact
-              bare
               inlineLabels
               hideSegmentLabels
               showLegend={false}
-              scaleMax={scaleMax}
             />
           </div>
         </button>

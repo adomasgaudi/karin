@@ -38,7 +38,6 @@ export interface BandDisplay {
   currency: CurrencyMode
   tokenRef: TokenUnitRef
   tokenMult?: number
-  scaleMax: number
   // Session has a single model → assistant rows drop the redundant "assistant" + model label.
   singleModel?: boolean
   entryUsage: Map<UnifiedEntry, EntryUsage>
@@ -64,7 +63,6 @@ function actionRow(entry: UnifiedEntry, usage: EntryUsage | undefined, d: BandDi
       currency={d.currency}
       tokenRef={d.tokenRef}
       tokenMult={d.tokenMult}
-      scaleMax={d.scaleMax}
       singleModel={d.singleModel}
     />
   )
@@ -96,7 +94,6 @@ function BandTokens({ usage, estimated, d }: { usage: TokenUsage; estimated: boo
       currency={d.currency}
       tokenRef={d.tokenRef}
       tokenMult={d.tokenMult}
-      scaleMax={d.scaleMax}
       estimated={estimated}
       thin
       compact

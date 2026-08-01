@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync, createReadStream, mkdirSync, copyFileSync, cpSync, openSync, closeSync } from 'node:fs'
+import { existsSync, createReadStream, mkdirSync, copyFileSync, cpSync, openSync, closeSync, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { execFile, spawn } from 'node:child_process'
 
@@ -33,6 +33,27 @@ function serveLocalData() {
         if (existsSync(file)) {
           res.setHeader('content-type', url.endsWith('.json') ? 'application/json' : 'text/plain')
           res.setHeader('cache-control', 'no-store')
+          // The 5s poll asks HEAD first and only downloads a feed whose tag moved
+          // (see feedTag in src/lib/loadData.ts). This middleware answers every
+          // /data/ request, so WITHOUT these two headers there is no tag at all:
+          // feedTag returns null, which the store reads as "assume changed", and
+          // every single tick re-downloads and re-parses ~200 MB of feed on the
+          // main thread. That is not a slow refresh, it is a permanent freeze —
+          // the page stops picking up new sessions. Stat the file and hand back a
+          // tag so an idle tick costs three tiny requests again.
+          try {
+            const st = statSync(file)
+            res.setHeader('etag', `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`)
+            res.setHeader('last-modified', st.mtime.toUTCString())
+            res.setHeader('content-length', String(st.size))
+          } catch {
+            // A file being replaced mid-stat still gets served, just untagged.
+          }
+          // A HEAD needs the headers only; reading the body would defeat the point.
+          if (req.method === 'HEAD') {
+            res.end()
+            return
+          }
           const stream = createReadStream(file)
           // A rebuilt preview can briefly release its old dist/data file while a browser
           // is fetching it. Serve the live source feed instead, and fail a request rather

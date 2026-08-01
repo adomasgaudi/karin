@@ -5,7 +5,7 @@ import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
 import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
 import type { CurrencyMode, TokenRates, TokenUnitRef, UsageUnitMode } from '../lib/pricing'
-import { splitUsage, usageUnitTotal } from '../lib/pricing'
+import { splitUsage } from '../lib/pricing'
 import EventEntry from './EventEntry'
 import { HooksBand, ActionBand, type BandDisplay } from './CycleBands'
 import UsageBar from './UsageBar'
@@ -27,7 +27,6 @@ export default function Cycle({
   currency,
   tokenRef,
   tokenMult,
-  scaleMax,
   singleModel,
 }: {
   cycle: CycleData
@@ -37,7 +36,6 @@ export default function Cycle({
   currency: CurrencyMode
   tokenRef: TokenUnitRef
   tokenMult?: number
-  scaleMax?: number
   singleModel?: boolean
 }) {
   const usage = cycleUsage(cycle)
@@ -48,8 +46,6 @@ export default function Cycle({
   // Per-card step durations feed each event's own chip.
   const steps = useMemo(() => stepDurations(cycle), [cycle])
   const stepCount = useMemo(() => cycleStepCount(cycle), [cycle])
-  // Each card's bar scales against the cycle total, so a card's fill = its fraction of the cycle.
-  const cardScaleMax = usageUnitTotal(usage, rates, unitMode, tokenRef, tokenMult)
   // A context-only cycle carries no owner prompt — gray it down so the real
   // prompt/answer cycles stay visually dominant.
   const contextOnly = isContextOnlyCycle(cycle)
@@ -123,7 +119,7 @@ export default function Cycle({
     cycle.items.forEach((e) => m.set(e, e.line))
     return m
   }, [cycle])
-  const display: BandDisplay = { source, rates, unitMode, currency, tokenRef, tokenMult, scaleMax: cardScaleMax, singleModel, entryUsage, steps, numFor }
+  const display: BandDisplay = { source, rates, unitMode, currency, tokenRef, tokenMult, singleModel, entryUsage, steps, numFor }
   const eventNodes: ReactNode[] = []
   let hooksBuf: UnifiedEntry[] = []
   let aiBuf: UnifiedEntry[] = []
@@ -154,7 +150,6 @@ export default function Cycle({
           unitMode={unitMode}
           currency={currency}
           tokenRef={tokenRef}
-          scaleMax={cardScaleMax}
         />,
       )
     } else if (band === 'hooks') {
@@ -220,7 +215,7 @@ export default function Cycle({
             </span>
           )}
           {hasUsage && (
-            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenMult={tokenMult} tokenRef={tokenRef} compact bare showLegend={false} scaleMax={scaleMax} />
+            <UsageBar usage={usage} rates={rates} mode={unitMode} currency={currency} tokenMult={tokenMult} tokenRef={tokenRef} compact showLegend={false} />
           )}
         </div>
       </summary>

@@ -30,8 +30,6 @@ function SegmentBlocks({
   blockPx,
   boxUnit,
   dotScale,
-  stretch,
-  widthPercent,
   estimated,
   ariaLabel,
 }: {
@@ -40,8 +38,6 @@ function SegmentBlocks({
   blockPx: number
   boxUnit: number
   dotScale: boolean
-  stretch: boolean
-  widthPercent?: number
   estimated: boolean
   ariaLabel?: string
 }) {
@@ -51,20 +47,16 @@ function SegmentBlocks({
     ? { backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.45) 0, rgba(255,255,255,0.45) 2px, transparent 2px, transparent 5px)' }
     : undefined
   return (
-    <div
-      className="flex h-full min-w-0 shrink-0 items-center gap-px"
-      style={stretch ? { width: `${Math.max(0, widthPercent || 0)}%` } : undefined}
-      aria-label={ariaLabel}
-    >
+    <div className="flex h-full min-w-0 shrink-0 items-center gap-px" aria-label={ariaLabel}>
       {Array.from({ length: blockCount }, (_, i) => {
         const fill = Math.min(1, Math.max(0, (blockValue - i * boxUnit) / boxUnit))
         return (
           <span
             key={`${segment.key}-block-${i}`}
             className={`relative block shrink-0 overflow-hidden bg-neutral-300/70 dark:bg-neutral-700/70 ${
-              stretch ? 'min-w-0 flex-1 rounded-[2px]' : dotScale ? 'h-[3px] rounded-full' : 'h-full rounded-[2px]'
+              dotScale ? 'h-[3px] rounded-full' : 'h-full rounded-[2px]'
             }`}
-            style={stretch ? undefined : { width: `${dotScale ? DOT_BLOCK_PX : blockPx}px`, ...(dotScale ? { height: `${DOT_BLOCK_PX}px` } : null) }}
+            style={{ width: `${dotScale ? DOT_BLOCK_PX : blockPx}px`, ...(dotScale ? { height: `${DOT_BLOCK_PX}px` } : null) }}
           >
             {fill > 0 && (
               <span
@@ -87,12 +79,10 @@ export default function UsageBar({
   tokenRef = 'output',
   tokenMult,
   compact = false,
-  bare = false,
   showLegend = true,
   inlineLabels = false,
   hideSegmentLabels = false,
   thin = false,
-  scaleMax,
   estimated = false,
 }: {
   usage: TokenUsage
@@ -111,12 +101,6 @@ export default function UsageBar({
   inlineLabels?: boolean
   // Callers may overlay their own summary on the block line (for example, sidebar rows).
   hideSegmentLabels?: boolean
-  // Drop the grey track behind the blocks and show the squares alone. The track only
-  // means something when the blocks stretch to fill it; with discrete cent squares it
-  // is a full-width band of nothing on every row.
-  bare?: boolean
-  // In pure token mode, block-line width is proportional to this raw-token scale.
-  scaleMax?: number
   // Estimated (not measured) usage: render hatched + faded so it reads as a guess.
   estimated?: boolean
 }) {
@@ -141,10 +125,6 @@ export default function UsageBar({
   const total = valuedSegments.reduce((sum, segment) => sum + segment.value, 0)
   const blockTotal = valuedSegments.reduce((sum, segment) => sum + segment.blockValue, 0)
   const tokenTotal = parts.total || usage?.total_tokens || 0
-  // Thin row indicators are a run of cent markers, not a miniature full-width
-  // proportional bar. The surrounding track belonged to the old visualization.
-  const stretch = mode === 'tokens' && !thin
-  const tokenDenom = scaleMax && scaleMax > 0 ? scaleMax : tokenTotal
   // Short bars use one small dot per cent. Once a cycle/prompt/session crosses 50 cents,
   // switch that bar to ten-cent boxes so a large total does not become visual noise.
   const dotScale = blockTotal <= 50
@@ -167,20 +147,14 @@ export default function UsageBar({
 
   return (
     <div className={compact ? 'min-w-0' : 'max-w-4xl'}>
-      <div
-        title={hoverTitle}
-        className={
-          thin || bare
-            ? `inline-flex min-w-0 items-center gap-px ${blockHeight} ${
-                bare && estimated ? 'opacity-70' : ''
-              }`
-            : `flex min-w-0 items-center gap-px overflow-hidden rounded-sm bg-neutral-200/70 px-0.5 dark:bg-neutral-800/70 ${blockHeight} ${
-                estimated ? 'opacity-70 outline-dashed outline-1 outline-offset-[-1px] outline-neutral-400/70 dark:outline-neutral-500/60' : ''
-              }`
-        }
-      >
-        {hasBlocks ? (
-          valuedSegments.map((segment) => (
+      {/* Squares only — no track, no proportional bar. A cent is one square everywhere,
+          so two rows are comparable by counting, not by measuring a filled width. */}
+      {hasBlocks && (
+        <div
+          title={hoverTitle}
+          className={`inline-flex min-w-0 items-center gap-px ${blockHeight} ${estimated ? 'opacity-70' : ''}`}
+        >
+          {valuedSegments.map((segment) => (
             <SegmentBlocks
               key={segment.key}
               segment={segment}
@@ -188,16 +162,12 @@ export default function UsageBar({
               blockPx={blockPx}
               boxUnit={boxUnit}
               dotScale={dotScale}
-              stretch={stretch}
-              widthPercent={stretch && tokenDenom > 0 ? (segment.raw / tokenDenom) * 100 : undefined}
               estimated={estimated}
               ariaLabel={hideSegmentLabels ? undefined : segment.label}
             />
-          ))
-        ) : (
-          <div className="h-full w-full bg-neutral-300/70 dark:bg-neutral-700/70" />
-        )}
-      </div>
+          ))}
+        </div>
+      )}
       {inlineLabels ? (
         // Compact cycle/card lines carry their value elsewhere; the top bar prints a total below.
         !compact && (

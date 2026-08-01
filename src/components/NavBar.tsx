@@ -5,7 +5,6 @@ import { cn } from '../lib/cn'
 import SettingsMenu from './SettingsMenu'
 import WatcherStatus from './WatcherStatus'
 import KarinLogo from './KarinLogo'
-import AgeIndicator, { useLiveNow } from './AgeIndicator'
 import { APP_VERSION } from '../lib/appVersion'
 
 // ONE nav scaffold for both Karin versions: logo, version toggle, tab strip, right slot.
@@ -158,20 +157,15 @@ function ViewMenu({ active, onSelect }: { active: View; onSelect: (view: View) =
 export default function NavBar() {
   const view = useKarin((s) => s.view)
   const setView = useKarin((s) => s.setView)
-  const sessions = useKarin((s) => s.sessions)
-  const now = useLiveNow()
-  // Newest prompt across ALL sources — "how long since I last worked".
-  const latestPrompt = sessions.reduce<string | null>(
-    (max, s) => (s.updated_at && (!max || s.updated_at > max) ? s.updated_at : max),
-    null,
-  )
+  // The global "newest prompt anywhere" stamp used to sit in the middle of this bar, one
+  // line above the selected session's own age — the same string twice whenever the newest
+  // session was open. The session header keeps the one that is actually about what's shown.
   return (
     <NavBarShell
       versionLabel={APP_VERSION}
       onVersionClick={() => setView('v2')}
       versionTitle="Open Karin v.2.0 (work in progress)"
       onLogoClick={() => useKarin.getState().select(null)}
-      center={<AgeIndicator value={latestPrompt} now={now} className="text-[0.65rem] text-neutral-500" />}
       right={
         <>
           <ViewMenu active={view} onSelect={setView} />

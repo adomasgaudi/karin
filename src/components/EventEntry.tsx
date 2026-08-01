@@ -40,8 +40,6 @@ interface UsageProps {
   currency: CurrencyMode
   tokenRef: TokenUnitRef
   tokenMult?: number
-  // Cycle total in the active unit, so each card's bar is its true fraction of the cycle.
-  scaleMax?: number
 }
 
 // One accent per unified kind — now just a left border colour, no card box or fill.
@@ -298,7 +296,7 @@ function Row({
 // an ESTIMATED (hatched, "≈ … est") bar, Codex token frames + every Claude usage frame get
 // a MEASURED (solid, "… measured") bar, and cards with no entry in the map get none — which
 // is exactly Claude's content-card behavior (no per-card bar).
-function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax }: UsageProps) {
+function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult }: UsageProps) {
   if (!usage) return null
   const total = splitUsage(usage.usage).total
   if (total <= 0) return null
@@ -312,7 +310,7 @@ function UsageMini({ usage, rates, unitMode, currency, tokenRef, tokenMult, scal
   return (
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">
-        <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact inlineLabels scaleMax={scaleMax} estimated={usage.estimated} />
+        <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} compact inlineLabels estimated={usage.estimated} />
       </div>
       <span
         className={`shrink-0 font-mono text-[0.6rem] ${usage.estimated ? 'italic text-neutral-400/80 dark:text-neutral-500/80' : 'text-neutral-500 dark:text-neutral-400'}`}
@@ -578,13 +576,13 @@ export function SessionMetaGroup({ entries }: { entries: Entry[] }) {
   )
 }
 
-function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tokenMult, scaleMax, step, singleModel }: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
+function EventEntryBody({ entry, usage, rates, unitMode, currency, tokenRef, tokenMult, step, singleModel }: { entry: Entry; step?: StepDuration; singleModel?: boolean } & UsageProps) {
   const tint = tintFor(entry)
-  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} />
+  const bar = <UsageMini usage={usage} rates={rates} unitMode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} />
   // Thin collapsed indicator: the same usage as a ~4px unlabelled bar, shown in the summary.
   const thin =
     usage && splitUsage(usage.usage).total > 0 ? (
-      <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} scaleMax={scaleMax} estimated={usage.estimated} thin compact showLegend={false} />
+      <UsageBar usage={usage.usage} rates={rates} mode={unitMode} currency={currency} tokenRef={tokenRef} tokenMult={tokenMult} estimated={usage.estimated} thin compact showLegend={false} />
     ) : undefined
 
   switch (entry.kind) {
