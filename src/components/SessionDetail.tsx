@@ -30,12 +30,68 @@ import UsageBar from './UsageBar'
 import SourceBadge from './SourceBadge'
 import RecordRow from './RecordRow'
 
-type DetailMode = 'structured' | 'raw'
-const DETAIL_MODES: DetailMode[] = ['structured', 'raw']
-const DETAIL_MODE_LABELS: Record<DetailMode, string> = { structured: 'Structured', raw: 'Raw' }
+// structured = the rendered cycles · raw = per-record rows · json = the untouched
+// feed records dumped as JSONL, no formatting of any kind.
+type DetailMode = 'structured' | 'raw' | 'json'
+const DETAIL_MODES: DetailMode[] = ['structured', 'raw', 'json']
+const DETAIL_MODE_LABELS: Record<DetailMode, string> = { structured: 'Structured', raw: 'Raw', json: 'JSON' }
 
 const selectClass =
   'h-8 min-w-0 max-w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-800 outline-none focus:border-neutral-400 focus:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-600 dark:focus:bg-neutral-950'
+
+// The feed's records, dumped exactly as they are — one JSON object per line, the
+// JSONL shape they were read in. `_line` / `_type` are the indexer's own decorations
+// and are kept, because hiding them would make this NOT the stored data.
+function JsonDump({ records, uid }: { records: ClaudeRecord[]; uid: string }) {
+  const text = useMemo(
+    () => records.map((rec) => JSON.stringify(rec)).join('\n'),
+    [records],
+  )
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setCopied(false)
+    }
+  }
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/x-ndjson' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${uid}.jsonl`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
+          {records.length} {records.length === 1 ? 'record' : 'records'} · {text.length.toLocaleString()} chars · exactly as stored in the feed
+        </span>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="ml-auto shrink-0 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          {copied ? 'copied' : 'Copy'}
+        </button>
+        <button
+          type="button"
+          onClick={download}
+          className="shrink-0 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          Download .jsonl
+        </button>
+      </div>
+      <pre className="overflow-x-auto rounded-md border border-neutral-200 bg-white p-2 font-mono text-[0.7rem] leading-relaxed text-neutral-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
+        {text}
+      </pre>
+    </div>
+  )
+}
 
 function Meta({ label, value }: { label: string; value: string | null }) {
   return (
@@ -201,7 +257,7 @@ export default function SessionDetail() {
               ))}
             </div>
           )}
-          {hasRaw && mode === 'raw' && (
+          {hasRaw && mode !== 'structured' && (
             <select className={`${selectClass} shrink-0`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="all">All types ({records.length})</option>
               {typeKeys.map((k) => (
@@ -384,7 +440,9 @@ export default function SessionDetail() {
       <div ref={bodyRef} className="p-1 pb-16 md:p-[5px] md:pb-16">
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
-        {mode === 'raw' ? (
+        {mode === 'json' ? (
+          <JsonDump records={shownRecords} uid={s.uid} />
+        ) : mode === 'raw' ? (
           <>
             <div className="mb-2 px-1 text-[0.68rem] text-neutral-400 dark:text-neutral-500">
               {shownRecords.length} {shownRecords.length === 1 ? 'record' : 'records'}

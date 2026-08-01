@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.173',
+    title: 'JSON tab for a session',
+    summary: 'A third top tab dumps the session’s feed records untouched, with copy and download.',
+    detail:
+      'Structured and Raw both format what they show. The new JSON tab prints every record exactly as stored — one JSON object per line, the JSONL shape it was read in, including the indexer’s _line and _type fields. The record-type filter applies, and the dump can be copied or downloaded as a .jsonl file.',
+  },
+  {
     version: 'v.172',
     title: 'One square size everywhere',
     summary: 'Cycle usage bars now use the same block height as the sidebar session rows.',

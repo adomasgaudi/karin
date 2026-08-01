@@ -32,3 +32,6 @@ test-results
 
 # Local graphify knowledge graph (generated, never part of the app bundle)
 graphify-out/
+
+# Task-tracker local state (pid + heartbeat for THIS machine, regenerated each run)
+.tracker/
