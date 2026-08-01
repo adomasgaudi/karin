@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bot, Loader2, Square } from 'lucide-react'
+import { Loader2, Square } from 'lucide-react'
 import type { UnifiedSession } from '../types'
 import { buildSessionDigest } from '../lib/aiExport'
 import { DEFAULT_MODEL, fmtModelSize, generate, probe, type LocalModel } from '../lib/localLlm'
@@ -95,8 +95,6 @@ export default function LocalSummary({ session }: { session: UnifiedSession }) {
   return (
     <div className="mb-3 rounded-md border border-neutral-200 bg-white/70 dark:border-neutral-800 dark:bg-neutral-950/40">
       <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
-        <Bot className="h-3.5 w-3.5 shrink-0 text-neutral-400 dark:text-neutral-500" />
-        <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">Local summary</span>
         <select
           value={model}
           onChange={(e) => {

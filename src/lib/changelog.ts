@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.191',
+    title: 'Bare local-summary controls',
+    summary: 'The "Local summary" label and its bot icon are gone; the row is just the model selector and the run button.',
+  },
+  {
     version: 'v.190',
     title: 'Quieter cycle cards',
     summary: 'Cycles lose their ordinals, outlines and bar tracks; the step count moves beside the token squares and JSON moves inside.',
