@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.132',
+    title: 'Trim empty expansion',
+    summary: 'Rows now show an expansion affordance only when their detail view contains additional content.',
+  },
+  {
     version: 'v.131',
     title: 'Clarify usage windows',
     summary: 'Remaining usage now reads weekly and hourly windows directly, such as weekly 98% left · 7h 84% left.',

@@ -147,6 +147,7 @@ function Row({
   dim,
   dashed,
   disabled,
+  expandable = true,
   children,
 }: {
   num: number
@@ -165,11 +166,12 @@ function Row({
   dim?: boolean
   dashed?: boolean
   disabled?: boolean
+  expandable?: boolean
   children: ReactNode
 }) {
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
-      {!disabled && <Chevron />}
+      {!disabled && expandable && <Chevron />}
       <NumBadge n={num} />
       {clamp ? (
         <span className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
@@ -187,7 +189,7 @@ function Row({
     </div>
   )
   const summary = (
-    <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled ? 'cursor-default' : 'cursor-pointer'}`}>
+    <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled || !expandable ? 'cursor-default' : 'cursor-pointer'}`}>
       {header}
       {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
           almost no vertical space. The full labelled bar lives in the expanded body. */}
@@ -196,6 +198,9 @@ function Row({
   )
   if (disabled) {
     return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} opacity-60 grayscale`}>{summary}</div>
+  }
+  if (!expandable) {
+    return <div className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>{summary}</div>
   }
   return (
     <details className={`${rowBase} ${tint} ${dashed ? 'border-l-dashed' : ''} ${dim ? 'opacity-90' : ''}`}>
@@ -361,6 +366,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           <Row
             num={num}
             clamp
+            expandable={false}
             title={preview(item.text) || '(no text)'}
             badge={!singleModel && tag ? <Pill>{tag}</Pill> : undefined}
             tint={tint}
@@ -371,7 +377,8 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           </Row>
         )
       }
-      const messageBody = item.role === 'user' && looksLikeStructuredContext(item.text) ? (
+      const structuredMessage = item.role === 'user' && looksLikeStructuredContext(item.text)
+      const messageBody = structuredMessage ? (
         <BaseInstructions text={item.text} />
       ) : (
         <div className="whitespace-pre-wrap break-words leading-relaxed">{item.text}</div>
@@ -379,6 +386,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       return (
         <Row
           num={num}
+          expandable={structuredMessage}
           title={`${item.role}:`}
           meta={preview(item.text)}
           badge={tag ? <Pill>{tag}</Pill> : undefined}
@@ -423,6 +431,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         <Row
           num={num}
           title={entry.source === 'claude' ? 'thinking' : 'reasoning'}
+          expandable={Boolean(item.text?.trim())}
           meta={item.id || undefined}
           badge={signature ? <Pill>signed</Pill> : undefined}
           tint={tint}
@@ -505,14 +514,14 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         const parts = splitUsage(item.last)
         const meta = `in ${fmtCompact(parts.freshInput + parts.cachedInput + parts.cacheCreate)} / out ${fmtCompact(parts.output + parts.reasoning)}`
         return (
-          <Row num={num} title="usage" meta={meta} tint={tint} step={step} bar={bar} thin={thin}>
+          <Row num={num} title="usage" meta={meta} expandable={Boolean(item.usage_raw)} tint={tint} step={step} bar={bar} thin={thin}>
             <JsonView value={item.usage_raw} />
           </Row>
         )
       }
       const item = entry.item as TokenEvent
       return (
-        <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row num={num} title="token_count" meta={`last ${item.last?.total_tokens ?? 'n/a'} tokens`} expandable={Boolean(item.last)} tint={tint} step={step} bar={bar} thin={thin}>
           <JsonView value={item} />
         </Row>
       )
@@ -530,7 +539,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           ? `${item.chars} chars`
           : `${(item as ContextBlock).source} / ${item.chars} chars`
       return (
-        <Row num={num} title={label} meta={meta} tint={tint} step={step} bar={bar} thin={thin} dim>
+        <Row num={num} title={label} meta={meta} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin} dim>
           {entry.source === 'codex' &&
           ((item as ContextBlock).name === 'base_instructions' ||
             (item as ContextBlock).name === 'developer_message' ||
@@ -545,7 +554,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
     case 'runtime': {
       const item = entry.item as RuntimeEvent
       return (
-        <Row num={num} title={`runtime / ${item.type}`} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row num={num} title={`runtime / ${item.type}`} expandable={Boolean(item.text?.trim())} tint={tint} step={step} bar={bar} thin={thin}>
           <MaybeJson text={item.text} className={preClass} />
         </Row>
       )
@@ -554,7 +563,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
       const item = entry.item as ClaudeSubagent
       const messages = item.session?.messages || []
       return (
-        <Row num={num} title={`agent / ${item.agent_type}`} meta={item.description || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row num={num} title={`agent / ${item.agent_type}`} meta={item.description || undefined} expandable={messages.length > 0} tint={tint} step={step} bar={bar} thin={thin}>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
             {messages.length} message{messages.length === 1 ? '' : 's'}
           </div>
