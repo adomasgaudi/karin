@@ -8,7 +8,7 @@
 // UI hides its summarize affordances rather than erroring.
 
 export const OLLAMA_URL = 'http://127.0.0.1:11434'
-export const DEEPSEEK_URL = import.meta.env.VITE_DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions'
+export const DEEPSEEK_URL = import.meta.env.VITE_DEEPSEEK_API_URL || '/api/deepseek'
 
 // The model we install and default to (see CLAUDE.md). Any pulled model can be chosen
 // instead — the picker lists whatever `/api/tags` reports.
@@ -21,11 +21,6 @@ export const SIMPLIFIER_PROVIDERS: Array<{ id: SimplifierProvider; label: string
   { id: 'd-flash', label: 'D-Flash', model: 'deepseek-v4-flash' },
   { id: 'd-pro', label: 'D-Pro', model: 'deepseek-v4-pro' },
 ]
-
-const DEEPSEEK_KEYS: Record<Exclude<SimplifierProvider, 'qwen'>, string | undefined> = {
-  'd-flash': import.meta.env.VITE_DEEPSEEK_FLASH_API_KEY,
-  'd-pro': import.meta.env.VITE_DEEPSEEK_PRO_API_KEY,
-}
 
 const USER_PROMPT_TITLE_SYSTEM = [
   'Create a short title for a user prompt in an AI session transcript.',
@@ -235,11 +230,9 @@ export async function generate(prompt: string, opts: GenerateOptions = {}): Prom
       })
       read = (response) => readOllamaStream(response, progress, opts.onToken)
     } else {
-      const apiKey = DEEPSEEK_KEYS[provider]
-      if (!apiKey) throw new Error(`${provider === 'd-flash' ? 'D-Flash' : 'D-Pro'} is not configured. Add its API key to .env.local, then restart Karin.`)
       res = await fetch(DEEPSEEK_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json' },
         signal: timeout.signal,
         body: JSON.stringify({
           model: opts.model || SIMPLIFIER_PROVIDERS.find((item) => item.id === provider)?.model,

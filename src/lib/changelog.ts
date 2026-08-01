@@ -19,6 +19,35 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.159',
+    title: 'Stream proxy responses',
+    summary: 'The local DeepSeek proxy now forwards streamed responses without compression-header decoding failures.',
+  },
+  {
+    version: 'v.158',
+    title: 'Flatten command steps',
+    summary: 'Original command steps now read as a clean numbered list without surrounding cards.',
+  },
+  {
+    version: 'v.157',
+    title: 'Protect DeepSeek keys',
+    summary: 'DeepSeek simplification now streams through Karin locally, keeping API keys out of the browser bundle and tunnel responses.',
+  },
+  {
+    version: 'v.156',
+    title: 'Format original commands',
+    summary: 'Original shell inputs now show command steps, working directory, timeout, and raw payload separately.',
+    detail:
+      'The Original view no longer falls back to a single dense object string for shell commands. Karin extracts the command, splits semicolon-separated steps outside quotes, and displays each step in its own readable block. Working directory and timeout become labeled metadata, while the untouched payload remains available under Raw payload for exact traceability.',
+  },
+  {
+    version: 'v.155',
+    title: 'Format every context',
+    summary: 'All injected instruction payloads now use the section renderer across Codex and Claude context paths.',
+    detail:
+      'The readable instruction formatter was previously gated to one Codex context branch, so equivalent injected messages could still fall through to a single raw wall of text. All structured context entries now share the section renderer, while uppercase XML wrappers and AGENTS.md headings are recognized consistently. Existing paragraphs, lists, inline code, and fenced blocks keep their readable spacing.',
+  },
+  {
     version: 'v.154',
     title: 'Add model progress',
     summary: 'Simplification now reports estimated progress and time remaining, with Qwen, D-Flash, and D-Pro choices.',
