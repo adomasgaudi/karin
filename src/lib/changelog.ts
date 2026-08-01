@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.148',
+    title: 'Inline tool usage',
+    summary: 'Tool usage markers now sit before the title, with the duplicate expanded bar removed.',
+  },
+  {
     version: 'v.147',
     title: 'Quiet event rows',
     summary: 'Event rows omit raw step numbers, redundant reasoning labels, and obvious tool wrappers.',

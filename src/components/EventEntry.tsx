@@ -134,6 +134,8 @@ function Row({
   step,
   bar,
   thin,
+  inlineThin,
+  hideBar,
   clamp,
   expandOnOverflow,
   dim,
@@ -151,6 +153,10 @@ function Row({
   // A thin (~4px) always-visible usage bar in the collapsed summary; the full labelled bar
   // lives in the body (expanded). Lets a step show its token weight without a header row.
   thin?: ReactNode
+  // Tool rows place their compact usage markers before the title on the summary line.
+  inlineThin?: boolean
+  // Tool rows already show the compact markers above, so omit the duplicate expanded bar.
+  hideBar?: boolean
   // Render `title` as the row's body text, wrapping up to 3 lines (no separate label/meta) —
   // used for assistant replies, which show their own text instead of an "assistant:" label.
   clamp?: boolean
@@ -185,6 +191,7 @@ function Row({
   const header = (
     <div className={`flex gap-1.5 ${clamp ? 'items-start' : 'items-center'}`}>
       {!disabled && canExpand && <Chevron />}
+      {inlineThin && thin}
       {clamp ? (
         <span className="relative min-w-0 flex-1">
           <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
@@ -214,9 +221,7 @@ function Row({
   const summary = (
     <div className={`flex select-none flex-col gap-px px-2 py-1 text-xs ${disabled || !canExpand ? 'cursor-default' : 'cursor-pointer'}`}>
       {header}
-      {/* Thin token bar hugs the title from below — full width, ~4px, ~0 gap, so it adds
-          almost no vertical space. The full labelled bar lives in the expanded body. */}
-      {thin && <div className="pl-6">{thin}</div>}
+      {!inlineThin && thin && <div className="pl-6">{thin}</div>}
     </div>
   )
   if (disabled) {
@@ -231,7 +236,7 @@ function Row({
         {summary}
       </summary>
       <div className={bodyClass}>
-        {bar}
+        {!hideBar && bar}
         {children}
       </div>
     </details>
@@ -532,7 +537,7 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
             }
             tint={tint}
             step={step}
-            bar={bar} thin={thin}
+            bar={bar} thin={thin} inlineThin hideBar
           >
             <ToolResult tool={item} />
           </Row>
@@ -540,7 +545,7 @@ export default function EventEntry({ entry, usage, rates, unitMode, currency, to
       }
       const item = entry.item as Tool
       return (
-        <Row title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin}>
+        <Row title={<KindTitle kind="tool" name={item.name} />} meta={toolSummaryCodex(item.arguments) || undefined} tint={tint} step={step} bar={bar} thin={thin} inlineThin hideBar>
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Input</div>
           <ReadableToolInput toolName={item.name} argumentsText={item.arguments} />
           <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Output</div>
