@@ -19,6 +19,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.209',
+    title: 'Resilient watcher handoff',
+    summary: 'Codex and Claude watchers now survive preview-held feed files during live updates on Windows.',
+  },
+  {
+    version: 'v.208',
+    title: 'Folder session groups',
+    summary: 'The main session list can now group Codex, Claude, and Warp sessions by their working folder.',
+    detail:
+      'Use the list/folder button beside the source filter to switch between the familiar flat list and grouped folder sections. Grouping uses each source’s normalized project or working directory, preserves the current recency order inside every folder, and keeps search, source filtering, selection, and usage-bar scaling working across the complete visible set. The choice is remembered locally for the next visit.',
+  },
+  {
     version: 'v.207',
     title: 'Unified source views',
     summary: 'Codex now receives Claude’s raw and JSON feed views through the same shared record components and AI bands.',

@@ -66,6 +66,12 @@ function initialShowStepCounts(): boolean {
   return localStorage.getItem('karin-show-step-counts') !== '0'
 }
 
+// Whether the main session list is organized into folder sections instead of one flat list.
+// Keep the existing flat layout as the default so the first launch is unchanged.
+function initialGroupByFolder(): boolean {
+  return localStorage.getItem('karin-group-folders') === '1'
+}
+
 function initialCurrency(): CurrencyMode {
   const saved = localStorage.getItem('karin-currency')
   if (saved === 'usd' || saved === 'usd_cents' || saved === 'eur' || saved === 'eur_cents') return saved
@@ -114,6 +120,7 @@ interface KarinStore {
   subDivisors: Record<SessionSource, number>
   keepStepsOpen: boolean
   showStepCounts: boolean
+  groupByFolder: boolean
   theme: Theme
   view: View
   error: string | null
@@ -137,6 +144,7 @@ interface KarinStore {
   setSubDivisor: (source: SessionSource, n: number) => void
   setKeepStepsOpen: (keep: boolean) => void
   setShowStepCounts: (show: boolean) => void
+  setGroupByFolder: (group: boolean) => void
   setError: (msg: string | null) => void
   setView: (v: View) => void
   toggleTheme: () => void
@@ -249,6 +257,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   },
   keepStepsOpen: initialKeepStepsOpen(),
   showStepCounts: initialShowStepCounts(),
+  groupByFolder: initialGroupByFolder(),
   theme: initialTheme(),
   view: 'sessions',
   error: null,
@@ -485,6 +494,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setShowStepCounts: (show) => {
     localStorage.setItem('karin-show-step-counts', show ? '1' : '0')
     set({ showStepCounts: show })
+  },
+  setGroupByFolder: (group) => {
+    localStorage.setItem('karin-group-folders', group ? '1' : '0')
+    set({ groupByFolder: group })
   },
   setError: (msg) => set({ error: msg }),
   setView: (v) => set({ view: v }),

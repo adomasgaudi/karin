@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { Folder, List, Search } from 'lucide-react'
 import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
@@ -35,6 +35,18 @@ function projectLabel(cwd: string | null, slug: string | null): string | null {
     if (parts.length) return parts[parts.length - 1]
   }
   return slug
+}
+
+// All three sources can provide a working/project directory, but they store it in
+// different fields. UnifiedSession keeps both forms so the sidebar can group them
+// without knowing which indexer produced the row.
+function sessionFolder(session: { projectCwd: string | null; cwd: string | null; projectSlug: string | null }): string | null {
+  const folder = session.projectCwd || session.cwd || session.projectSlug
+  return folder?.replace(/[\\/]+$/, '') || null
+}
+
+function folderLabel(folder: string | null): string {
+  return folder ? projectLabel(folder, null) || folder : 'No folder'
 }
 
 function windowName(minutes: number | null): string {
@@ -75,6 +87,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const search = useKarin((s) => s.search)
   const setSearch = useKarin((s) => s.setSearch)
   const sourceFilter = useKarin((s) => s.sourceFilter)
+  const groupByFolder = useKarin((s) => s.groupByFolder)
+  const setGroupByFolder = useKarin((s) => s.setGroupByFolder)
   // Global usage-unit toggle (shared with the session detail) so it re-expresses
   // every token display at once, not just this pane's bars.
   const unitMode = useKarin((s) => s.unitMode)
@@ -104,6 +118,17 @@ export default function Sidebar({ className }: SidebarProps) {
     return { session: s, rates, unitTotal: usageUnitTotal(s.latest_total_usage, rates, unitMode, tokenRef, tokenMult) }
   })
   const scaleMax = Math.max(0, ...rows.map((r) => r.unitTotal))
+  const folderGroups = (() => {
+    const groups = new Map<string, { folder: string | null; rows: typeof rows }>()
+    rows.forEach((row) => {
+      const folder = sessionFolder(row.session)
+      const key = folder || '__no-folder__'
+      const group = groups.get(key)
+      if (group) group.rows.push(row)
+      else groups.set(key, { folder, rows: [row] })
+    })
+    return [...groups.values()]
+  })()
   // Sessions are merged newest-first, so the first snapshot is the freshest account-level
   // Codex rate-limit response available in the local feed.
   const rateLimits = sessions.find((s) => s.rateLimits)?.rateLimits ?? null
@@ -207,6 +232,19 @@ export default function Sidebar({ className }: SidebarProps) {
           )}
           </div>
           <SourceCycle />
+          <button
+            type="button"
+            onClick={() => setGroupByFolder(!groupByFolder)}
+            aria-pressed={groupByFolder}
+            aria-label={groupByFolder ? 'Show a flat session list' : 'Group sessions by folder'}
+            title={groupByFolder ? 'Grouped by folder — click for a flat list' : 'Flat list — click to group by folder'}
+            className={cn(
+              'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800',
+              groupByFolder && 'border-neutral-400 bg-neutral-200 text-neutral-950 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-50',
+            )}
+          >
+            {groupByFolder ? <Folder className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
+          </button>
           {/* Panel spans the whole toolbar row (its `relative` ancestor), not the tiny "?"
               button, so its fixed width can't overflow the window's left edge. */}
           {unitMode === 'money' && priceInfoOpen && (
@@ -228,60 +266,76 @@ export default function Sidebar({ className }: SidebarProps) {
         {list.length === 0 ? (
           <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No sessions match.</p>
         ) : (
-          <ul className="flex flex-col gap-0.5">
-            {rows.map(({ session: s, rates }) => {
-              const selected = s.uid === selectedUid
-              // Every source gets a compact project label from its project cwd or working cwd.
-              const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
-              return (
-                <li key={s.uid}>
-                  <button
-                    type="button"
-                    onClick={() => useKarin.getState().select(s.uid)}
-                    className={cn(
-                      'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
-                      selected
-                        ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
-                        : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
-                    )}
+          <div className="flex flex-col gap-2">
+            {(groupByFolder ? folderGroups : [{ folder: null, rows }]).map(({ folder, rows: groupRows }) => (
+              <section key={groupByFolder ? folder || '__no-folder__' : 'all-sessions'}>
+                {groupByFolder && (
+                  <div
+                    className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[0.65rem] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+                    title={folder || 'Sessions without a folder'}
                   >
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <SourceMark source={s.source} state={s.turnState} />
-                      <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
-                          {s.title || s.id}
-                        </span>
-                        {project && (
-                          <span
-                            className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
-                            title={s.projectCwd || s.cwd || project}
-                          >
-                            · {project}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-[22px] -mt-px min-w-0">
-                      <UsageBar
-                        usage={s.latest_total_usage || {}}
-                        rates={rates}
-                        mode={unitMode}
-                        currency={currency}
-                        tokenRef={tokenRef}
-                        tokenMult={tokenMult}
-                        compact
-                        bare
-                        inlineLabels
-                        hideSegmentLabels
-                        showLegend={false}
-                        scaleMax={scaleMax}
-                      />
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+                    <Folder className="h-3 w-3 shrink-0" />
+                    <span className="min-w-0 truncate">{folderLabel(folder)}</span>
+                    <span className="ml-auto shrink-0 font-normal tabular-nums text-neutral-400 dark:text-neutral-500">{groupRows.length}</span>
+                  </div>
+                )}
+                <ul className="flex flex-col gap-0.5">
+                  {groupRows.map(({ session: s, rates }) => {
+                    const selected = s.uid === selectedUid
+                    // Every source gets a compact project label from its project cwd or working cwd.
+                    const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
+                    return (
+                      <li key={s.uid}>
+                        <button
+                          type="button"
+                          onClick={() => useKarin.getState().select(s.uid)}
+                          className={cn(
+                            'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
+                            selected
+                              ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
+                              : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <SourceMark source={s.source} state={s.turnState} />
+                            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                              <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+                                {s.title || s.id}
+                              </span>
+                              {project && (
+                                <span
+                                  className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
+                                  title={s.projectCwd || s.cwd || project}
+                                >
+                                  · {project}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="ml-[22px] -mt-px min-w-0">
+                            <UsageBar
+                              usage={s.latest_total_usage || {}}
+                              rates={rates}
+                              mode={unitMode}
+                              currency={currency}
+                              tokenRef={tokenRef}
+                              tokenMult={tokenMult}
+                              compact
+                              bare
+                              inlineLabels
+                              hideSegmentLabels
+                              showLegend={false}
+                              scaleMax={scaleMax}
+                            />
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </aside>

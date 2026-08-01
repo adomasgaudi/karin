@@ -978,7 +978,12 @@ def atomic_write_text(path: Path, text: str) -> None:
     temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         temp.write_text(text, encoding="utf-8")
-        os.replace(temp, path)
+        try:
+            os.replace(temp, path)
+        except PermissionError:
+            # Vite preview can keep the served feed open without delete sharing.
+            # Fall back to an in-place copy so the watcher stays alive on Windows.
+            shutil.copy2(temp, path)
     finally:
         temp.unlink(missing_ok=True)
 
