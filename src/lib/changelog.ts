@@ -19,6 +19,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.154',
+    title: 'Add model progress',
+    summary: 'Simplification now reports estimated progress and time remaining, with Qwen, D-Flash, and D-Pro choices.',
+  },
+  {
     version: 'v.153',
     title: 'Format tool simplification',
     summary: 'Original inputs now wrap cleanly, while Simple mode preserves command keywords in a formatted walkthrough under twenty words.',
