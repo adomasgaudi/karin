@@ -173,16 +173,21 @@ function Row({
   children: ReactNode
 }) {
   const previewRef = useRef<HTMLSpanElement>(null)
+  const fullRef = useRef<HTMLSpanElement>(null)
   const [overflows, setOverflows] = useState(false)
   useLayoutEffect(() => {
-    if (!expandOnOverflow) return
-    const node = previewRef.current
-    if (!node) return
-    const measure = () => setOverflows(node.scrollHeight > node.clientHeight + 1)
+    if (!expandOnOverflow) {
+      setOverflows(false)
+      return
+    }
+    const previewNode = previewRef.current
+    const fullNode = fullRef.current
+    if (!previewNode || !fullNode) return
+    const measure = () => setOverflows(fullNode.scrollHeight > previewNode.clientHeight + 1)
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(measure)
-    observer.observe(node)
+    observer.observe(previewNode)
     return () => observer.disconnect()
   }, [expandOnOverflow, title])
   const canExpand = expandable && (!expandOnOverflow || overflows)
@@ -191,7 +196,18 @@ function Row({
       {!disabled && canExpand && <Chevron />}
       <NumBadge n={num} />
       {clamp ? (
-        <span ref={previewRef} className="min-w-0 flex-1 line-clamp-3 font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+        <span className="relative min-w-0 flex-1">
+          <span ref={previewRef} className="block line-clamp-3 break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200">{title}</span>
+          {expandOnOverflow && (
+            <span
+              ref={fullRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 block invisible break-words font-normal leading-snug text-neutral-700 dark:text-neutral-200"
+            >
+              {title}
+            </span>
+          )}
+        </span>
       ) : (
         <>
           <span className="shrink-0 font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
@@ -433,7 +449,8 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
           <Row
             num={num}
             clamp
-            expandable={false}
+            expandOnOverflow={Boolean(item.text?.trim())}
+            expandable={Boolean(item.text?.trim())}
             title={preview(item.text) || '(no text)'}
             badge={!singleModel && tag ? <Pill>{tag}</Pill> : undefined}
             tint={tint}
@@ -454,7 +471,7 @@ export default function EventEntry({ entry, num, usage, rates, unitMode, currenc
         <Row
           num={num}
           clamp
-          expandOnOverflow={!structuredMessage}
+          expandOnOverflow={Boolean(item.text?.trim())}
           expandable={Boolean(item.text?.trim())}
           title={`${item.role}: ${preview(item.text)}`}
           badge={tag ? <Pill>{tag}</Pill> : undefined}

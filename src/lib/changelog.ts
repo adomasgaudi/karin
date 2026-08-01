@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.145',
+    title: 'Restore full entry access',
+    summary: 'Long replies and prompts regain expansion, while complete titles stay compact without redundant disclosures.',
+    detail:
+      'Assistant messages were accidentally marked non-expandable, and the overflow detector measured the already-clamped preview. The shared row now compares visible height with an invisible full-text copy, so long entries always expose their complete body. Prompt-only cycles likewise retain the prompt row when their cycle title is clipped, while short complete titles remain non-expandable.',
+  },
+  {
     version: 'v.144',
     title: 'Keep tool rows visible',
     summary: 'Active Codex sessions retain fresh tool-call rows while full lazy bodies catch up.',

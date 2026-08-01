@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SessionSource } from '../types'
 import type { Cycle as CycleData, UnifiedEntry } from '../lib/unifiedCycles'
 import { attributeCycleUsage, cycleOrigin, cyclePrompt, cycleStepCount, cycleTiming, cycleUsage, entryBand, isContextOnlyCycle, stepDurations } from '../lib/unifiedCycles'
@@ -65,12 +65,26 @@ export default function Cycle({
   // What human touchpoint opened this cycle: a fresh prompt, a mid-turn interjection,
   // or the owner's answer to an AI question. A small tag makes the shape legible.
   const origin = cycleOrigin(cycle)
+  const prompt = cyclePrompt(cycle)
+  const promptRef = useRef<HTMLSpanElement>(null)
+  const [promptOverflows, setPromptOverflows] = useState(false)
+  useLayoutEffect(() => {
+    const node = promptRef.current
+    if (!node) return
+    const measure = () => setPromptOverflows(node.scrollWidth > node.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [prompt])
   // The cycle title already names a cycle containing only its opening prompt. Do not
   // repeat that same prompt as the sole child when there is no additional cycle data.
   const onlyPromptCycle =
     cycle.items.length === 1 &&
     cycle.items[0]?.kind === 'message' &&
     (cycle.items[0].item as { role?: string }).role === 'user'
+  const hideOnlyPrompt = onlyPromptCycle && !promptOverflows
 
   // Split the cycle into authorship bands: each human touchpoint is its own row, the
   // injected context it did not choose folds into a hooks band, and everything the AI
@@ -100,7 +114,7 @@ export default function Cycle({
     seg++
   }
   for (const entry of cycle.items) {
-    if (onlyPromptCycle) continue
+    if (hideOnlyPrompt) continue
     const band = entryBand(entry)
     if (band === 'human') {
       flushBands()
@@ -151,13 +165,14 @@ export default function Cycle({
             </span>
           )}
           <span
+            ref={promptRef}
             className={`min-w-0 flex-1 truncate ${
               contextOnly
                 ? 'text-[0.7rem] font-normal italic text-neutral-400 dark:text-neutral-500'
                 : 'font-medium text-neutral-900 dark:text-neutral-100'
             }`}
           >
-            {cyclePrompt(cycle)}
+            {prompt}
           </span>
           <span
             className="shrink-0 whitespace-nowrap font-mono text-[0.62rem] text-neutral-500 dark:text-neutral-400"
