@@ -15,7 +15,7 @@ import {
   type UsageUnitMode,
 } from '../lib/pricing'
 import { fmtCompact, fmtCurrency } from '../lib/format'
-import EventEntry, { SessionMetaGroup, isSessionMeta as entryIsSessionMeta } from './EventEntry'
+import EventEntry, { SessionMetaGroup, isSessionMeta as entryIsSessionMeta, toolLabel } from './EventEntry'
 import UsageBar from './UsageBar'
 
 // Local style tokens mirror EventEntry's compact row look (kept here so the two files
@@ -201,7 +201,73 @@ export function ActionBand({
           </span>
         )}
       </summary>
-      <div className="pb-1 pl-2">{actions.map((a) => actionRow(a, actionUsage.get(a), d))}</div>
+      <div className="pb-1 pl-2">
+        {toolRuns(actions).map((run) =>
+          run.length === 1
+            ? actionRow(run[0], actionUsage.get(run[0]), d)
+            : <ToolRun key={`run-${d.numFor.get(run[0]) ?? run[0].line}`} entries={run} usageOf={actionUsage} d={d} />,
+        )}
+      </div>
+    </details>
+  )
+}
+
+// --- Repeated-tool run -----------------------------------------------------
+// Nine consecutive Reads were nine near-identical rows whose only difference was the
+// filename. Fold a run of ≥2 consecutive calls to the SAME tool into one row that names
+// the tool once, lists the targets, and sums their tokens. Opening it gives back the
+// original rows untouched.
+const RUN_MIN = 2
+
+function toolRuns(actions: UnifiedEntry[]): UnifiedEntry[][] {
+  const runs: UnifiedEntry[][] = []
+  for (const a of actions) {
+    const prev = runs[runs.length - 1]
+    const name = a.kind === 'tool' ? toolLabel(a).name : ''
+    const prevName = prev && prev[0].kind === 'tool' ? toolLabel(prev[0]).name : ''
+    if (name && prev && name === prevName) prev.push(a)
+    else runs.push([a])
+  }
+  // A run of one never groups; a run shorter than the threshold splits back into rows.
+  return runs.flatMap((r) => (r.length >= RUN_MIN ? [r] : r.map((e) => [e])))
+}
+
+function ToolRun({
+  entries,
+  usageOf,
+  d,
+}: {
+  entries: UnifiedEntry[]
+  usageOf: Map<UnifiedEntry, EntryUsage>
+  d: BandDisplay
+}) {
+  const name = toolLabel(entries[0]).name
+  const targets = entries.map((e) => toolLabel(e).meta).filter(Boolean).join(', ')
+  let usage: TokenUsage = {}
+  let estimated = false
+  for (const e of entries) {
+    const u = usageOf.get(e)
+    if (!u) continue
+    usage = addUsage(usage, u.usage)
+    if (u.estimated) estimated = true
+  }
+  const fig = figure(usage, d)
+
+  return (
+    <details className={`${rowBase} border-l-emerald-300 dark:border-l-emerald-800`}>
+      <summary className={summaryClass}>
+        <Chevron />
+        <BandTokens usage={usage} estimated={estimated} d={d} />
+        <span className="shrink-0 font-semibold text-neutral-800 dark:text-neutral-100">{name}</span>
+        <span className="shrink-0 text-neutral-400 dark:text-neutral-500">×{entries.length}</span>
+        <span className="min-w-0 flex-1 truncate font-normal text-neutral-500 dark:text-neutral-400">{targets}</span>
+        {fig && (
+          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 font-mono text-[0.6rem] text-neutral-500 dark:text-neutral-400">
+            {fig}
+          </span>
+        )}
+      </summary>
+      <div className="pb-1 pl-2">{entries.map((e) => actionRow(e, usageOf.get(e), d))}</div>
     </details>
   )
 }

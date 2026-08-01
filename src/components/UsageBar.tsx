@@ -16,6 +16,14 @@ const EURO_CENTS_PER_USD = EUR_PER_USD * 100
 const MAX_BLOCK_LINE_PX = 260
 const FULL_BLOCK_PX = 5
 const DOT_BLOCK_PX = 3
+const POINT_BLOCK_PX = 2
+
+// Three tiers so a bar always has something to count. A single mark is worth 0.1c below
+// five cents, 1c below fifty, 10c above — otherwise a €0.01 step showed one lonely square
+// and a €5 one showed a wall.
+type BlockShape = 'point' | 'dot' | 'box'
+const BLOCK_UNIT: Record<BlockShape, number> = { point: 0.1, dot: 1, box: 10 }
+const BLOCK_PX: Record<BlockShape, number> = { point: POINT_BLOCK_PX, dot: DOT_BLOCK_PX, box: FULL_BLOCK_PX }
 
 type Segment = {
   key: 'freshInput' | 'cachedInput' | 'cacheCreate' | 'output' | 'reasoning'

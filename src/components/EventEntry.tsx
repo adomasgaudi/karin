@@ -245,7 +245,10 @@ function Row({
       {/* Token markers sit before the text on EVERY row, the way tool rows always did.
           Rendering them under the text for some kinds made those rows read as a
           different shape and pushed their titles out of line with the rest. */}
-      {thin}
+      {/* Open rows show the full labelled bar in the body, so the thin summary copy would
+          be the same squares twice on screen. Hide it while open — rows that suppress the
+          body bar (hideBar) keep theirs, since it is their only marker. */}
+      {thin && <span className={!hideBar && bar ? '[[open]_&]:hidden' : ''}>{thin}</span>}
       {/* No `block` on the clamped title: line-clamp needs display:-webkit-box, and
           `block` overrode it, which let a whitespace-collapsed preview render as a
           full-height wall instead of three lines. */}
@@ -534,6 +537,18 @@ function metaLabel(item: ClaudeContext | ContextBlock): string {
   if (n.startsWith('mode/')) return `mode: ${n.slice(5)}`
   if (n.startsWith('permission-mode/')) return `permission: ${n.slice('permission-mode/'.length)}`
   return n
+}
+
+// The tool name + its one-line argument summary, as the collapsed row shows them. Exported
+// so a run of same-tool calls can be folded into one header without duplicating the logic.
+export function toolLabel(entry: Entry): { name: string; meta: string } {
+  if (entry.kind !== 'tool') return { name: '', meta: '' }
+  if (entry.source === 'claude') {
+    const item = entry.item as ClaudeTool
+    return { name: item.name, meta: toolSummary(item.input, item.name) }
+  }
+  const item = entry.item as Tool
+  return { name: item.name, meta: toolSummaryCodex(item.arguments) }
 }
 
 export function isSessionMeta(entry: Entry): boolean {

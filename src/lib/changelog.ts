@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.224',
+    title: 'Live updates are live again',
+    summary: 'The Claude index dropped from 179 MB to 50 MB, so a change shows up in about a second instead of minutes.',
+    detail:
+      'Each auto-title op is a whole nested session, and split_payload never descended into them — so 103 MB of op records, contexts, usage frames and tools sat inside the supposedly "light" index. Every keystroke in any transcript rewrote all 179 MB and made the browser re-download and re-parse it. The ops\' heavy arrays now live in their parent\'s body file and are re-attached by id on open. `thinking` moved into the body too (another 25 MB); `messages` deliberately stayed, since the sidebar reads it for turn state and titles before a session is hydrated.',
+  },
+  {
     version: 'v.223',
     title: 'Quieter context cycles',
     summary: 'A "context only" cycle no longer repeats the word "context", and queue rows are hidden.',

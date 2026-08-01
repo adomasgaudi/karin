@@ -41,8 +41,11 @@ BODIES_REL = Path("sessions") / "claude"
 BODIES_DIR = DATA_DIR / BODIES_REL
 WATCH_LOCK = DATA_DIR / ".karin-claude-watch.lock"
 
-# Heavy arrays moved out of the index into a per-session body file.
-BODY_FIELDS = ("records", "subagents", "usage_frames", "tools", "contexts", "code_edits")
+# Heavy arrays moved out of the index into a per-session body file. `messages` is
+# deliberately NOT here: the sidebar needs it unhydrated for turn state and the title
+# fallback. `thinking` is safe — only the open session's cycles and audit read it, and
+# the search haystack is precomputed here at index level.
+BODY_FIELDS = ("records", "subagents", "usage_frames", "tools", "contexts", "code_edits", "thinking")
 
 # Truncate any single string value longer than this (keeps giant attachments /
 # deferred_tools_delta payloads from bloating the dataset).

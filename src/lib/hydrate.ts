@@ -16,7 +16,7 @@ import type { ClaudeDetailSession } from './claudeModel'
 // Kept in step with BODY_FIELDS in bin/karin.py and bin/karin_claude.py.
 const BODY_FIELDS: Record<'codex' | 'claude', string[]> = {
   codex: ['records', 'runtime_events', 'tools', 'contexts', 'code_edits'],
-  claude: ['records', 'subagents', 'usage_frames', 'tools', 'contexts', 'code_edits'],
+  claude: ['records', 'subagents', 'usage_frames', 'tools', 'contexts', 'code_edits', 'thinking'],
 }
 
 // Mirrors safe_file_stem() in the indexers: ids are used as filenames, so anything that
