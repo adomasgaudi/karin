@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.234',
+    title: 'Rust viewer gets light mode',
+    summary: 'karin-rs adds a light theme, a project-folder view, an A-Z sort, and real session titles.',
+    detail:
+      'The native viewer no longer hardcodes dark grays: a dark/light toggle swaps egui visuals and every secondary color now derives from the active theme. A third "project" mode groups sessions under the folder they ran in, named by the real cwd read out of the transcript rather than the mangled directory (~/.claude/projects/c--Users-... becomes karin-rust); colliding names widen to parent/name, and Codex date buckets stay dates because one day mixes projects. Rows show the first human prompt instead of a UUID, read from the head of each file, at most 24 fresh reads per frame so a large folder fills in over a few frames rather than stalling. Theme and sort persist in ~/.karin-rs.conf, and the header now shows the version.',
+  },
+  {
     version: 'v.233',
     title: 'Karin opens from the desktop',
     summary: 'A Desktop shortcut now launches the Electron app, rebuilding only when sources changed.',

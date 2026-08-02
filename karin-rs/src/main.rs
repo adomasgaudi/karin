@@ -2,6 +2,10 @@
 
 mod app;
 mod index;
+mod meta;
+
+/// Owner-facing version, kept in step with `src/lib/appVersion.ts`.
+pub const APP_VERSION: &str = "v.234";
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
