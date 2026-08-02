@@ -258,9 +258,20 @@ export default defineConfig(({ mode }) => {
   // Vite's DNS-rebinding guard, for both the dev server (:5173) and preview (:4173) —
   // this is what makes `./karin.ps1 -Tunnel` reachable. localhost stays allowed by default.
   const tunnelHosts = ['.trycloudflare.com']
+  // Directories the dev server must NOT watch.
+  //
+  // Vite watches the project root recursively, which here means it also watches every git
+  // worktree under .claude/ — including a Rust target/ dir. A build writing a .pdb there
+  // made chokidar throw EBUSY, and an unhandled watcher error takes the whole dev server
+  // down (`vite exited with code 1`), which reads as "Electron failed to start".
+  //
+  // data/ is excluded for a different reason: the indexers rewrite ~48 MB of feed there
+  // every few seconds, so watching it is a constant stream of events for files no module
+  // graph depends on — the middleware serves them straight off disk per request.
+  const watchIgnored = ['**/.claude/**', '**/.git/**', '**/dist/**', '**/data/**', '**/node_modules/**']
   return {
     base: './',
-    server: { allowedHosts: tunnelHosts },
+    server: { allowedHosts: tunnelHosts, watch: { ignored: watchIgnored } },
     preview: { allowedHosts: tunnelHosts },
     plugins: [react(), tailwindcss(), serveLocalData(), deepSeekProxy(deepSeekKey), watcherControl(), ...(isLocal ? [bundleLocalData()] : [])],
   }

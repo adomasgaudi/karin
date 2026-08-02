@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.234',
+    title: 'Dev server stops watching junk',
+    summary: 'A Rust build inside a git worktree could kill the dev server outright; it no longer watches worktrees or data/.',
+    detail:
+      'Vite watches the project root recursively, which included the git worktrees under .claude/ — one of them holding a 360 MB Rust target/ directory. A build writing a .pdb there made the file watcher throw EBUSY, and an unhandled watcher error takes the whole dev server down, which presents as Electron failing to start rather than as a watcher problem. data/ is excluded too, for a different reason: the indexers rewrite roughly 48 MB of feed there every few seconds, and no module depends on those files — the middleware serves them off disk per request.',
+  },
+  {
     version: 'v.233',
     title: 'Karin opens from the desktop',
     summary: 'A Desktop shortcut now launches the Electron app, rebuilding only when sources changed.',
