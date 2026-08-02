@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.233',
+    title: 'Karin opens from the desktop',
+    summary: 'A Desktop shortcut now launches the Electron app, rebuilding only when sources changed.',
+    detail:
+      'karin-app.ps1 is what the shortcut runs. The Electron shell reads ~/.claude and ~/.codex straight from the renderer, so it needs no server, no watchers and no data feeds — only a current dist/. The script compares the newest write in src/, index.html and vite.config.ts against dist/index.html and skips the build when nothing changed, so a normal double-click opens in about two seconds. It builds with build:local, not build, because dist/ is shared with the :4173 local deploy and a plain build ships no data. A failed build retries once (Vite emptying dist/ can collide with a watcher writing dist/data) and then falls back to the previous bundle rather than opening nothing.',
+  },
+  {
     version: 'v.232',
     title: 'Toolbar menus open instantly',
     summary: 'Opening a dropdown was redrawing all ~1000 session rows; each row is now memoized and only redraws when it changes.',

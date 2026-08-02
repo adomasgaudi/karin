@@ -43,7 +43,24 @@ if (-not (Test-Path -LiteralPath (Join-Path $KarinHome "node_modules"))) {
 
 if ($Force -or (Test-BuildStale)) {
     Write-Output "Building Karin (sources changed since the last build)..."
-    pnpm build
+    # build:local, NOT build: dist/ is shared with the :4173 local deploy, and plain `build`
+    # ships no data/ - rebuilding with it would silently empty that page's feeds.
+    pnpm build:local
+    if ($LASTEXITCODE -ne 0) {
+        # Vite empties dist/ first, and a watcher writing dist/data at that instant makes the
+        # delete fail with EPERM. One retry clears it; a real error survives both.
+        Write-Warning "Build failed - retrying once..."
+        pnpm build:local
+    }
+    if ($LASTEXITCODE -ne 0) {
+        if (Test-Path -LiteralPath (Join-Path $KarinHome "dist\assets")) {
+            Write-Warning "Build still failing - opening the PREVIOUS build instead."
+        } else {
+            Write-Error "Build failed and there is no usable dist/ to fall back on."
+            Read-Host "Press Enter to close"
+            exit 1
+        }
+    }
 } else {
     Write-Output "Build is current - opening Karin..."
 }

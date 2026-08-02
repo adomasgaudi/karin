@@ -105,6 +105,7 @@ verify `curl -s -o /dev/null -w "%{http_code}" http://localhost:4173/` is `200`.
 | `bin/karin_warp.py` | Python indexer: Warp's SQLite → `data/warp-raw.json` (see below) |
 | `src/lib/warpRaw.ts` | Warp feed types + `isWarpRawData` guard |
 | `karin.ps1` | Windows launcher (local deploy, or `-Dev` dev server) |
+| `karin-app.ps1` | What the **Desktop shortcut** (`Karin.lnk`) runs: rebuild-if-stale, then open the Electron window. No server, no watchers |
 | `vite.config.ts` | Build config; `--mode offline` = the local build. **`DATA_FILES` is an allowlist — a new feed must be added there or it never reaches `dist/data/`.** |
 
 `data/` (generated) and `dist/` (built) are git-ignored — never commit them.
