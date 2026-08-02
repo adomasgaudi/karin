@@ -16,7 +16,32 @@ export type UsageUnitMode = 'tokens' | 'token_units' | 'money'
 export type TokenUnitRef = 'input' | 'cached' | 'output' | 'scaled'
 
 // How monetary amounts are displayed. Cents variants multiply by 100.
-export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
+//
+// The coin_* variants render an amount as counts of coin denominations instead of a
+// decimal — "3×10c 7×1c" rather than "37.4¢". A number like 0.00037 says nothing about
+// scale at a glance; "1×0.1c" does. Each mode adds a finer denomination, so the same
+// figure can be read coarse or exact without changing what is being measured.
+export type CurrencyMode =
+  | 'usd'
+  | 'usd_cents'
+  | 'eur'
+  | 'eur_cents'
+  | 'coin_10'
+  | 'coin_1_10'
+  | 'coin_01_1_10'
+
+// Denominations per coin mode, coarsest first. The finest one absorbs the remainder.
+export const COIN_DENOMINATIONS: Record<'coin_10' | 'coin_1_10' | 'coin_01_1_10', number[]> = {
+  coin_10: [10],
+  coin_1_10: [10, 1],
+  coin_01_1_10: [10, 1, 0.1],
+}
+
+export function coinDenominations(currency: CurrencyMode): number[] | null {
+  return currency in COIN_DENOMINATIONS
+    ? COIN_DENOMINATIONS[currency as keyof typeof COIN_DENOMINATIONS]
+    : null
+}
 
 // WHICH price the money mode shows — this is the toggle that answers "what kind of
 // price is this?".
@@ -190,9 +215,20 @@ export const CURRENCY_LABELS: Record<CurrencyMode, string> = {
   usd_cents: '¢',
   eur: '€',
   eur_cents: '€¢',
+  coin_10: '10c',
+  coin_1_10: '1c+10c',
+  coin_01_1_10: '0.1c+1c+10c',
 }
 
-export const currencyModes: CurrencyMode[] = ['usd', 'usd_cents', 'eur', 'eur_cents']
+export const currencyModes: CurrencyMode[] = [
+  'usd',
+  'usd_cents',
+  'eur',
+  'eur_cents',
+  'coin_10',
+  'coin_1_10',
+  'coin_01_1_10',
+]
 
 export const priceBasisModes: PriceBasis[] = ['api', 'sub']
 

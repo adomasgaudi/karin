@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.230',
+    title: 'Coin modes for money',
+    summary: 'Money can now be counted in coin denominations — 10c, 1c+10c, or 0.1c+1c+10c — instead of a decimal.',
+    detail:
+      'Three new steps on the currency toggle, after $ ¢ € €¢. A cost of $0.374 reads as "4×10c", "3×10c 7×1c", or "3×10c 7×1c 4×0.1c" depending on how fine you want it. Coarse denominations take whole counts and the finest absorbs the remainder, so the terms always re-add to the amount at that resolution. Always US cents: the point of a coin is the size of the denomination, and folding an FX rate in would make two readings on the same screen incomparable. Because it rides the existing currency toggle it applies everywhere money already appears — session bars, cycle bands, per-step figures and the sidebar.',
+  },
+  {
     version: 'v.229',
     title: 'Current time in the header',
     summary: 'The pinned title now shows the live clock beside the last step\'s time, both h:MM:ss.',

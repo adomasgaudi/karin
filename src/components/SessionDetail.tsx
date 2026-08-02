@@ -392,6 +392,7 @@ export default function SessionDetail() {
             <button
               type="button"
               onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
+              title="How money is written: $ · ¢ · € · €¢, then coin modes that count denominations instead of printing a decimal — 10c, 1c+10c, 0.1c+1c+10c (always US cents)."
               className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
             >
               {CURRENCY_LABELS[currency]}

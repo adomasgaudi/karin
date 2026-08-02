@@ -331,6 +331,7 @@ export default function Sidebar({ className }: SidebarProps) {
             <button
               type="button"
               onClick={() => setCurrency(currencyModes[(currencyModes.indexOf(currency) + 1) % currencyModes.length])}
+              title="How money is written: $ · ¢ · € · €¢, then coin modes that count denominations instead of printing a decimal — 10c, 1c+10c, 0.1c+1c+10c (always US cents)."
               className="shrink-0 px-1.5 py-0.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
             >
               {CURRENCY_LABELS[currency]}
