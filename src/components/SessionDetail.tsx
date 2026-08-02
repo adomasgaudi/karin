@@ -32,8 +32,8 @@ import SourceBadge from './SourceBadge'
 import RecordRow from './RecordRow'
 import { WorkspaceRootContext } from './JsonView'
 
-// structured = the rendered cycles · raw = per-record rows · json = the untouched
-// feed records dumped as JSONL, no formatting of any kind.
+// structured = the rendered cycles · raw = per-record rows, opened on the readable tree ·
+// json = the same rows opened on the faithful stored shape, plus JSONL copy/download.
 type DetailMode = 'structured' | 'raw' | 'json'
 const DETAIL_MODES: DetailMode[] = ['structured', 'raw', 'json']
 // One button cycles the three views, so the header carries an icon instead of a
@@ -58,18 +58,23 @@ function LiveClock() {
 const selectClass =
   'h-8 min-w-0 max-w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs text-neutral-800 outline-none focus:border-neutral-400 focus:bg-white dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-600 dark:focus:bg-neutral-950'
 
-// The feed's records, dumped exactly as they are — one JSON object per line, the
-// JSONL shape they were read in. `_line` / `_type` are the indexer's own decorations
-// and are kept, because hiding them would make this NOT the stored data.
-function JsonDump({ records, uid }: { records: FeedRecord[]; uid: string }) {
-  const text = useMemo(
-    () => records.map((rec) => JSON.stringify(rec)).join('\n'),
-    [records],
-  )
+// The feed's records, exactly as stored — `_line` / `_type` decorations kept, keys in
+// their source spelling, nothing renamed or unwrapped. What changed is only the
+// PRESENTATION: instead of a wall of `JSON.stringify` lines, each record is a row that
+// opens into RawJson's collapsible key→value tree (the same one behind the Raw tab's
+// "Raw JSON" toggle). The exact bytes are still one click away per record, and the whole
+// dump still copies and downloads as real JSONL.
+//
+// Rows render their tree only when opened, so a big session costs a list of headers
+// rather than every record's text. The JSONL string is likewise built only when Copy or
+// Download is pressed — serialising a 40 MB transcript just to print a char count was
+// work done on the chance you might want it.
+function JsonDump({ records, uid, now }: { records: FeedRecord[]; uid: string; now: Date }) {
+  const buildText = () => records.map((rec) => JSON.stringify(rec)).join('\n')
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(buildText())
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -77,7 +82,7 @@ function JsonDump({ records, uid }: { records: FeedRecord[]; uid: string }) {
     }
   }
   const download = () => {
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/x-ndjson' }))
+    const url = URL.createObjectURL(new Blob([buildText()], { type: 'application/x-ndjson' }))
     const link = document.createElement('a')
     link.href = url
     link.download = `${uid}.jsonl`
@@ -88,7 +93,7 @@ function JsonDump({ records, uid }: { records: FeedRecord[]; uid: string }) {
     <div className="space-y-2">
       <div className="flex items-center gap-2 px-1">
         <span className="text-[0.68rem] text-neutral-400 dark:text-neutral-500">
-          {records.length} {records.length === 1 ? 'record' : 'records'} · {text.length.toLocaleString()} chars · exactly as stored in the feed
+          {records.length} {records.length === 1 ? 'record' : 'records'} · exactly as stored in the feed
         </span>
         <button
           type="button"
@@ -105,9 +110,15 @@ function JsonDump({ records, uid }: { records: FeedRecord[]; uid: string }) {
           Download .jsonl
         </button>
       </div>
-      <pre className="overflow-x-auto rounded-md border border-neutral-200 bg-white p-2 font-mono text-[0.7rem] leading-relaxed text-neutral-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
-        {text}
-      </pre>
+      {records.length === 0 ? (
+        <p className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No records match this filter.</p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {records.map((rec) => (
+            <RecordRow key={`${rec._line}-${String(rec.uuid ?? '')}`} record={rec} now={now} defaultRaw />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -536,7 +547,7 @@ export default function SessionDetail() {
         {isClaude && <TitleOpsPanel ops={s.titleOps as ClaudeSession[] | undefined} now={now} />}
 
         {mode === 'json' ? (
-          <JsonDump records={shownRecords} uid={s.uid} />
+          <JsonDump records={shownRecords} uid={s.uid} now={now} />
         ) : mode === 'raw' ? (
           <>
             <div className="mb-2 px-1 text-[0.68rem] text-neutral-400 dark:text-neutral-500">

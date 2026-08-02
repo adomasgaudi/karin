@@ -97,12 +97,22 @@ function oneLine(text: string, max = 160): string {
 
 // --------------------------------------------------------------------------
 
-export default function RecordRow({ record, now }: { record: FeedRecord; now: Date }) {
+export default function RecordRow({
+  record,
+  now,
+  defaultRaw = false,
+}: {
+  record: FeedRecord
+  now: Date
+  // The JSON tab opens rows on the faithful view — its whole point is the stored
+  // shape — while the Raw tab keeps the readable one. Same row either way.
+  defaultRaw?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   // Readable key/value tree by default; raw JSON stays one click away for when the
   // exact bytes matter.
-  const [raw, setRaw] = useState(false)
+  const [raw, setRaw] = useState(defaultRaw)
 
   const json = JSON.stringify(record, null, 2)
   const preview = oneLine(recordPreview(record))

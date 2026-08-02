@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.235',
+    title: 'JSON tab reads like JSON',
+    summary: 'The JSON view was a literal JSONL wall; every record is now a collapsible key→value tree.',
+    detail:
+      'Nothing new was written for this — the Raw tab already had RawJson, a faithful viewer that keeps source key spelling and drops only braces, commas and quotes. The JSON tab now reuses the same record row, opened on that view instead of the readable one, so it stays the "exactly as stored" tab while being readable: source keys, _line and _type intact, nothing unwrapped, and each branch collapses. Trees mount only when a row is opened, and the JSONL string is now built when Copy or Download is pressed rather than on load, so opening the tab no longer serialises the whole transcript to print a char count.',
+  },
+  {
     version: 'v.234',
     title: 'Dev server stops watching junk',
     summary: 'A Rust build inside a git worktree could kill the dev server outright; it no longer watches worktrees or data/.',
