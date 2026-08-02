@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.236',
+    title: 'Reload button in the nav',
+    summary: 'A reload button now sits at the right of the top bar, on both Karin versions.',
+    detail:
+      'The 5s poll keeps the feeds current, so this is deliberately not a data re-poll — it is a full window reload, for everything a poll cannot reach: a rebuilt bundle sitting behind the Electron window or :4173, a drifted store, a wedged render. It lives in NavBarShell rather than in either version’s right slot, so v.1 and v.2 cannot disagree about having it. Open cycles and scroll position reset; the selected session comes back from storage.',
+  },
+  {
     version: 'v.235',
     title: 'JSON tab reads like JSON',
     summary: 'The JSON view was a literal JSONL wall; every record is now a collapsible key→value tree.',

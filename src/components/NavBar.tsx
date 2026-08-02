@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CalendarClock, LayoutList, ListChecks, Menu, X } from 'lucide-react'
+import { CalendarClock, LayoutList, ListChecks, Menu, RotateCw, X } from 'lucide-react'
 import { useKarin, type View } from '../store/karin'
 import { cn } from '../lib/cn'
 import SettingsMenu from './SettingsMenu'
@@ -99,8 +99,29 @@ export function NavBarShell<T extends string>({
           {center}
         </div>
       )}
-      {right && <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {right}
+        <ReloadButton />
+      </div>
     </nav>
+  )
+}
+
+// A full window reload, not a data re-poll. The 5s loop already keeps the feeds current,
+// so what this is for is everything a poll can't reach: a rebuilt bundle behind the
+// Electron window or :4173, a store that has drifted, a render wedged by a bad state.
+// It lives in the shared shell so v.1 and v.2 can't disagree about having it.
+function ReloadButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.location.reload()}
+      aria-label="Reload Karin"
+      title="Reload Karin — re-reads every feed and picks up a rebuilt bundle. Open cycles and scroll position reset."
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-neutral-100"
+    >
+      <RotateCw className="h-4 w-4" />
+    </button>
   )
 }
 
