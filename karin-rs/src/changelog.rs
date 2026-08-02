@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.240",
+        title: "An icon, and no terminal",
+        summary: "Karin's glasses as the app icon, and the shortcut opens the window directly.",
+        detail: Some(
+            "The Desktop shortcut ran a .cmd that started a debug build, and a debug build keeps its console — so a terminal appeared first every time. It now points straight at the release binary, which has no console at all. The red glasses mark is drawn in code and rasterised for the window, the taskbar, and the .ico, so the three can never disagree; below 32px the strokes widen and the frame arms drop rather than smearing. The clean/structured/raw switch moved to the left of the file header, where a very wide window can no longer push it off the edge.",
+        ),
+    },
+    Entry {
         version: "v.239",
         title: "Three ways to read a session",
         summary: "Clean, structured, and raw views, with a source mark on every session.",

@@ -495,9 +495,9 @@ impl eframe::App for App {
                 return;
             };
 
+            // The view switch leads this row. Right-aligning it put it past the
+            // edge of a very wide window, where it could not be found at all.
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(short(&path)).monospace());
-                ui.add_space((ui.available_width() - 460.0).max(8.0));
                 ui.selectable_value(&mut self.pane, Pane::Clean, "clean")
                     .on_hover_text("the conversation only");
                 ui.selectable_value(&mut self.pane, Pane::Structured, "structured")
@@ -505,6 +505,8 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.pane, Pane::Raw, "raw")
                     .on_hover_text("the file as written");
                 ui.separator();
+                ui.label(egui::RichText::new(short(&path)).monospace());
+                ui.add_space((ui.available_width() - 260.0).max(8.0));
                 let t = dim(
                     ui,
                     &format!(

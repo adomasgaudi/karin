@@ -173,15 +173,31 @@ Increment by one per material change. End your reply naming the shift, e.g. `v.1
 
 ## Native Rust viewer
 
-The `karin-rs/` crate is the native session viewer in this repository. The owner
-sees the built binary at `karin-rs/target/debug/karin-rs.exe`; source edits are not
-visible there until this command is run from the repository root:
+The `karin-rs/` crate is the native session viewer in this repository.
+
+**The owner runs the RELEASE binary**, `karin-rs/target/release/karin-rs.exe` —
+that is what the Desktop shortcut (`Karin Rust.lnk`) points at, directly, with no
+`.cmd` in between. `windows_subsystem = "windows"` is set only for release, so a
+debug build always flashes a console window; never point the shortcut at one.
+Release takes about 18s to build. Source edits are not visible until:
 
 ```powershell
-& "$env:USERPROFILE\.cargo\bin\cargo.exe" build --manifest-path karin-rs/Cargo.toml
+& "$env:USERPROFILE\.cargo\bin\cargo.exe" build --release --manifest-path karin-rs/Cargo.toml
 ```
 
-Run the refreshed target with `& .\karin-rs\target\debug\karin-rs.exe`.
+🔴 **Never close or restart the owner's karin-rs window.** They keep it open and
+read it while you work. If a build fails with `Access is denied (os error 5)` on
+the exe, that means it is running: ask them to close it, or fall back to `cargo
+check` / `cargo test`, which build a differently-named binary and never collide.
+Verify rendering with unit tests, not by cycling the app.
+
+Debug tooling on the binary itself:
+
+- `--open <file>` preselects a session, so a rendering panic reproduces from the
+  command line instead of by clicking.
+- `--bench` prints the manifest-vs-walk timings on the owner's real session tree.
+- `--write-icon <path>` regenerates the `.ico`; `cargo test` does this too, so
+  `karin-rs/assets/karin.ico` can never drift from `src/icon.rs`.
 
 ## Push policy
 

@@ -2,6 +2,7 @@
 
 mod app;
 mod changelog;
+mod icon;
 mod index;
 mod jsonview;
 mod logo;
@@ -17,11 +18,29 @@ fn main() -> eframe::Result<()> {
         bench();
         return Ok(());
     }
+    // `--write-icon <path>` regenerates the .ico the desktop shortcut uses, from
+    // the same code that draws the window icon. Run it after changing the mark.
+    if let Some(path) = std::env::args()
+        .skip_while(|a| a != "--write-icon")
+        .nth(1)
+        .map(std::path::PathBuf::from)
+    {
+        match icon::write_ico(&path) {
+            Ok(()) => println!("wrote {}", path.display()),
+            Err(e) => eprintln!("could not write {}: {e}", path.display()),
+        }
+        return Ok(());
+    }
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 820.0])
             .with_min_inner_size([640.0, 400.0])
+            .with_icon(egui::IconData {
+                rgba: icon::rgba(64),
+                width: 64,
+                height: 64,
+            })
             .with_title("karin-rs"),
         vsync: false, // never wait a frame we don't have to
         ..Default::default()
