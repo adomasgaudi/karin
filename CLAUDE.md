@@ -171,6 +171,18 @@ Bump the owner-facing `v.N` in **both** spots, keep them in sync:
 
 Increment by one per material change. End your reply naming the shift, e.g. `v.13 → v.14`.
 
+## Native Rust viewer
+
+The `karin-rs/` crate is the native session viewer in this repository. The owner
+sees the built binary at `karin-rs/target/debug/karin-rs.exe`; source edits are not
+visible there until this command is run from the repository root:
+
+```powershell
+& "$env:USERPROFILE\.cargo\bin\cargo.exe" build --manifest-path karin-rs/Cargo.toml
+```
+
+Run the refreshed target with `& .\karin-rs\target\debug\karin-rs.exe`.
+
 ## Push policy
 
 **Commit + push to `main` after every change, automatically — do NOT ask.** The owner

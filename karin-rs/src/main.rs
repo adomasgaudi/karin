@@ -1,11 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod changelog;
 mod index;
+mod jsonview;
 mod meta;
+mod records;
 
-/// Owner-facing version, kept in step with `src/lib/appVersion.ts`.
-pub const APP_VERSION: &str = "v.234";
+/// Owner-facing version, derived from the newest Rust changelog entry.
+pub const APP_VERSION: &str = changelog::APP_VERSION;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {

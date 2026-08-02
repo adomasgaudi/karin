@@ -21,7 +21,9 @@ pub struct Meta {
 
 pub fn read(path: &Path) -> Meta {
     let mut meta = Meta::default();
-    let Ok(file) = File::open(path) else { return meta };
+    let Ok(file) = File::open(path) else {
+        return meta;
+    };
 
     let mut buf = Vec::new();
     if file.take(HEAD_BYTES).read_to_end(&mut buf).is_err() {
@@ -36,7 +38,9 @@ pub fn read(path: &Path) -> Meta {
         if !wants_cwd && !wants_title {
             continue;
         }
-        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
 
         if wants_cwd {
             meta.cwd = find_cwd(&v).map(PathBuf::from);

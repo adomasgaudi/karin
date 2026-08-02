@@ -43,10 +43,13 @@ pub fn home() -> PathBuf {
 
 pub fn default_roots() -> Vec<PathBuf> {
     let h = home();
-    [h.join(".claude").join("projects"), h.join(".codex").join("sessions")]
-        .into_iter()
-        .filter(|p| p.is_dir())
-        .collect()
+    [
+        h.join(".claude").join("projects"),
+        h.join(".codex").join("sessions"),
+    ]
+    .into_iter()
+    .filter(|p| p.is_dir())
+    .collect()
 }
 
 /// Spawns the scan and the watcher. `wake` is called whenever the index changes.
@@ -125,6 +128,32 @@ pub fn start(roots: Vec<PathBuf>, wake: impl Fn() + Send + Clone + 'static) -> S
     shared
 }
 
+/// Re-walk the roots from scratch. The watcher keeps the index live on its own;
+/// this is the answer when something changed while nobody was listening.
+pub fn rescan(shared: &Shared, wake: impl Fn() + Send + 'static) {
+    let roots = {
+        let mut ix = shared.lock().unwrap();
+        ix.scanning = true;
+        ix.roots.clone()
+    };
+    let shared = shared.clone();
+    thread::spawn(move || {
+        let mut found = Vec::new();
+        for root in &roots {
+            scan_into(root, &mut found);
+        }
+        let mut ix = shared.lock().unwrap();
+        ix.files.clear();
+        for rec in found {
+            ix.files.insert(rec.path.clone(), rec);
+        }
+        ix.scanning = false;
+        ix.generation += 1;
+        drop(ix);
+        wake();
+    });
+}
+
 fn stat(path: &Path) -> Option<FileRec> {
     let md = fs::metadata(path).ok()?;
     if !md.is_file() {
@@ -139,7 +168,9 @@ fn stat(path: &Path) -> Option<FileRec> {
 }
 
 fn scan_into(dir: &Path, out: &mut Vec<FileRec>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
@@ -197,7 +228,9 @@ pub fn snapshot(ix: &Index) -> Snapshot {
     }
 
     for rec in ix.files.values() {
-        let Some(parent) = rec.path.parent() else { continue };
+        let Some(parent) = rec.path.parent() else {
+            continue;
+        };
         node(&mut dirs, parent);
         let d = dirs.get_mut(parent).unwrap();
         d.files.push(rec.path.clone());
@@ -205,7 +238,9 @@ pub fn snapshot(ix: &Index) -> Snapshot {
         // Link the chain of parents up to (and including) a root.
         let mut cur = parent.to_path_buf();
         while !ix.roots.contains(&cur) {
-            let Some(up) = cur.parent().map(Path::to_path_buf) else { break };
+            let Some(up) = cur.parent().map(Path::to_path_buf) else {
+                break;
+            };
             node(&mut dirs, &up);
             if seen.insert(cur.clone()) {
                 dirs.get_mut(&up).unwrap().subdirs.push(cur.clone());
@@ -245,7 +280,9 @@ pub fn snapshot(ix: &Index) -> Snapshot {
 
     // Newest first, everywhere. That is the whole point of the view.
     let mtime_of = |p: &PathBuf, dirs: &HashMap<PathBuf, DirNode>| -> SystemTime {
-        dirs.get(p).map(|d| d.mtime).unwrap_or(SystemTime::UNIX_EPOCH)
+        dirs.get(p)
+            .map(|d| d.mtime)
+            .unwrap_or(SystemTime::UNIX_EPOCH)
     };
     let keys: Vec<PathBuf> = dirs.keys().cloned().collect();
     for key in keys {
@@ -253,7 +290,12 @@ pub fn snapshot(ix: &Index) -> Snapshot {
         subdirs.sort_by_key(|p| std::cmp::Reverse(mtime_of(p, &dirs)));
         let mut files = std::mem::take(&mut dirs.get_mut(&key).unwrap().files);
         files.sort_by_key(|p| {
-            std::cmp::Reverse(ix.files.get(p).map(|r| r.mtime).unwrap_or(SystemTime::UNIX_EPOCH))
+            std::cmp::Reverse(
+                ix.files
+                    .get(p)
+                    .map(|r| r.mtime)
+                    .unwrap_or(SystemTime::UNIX_EPOCH),
+            )
         });
         let d = dirs.get_mut(&key).unwrap();
         d.subdirs = subdirs;
