@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.232',
+    title: 'Toolbar menus open instantly',
+    summary: 'Opening a dropdown was redrawing all ~1000 session rows; each row is now memoized and only redraws when it changes.',
+    detail:
+      'Every toolbar control in the sidebar is local state, so clicking one re-rendered the whole pane — about a thousand rows, each with a usage bar of up to a few dozen block spans. That is tens of thousands of elements reconciled to change one dropdown, which is where the second went. The row is now its own memoized component, and the filtered list and per-row rates are memoized too so their identity survives an unrelated re-render (without that the memo would compare a fresh object every time and never hit). Changing the unit or currency still redraws every bar, because then every bar genuinely changed.',
+  },
+  {
     version: 'v.231',
     title: 'Stop the one-second lag',
     summary: 'Three costs that made every click feel a beat late are gone, and the block size is its own button.',

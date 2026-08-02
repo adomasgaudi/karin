@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
+import type { TokenRates, UsageUnitMode, CurrencyMode, TokenUnitRef } from '../lib/pricing'
+import type { UnifiedSession } from '../types'
 import { ChevronRight, Folder, Info, List, Search } from 'lucide-react'
 import type { RateLimits } from '../types'
 import { useKarin } from '../store/karin'
@@ -91,6 +93,86 @@ function RemainingUsage({ limits, className }: { limits: RateLimits | null; clas
   )
 }
 
+// One session row, memoized.
+//
+// The list holds ~1000 rows and each draws a bar of up to a few dozen block spans, so a
+// full re-render reconciles tens of thousands of elements — roughly a second of frozen
+// main thread. Without this, opening a toolbar dropdown (a useState in Sidebar) redrew
+// every row to change nothing. Props are the session, its rates and the display modes,
+// all of which hold identity across an unrelated re-render, so only the rows that really
+// changed do any work.
+const SessionRow = memo(function SessionRow({
+  s,
+  rates,
+  selected,
+  depth,
+  unitMode,
+  currency,
+  tokenRef,
+  tokenMult,
+}: {
+  s: UnifiedSession
+  rates: TokenRates | null
+  selected: boolean
+  depth: number
+  unitMode: UsageUnitMode
+  currency: CurrencyMode
+  tokenRef: TokenUnitRef
+  tokenMult: number
+}) {
+  // Every source gets a compact project label from its project cwd or working cwd.
+  const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
+  return (
+    <button
+      type="button"
+      onClick={() => useKarin.getState().select(s.uid)}
+      className={cn(
+        'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
+        selected
+          ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
+          : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        <SourceMark source={s.source} state={s.turnState} />
+        {depth > 0 && <span className="shrink-0 text-[0.65rem] text-neutral-400 dark:text-neutral-500">↳</span>}
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
+            {s.title || s.id}
+          </span>
+          {s.agentNickname && (
+            <span className="max-w-[28%] shrink-0 truncate text-[0.65rem] text-neutral-400 dark:text-neutral-500" title="Parallel agent">
+              · {s.agentNickname}
+            </span>
+          )}
+          {project && (
+            <span
+              className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
+              title={s.projectCwd || s.cwd || project}
+            >
+              · {project}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="ml-[22px] -mt-px min-w-0">
+        <UsageBar
+          usage={s.latest_total_usage || {}}
+          rates={rates}
+          mode={unitMode}
+          currency={currency}
+          tokenRef={tokenRef}
+          tokenMult={tokenMult}
+          compact
+          inlineLabels
+          hideSegmentLabels
+          showLegend={false}
+        />
+      </div>
+    </button>
+  )
+})
+
 export default function Sidebar({ className }: SidebarProps) {
   const sessions = useKarin((s) => s.sessions)
   const selectedUid = useKarin((s) => s.selectedUid)
@@ -120,16 +202,26 @@ export default function Sidebar({ className }: SidebarProps) {
   const [priceInfoOpen, setPriceInfoOpen] = useState(false)
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
 
-  const list = sessions.filter(
-    (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
+  const list = useMemo(
+    () =>
+      sessions.filter(
+        (s) => (sourceFilter === 'all' || s.source === sourceFilter) && sessionMatchesUnified(s, search),
+      ),
+    [sessions, sourceFilter, search],
   )
-  const rows = list.map((s) => {
-    // Apply the active price basis (÷divisor for the plan estimate) at the rates level so
-    // row totals reflect the chosen basis. Divisor is per source — each row's own plan
-    // (Codex vs Claude).
-    const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisors[s.source])
-    return { session: s, rates }
-  })
+  // Memoized so each row's `rates` OBJECT survives an unrelated re-render — without stable
+  // identity here, SessionRow's memo compares a fresh object every time and never hits.
+  const rows = useMemo(
+    () =>
+      list.map((s) => {
+        // Apply the active price basis (÷divisor for the plan estimate) at the rates level so
+        // row totals reflect the chosen basis. Divisor is per source — each row's own plan
+        // (Codex vs Claude).
+        const rates = effectiveRates(ratesForUnified(s), priceBasis, subDivisors[s.source])
+        return { session: s, rates }
+      }),
+    [list, priceBasis, subDivisors],
+  )
   // Codex parallel rollouts and Claude's explicitly linked sessions carry a source-local
   // parent id. Keep them in the data model as separate streams, but render the children
   // directly below the visible parent so collaboration reads as one session tree.
@@ -155,58 +247,18 @@ export default function Sidebar({ className }: SidebarProps) {
   })
   const renderRow = (row: (typeof rows)[number], depth = 0): ReactNode => {
     const { session: s, rates } = row
-    const selected = s.uid === selectedUid
-    // Every source gets a compact project label from its project cwd or working cwd.
-    const project = projectLabel(s.projectCwd || s.cwd, s.projectSlug)
     return (
       <li key={s.uid} className={cn(depth > 0 && 'ml-4 border-l border-neutral-200 pl-1 dark:border-neutral-800')}>
-        <button
-          type="button"
-          onClick={() => useKarin.getState().select(s.uid)}
-          className={cn(
-            'relative flex w-full flex-col gap-0 rounded-md border px-3 py-1.5 text-left transition-colors',
-            selected
-              ? 'border-neutral-300 bg-neutral-100 shadow-sm dark:border-neutral-700 dark:bg-neutral-900'
-              : 'border-transparent hover:bg-neutral-50 dark:hover:bg-neutral-900',
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <SourceMark source={s.source} state={s.turnState} />
-            {depth > 0 && <span className="shrink-0 text-[0.65rem] text-neutral-400 dark:text-neutral-500">↳</span>}
-            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-950 dark:text-neutral-50">
-                {s.title || s.id}
-              </span>
-              {s.agentNickname && (
-                <span className="max-w-[28%] shrink-0 truncate text-[0.65rem] text-neutral-400 dark:text-neutral-500" title="Parallel agent">
-                  · {s.agentNickname}
-                </span>
-              )}
-              {project && (
-                <span
-                  className="max-w-[38%] shrink-0 truncate text-[0.65rem] text-neutral-500 dark:text-neutral-400"
-                  title={s.projectCwd || s.cwd || project}
-                >
-                  · {project}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="ml-[22px] -mt-px min-w-0">
-            <UsageBar
-              usage={s.latest_total_usage || {}}
-              rates={rates}
-              mode={unitMode}
-              currency={currency}
-              tokenRef={tokenRef}
-              tokenMult={tokenMult}
-              compact
-              inlineLabels
-              hideSegmentLabels
-              showLegend={false}
-            />
-          </div>
-        </button>
+        <SessionRow
+          s={s}
+          rates={rates}
+          selected={s.uid === selectedUid}
+          depth={depth}
+          unitMode={unitMode}
+          currency={currency}
+          tokenRef={tokenRef}
+          tokenMult={tokenMult}
+        />
       </li>
     )
   }
