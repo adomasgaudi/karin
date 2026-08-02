@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::index::{self, Snapshot};
 use crate::meta;
-use crate::{jsonview, manifest, records};
+use crate::{jsonview, logo, manifest, records};
 
 /// How often the manifest is rewritten while the app is open, so a crash costs
 /// at most this much re-reading on the next launch.
@@ -26,12 +26,21 @@ type Titles = HashMap<PathBuf, Option<String>>;
 /// pathological file from freezing a frame.
 const MAX_ROWS: usize = 4000;
 
-/// How the selected file is shown: as records, or as the literal lines.
+/// How the selected file is shown, in three steps away from the file itself:
+/// the conversation, every record, or the literal bytes.
 #[derive(PartialEq, Clone, Copy)]
 enum Pane {
-    Readable,
+    /// Just the conversation — prompts, replies, and one line per tool.
+    Clean,
+    /// Every record, accented and expandable. Nothing hidden, only quietened.
+    Structured,
+    /// The file as written.
     Raw,
 }
+
+/// Characters of one message the clean view will draw before clipping. A reply
+/// runs long on purpose; a pasted build log does not need to be re-read here.
+const CLEAN_BODY_MAX: usize = 8000;
 
 #[derive(PartialEq, Clone, Copy)]
 enum Mode {
@@ -111,6 +120,9 @@ pub struct App {
     doc: Doc,
     pane: Pane,
     show_changelog: bool,
+    /// Whether the session list is on screen. Off, the transcript gets the
+    /// whole window — the only way to read wide JSON on a small screen.
+    sidebar: bool,
     follow: bool,
     latency_ms: f32,
     scanning: bool,
@@ -125,7 +137,7 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (theme, sort) = load_prefs();
+        let (theme, sort, pane) = load_prefs();
         style(&cc.egui_ctx, theme);
 
         // The manifest is read before anything else: it is what makes the first
@@ -165,10 +177,16 @@ impl App {
             groups_key: None,
             cwds,
             titles,
-            selected: None,
+            // `--open <file>` preselects a session, so a rendering bug can be
+            // reproduced from the command line instead of by clicking.
+            selected: std::env::args()
+                .skip_while(|a| a != "--open")
+                .nth(1)
+                .map(PathBuf::from),
             doc: Doc::default(),
-            pane: Pane::Readable,
+            pane,
             show_changelog: false,
+            sidebar: true,
             follow: true,
             latency_ms: 0.0,
             scanning: true,
@@ -271,12 +289,24 @@ impl eframe::App for App {
         {
             self.save_manifest();
         }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::B)) {
+            self.sidebar = !self.sidebar;
+        }
         // Only so the "3s ago" column keeps ticking; real updates come from the watcher.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
 
         egui::TopBottomPanel::top("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.add_space(2.0);
+                // A narrow window has to be able to give the whole width to the
+                // transcript; the list is the part you can do without.
+                if ui
+                    .selectable_label(self.sidebar, "☰")
+                    .on_hover_text("show/hide the session list  (Ctrl+B)")
+                    .clicked()
+                {
+                    self.sidebar = !self.sidebar;
+                }
                 ui.label(egui::RichText::new("karin-rs").strong());
                 ui.label(dim(ui, crate::APP_VERSION));
                 ui.separator();
@@ -285,6 +315,7 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.mode, Mode::Tree, "tree");
                 ui.separator();
                 let sort_was = self.sort;
+                let pane_was = self.pane;
                 ui.selectable_value(&mut self.sort, SortBy::Recent, "newest");
                 ui.selectable_value(&mut self.sort, SortBy::Name, "A-Z");
                 ui.separator();
@@ -327,17 +358,19 @@ impl eframe::App for App {
                 if self.theme != theme_was {
                     style(ctx, self.theme);
                 }
-                if self.theme != theme_was || self.sort != sort_was {
-                    save_prefs(self.theme, self.sort);
+                if self.theme != theme_was || self.sort != sort_was || self.pane != pane_was {
+                    save_prefs(self.theme, self.sort, self.pane);
                 }
             });
             ui.add_space(2.0);
         });
 
         egui::SidePanel::left("files")
+            .resizable(true)
             .default_width(360.0)
-            .width_range(200.0..=700.0)
-            .show(ctx, |ui| {
+            // Narrow enough to be a strip, wide enough to read a long prompt.
+            .width_range(120.0..=900.0)
+            .show_animated(ctx, self.sidebar, |ui| {
                 let row_h = ui.text_style_height(&egui::TextStyle::Body) + 3.0;
                 let needle = self.filter.to_lowercase();
                 let mut pick: Option<PathBuf> = None;
@@ -364,8 +397,7 @@ impl eframe::App for App {
                             .show_rows(ui, row_h, rows.len(), |ui, range| {
                                 for rec in &rows[range] {
                                     let is_sel = selected.as_ref() == Some(&rec.path);
-                                    let label = row_label(titles, &mut budget, rec);
-                                    if ui.selectable_label(is_sel, label).clicked() {
+                                    if session_row(ui, titles, &mut budget, rec, is_sel, 2.0) {
                                         pick = Some(rec.path.clone());
                                     }
                                 }
@@ -412,14 +444,10 @@ impl eframe::App for App {
                                         continue;
                                     }
                                     for rec in rows {
-                                        ui.horizontal(|ui| {
-                                            ui.add_space(12.0);
-                                            let is_sel = selected.as_ref() == Some(&rec.path);
-                                            let label = row_label(titles, &mut budget, rec);
-                                            if ui.selectable_label(is_sel, label).clicked() {
-                                                pick = Some(rec.path.clone());
-                                            }
-                                        });
+                                        let is_sel = selected.as_ref() == Some(&rec.path);
+                                        if session_row(ui, titles, &mut budget, rec, is_sel, 12.0) {
+                                            pick = Some(rec.path.clone());
+                                        }
                                     }
                                 }
                             });
@@ -469,9 +497,13 @@ impl eframe::App for App {
 
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(short(&path)).monospace());
-                ui.add_space((ui.available_width() - 400.0).max(8.0));
-                ui.selectable_value(&mut self.pane, Pane::Readable, "readable");
-                ui.selectable_value(&mut self.pane, Pane::Raw, "raw");
+                ui.add_space((ui.available_width() - 460.0).max(8.0));
+                ui.selectable_value(&mut self.pane, Pane::Clean, "clean")
+                    .on_hover_text("the conversation only");
+                ui.selectable_value(&mut self.pane, Pane::Structured, "structured")
+                    .on_hover_text("every record, accented and expandable");
+                ui.selectable_value(&mut self.pane, Pane::Raw, "raw")
+                    .on_hover_text("the file as written");
                 ui.separator();
                 let t = dim(
                     ui,
@@ -496,7 +528,8 @@ impl eframe::App for App {
             }
 
             match self.pane {
-                Pane::Readable => show_records(ui, &self.doc, self.root(), self.follow),
+                Pane::Clean => show_clean(ui, &self.doc, self.follow),
+                Pane::Structured => show_structured(ui, &self.doc, self.root(), self.follow),
                 Pane::Raw => show_raw(ui, &self.doc, self.follow),
             }
         });
@@ -558,17 +591,170 @@ impl eframe::App for App {
     }
 }
 
-// ------------------------------------------------------------------- records
+// -------------------------------------------------------------------- accent
 
-/// The readable pane: one collapsed row per JSONL line, expandable into a
-/// key→value tree. Same shape as karin's RecordRow, minus the browser.
-fn show_records(ui: &mut egui::Ui, doc: &Doc, root: Option<&str>, follow: bool) {
-    let total = doc.records.len();
-    let start = total.saturating_sub(MAX_ROWS);
+/// One colour per shape, used as a left rule rather than a filled card — the
+/// same choice old Karin made once a cycle's worth of boxes proved unreadable.
+fn accent(ui: &egui::Ui, shape: records::Shape) -> egui::Color32 {
+    let dark = ui.visuals().dark_mode;
+    let (r, g, b) = match shape {
+        records::Shape::User => (90, 165, 220),
+        records::Shape::Assistant => (90, 195, 150),
+        records::Shape::Thinking => (150, 150, 185),
+        records::Shape::ToolCall => (205, 165, 95),
+        records::Shape::ToolResult => (140, 140, 140),
+        _ => return ui.visuals().weak_text_color(),
+    };
+    if dark {
+        return egui::Color32::from_rgb(r, g, b);
+    }
+    // Light mode wants the same hue, darker. The arithmetic widens first: these
+    // are u8 channels and 205 * 3 does not fit in one.
+    let darken = |c: u8| (c as u16 * 3 / 4) as u8;
+    egui::Color32::from_rgb(darken(r), darken(g), darken(b))
+}
+
+/// Lay out `content` indented, then draw the accent rule beside it. The rule
+/// has to come second because its height is whatever the content turned out
+/// to be.
+fn ruled(ui: &mut egui::Ui, color: egui::Color32, content: impl FnOnce(&mut egui::Ui)) {
+    ui.horizontal(|ui| {
+        ui.add_space(10.0);
+        let rect = ui
+            .vertical(|ui| {
+                ui.set_max_width((ui.available_width() - 8.0).max(120.0));
+                content(ui);
+            })
+            .response
+            .rect;
+        ui.painter().vline(
+            rect.left() - 5.0,
+            rect.y_range(),
+            egui::Stroke::new(2.0_f32, color),
+        );
+    });
+}
+
+// --------------------------------------------------------------- clean pane
+
+/// The conversation and nothing else: what was asked, what was answered, and a
+/// single quiet line wherever a tool ran. Everything the harness wrote to talk
+/// to itself is dropped — see `records::Shape`.
+fn show_clean(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
+    let rows: Vec<&records::Record> = doc
+        .records
+        .iter()
+        .filter(|r| !r.shape.is_chatter())
+        .collect();
+
+    if rows.is_empty() {
+        let t = dim(ui, "nothing conversational in this file — try structured");
+        ui.label(t);
+        return;
+    }
+
+    let start = rows.len().saturating_sub(MAX_ROWS);
     if start > 0 {
         let note = dim(
             ui,
-            &format!("showing the last {MAX_ROWS} of {total} records"),
+            &format!("showing the last {MAX_ROWS} of {} messages", rows.len()),
+        );
+        ui.label(note);
+    }
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false; 2])
+        .stick_to_bottom(follow)
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 2.0;
+            for rec in &rows[start..] {
+                clean_row(ui, rec);
+            }
+        });
+}
+
+fn clean_row(ui: &mut egui::Ui, rec: &records::Record) {
+    use records::Shape;
+    let color = accent(ui, rec.shape);
+
+    match rec.shape {
+        Shape::User | Shape::Assistant => {
+            ui.add_space(7.0);
+            ruled(ui, color, |ui| {
+                ui.label(
+                    egui::RichText::new(rec.shape.label())
+                        .size(9.5)
+                        .color(color),
+                );
+                let (text, clipped) = clip(&rec.body, CLEAN_BODY_MAX);
+                let mut body = egui::RichText::new(text).size(12.5);
+                if rec.shape == Shape::User {
+                    body = body.strong();
+                }
+                ui.label(body);
+                if clipped {
+                    let t = dim(ui, "… clipped");
+                    ui.label(t);
+                }
+            });
+        }
+        // A thought is worth knowing happened; reading it is opt-in.
+        Shape::Thinking => ruled(ui, color, |ui| {
+            let head = meta::truncate(&records::one_line(&rec.body, 400), 110);
+            egui::CollapsingHeader::new(
+                egui::RichText::new(format!("thinking · {head}"))
+                    .size(10.5)
+                    .color(color),
+            )
+            .id_salt(rec.line)
+            .show(ui, |ui| {
+                let (text, _) = clip(&rec.body, CLEAN_BODY_MAX);
+                ui.label(egui::RichText::new(text).size(11.5));
+            });
+        }),
+        // Tool traffic collapses to one line each — the shape of the work,
+        // without the transcript of it.
+        _ => ruled(ui, color, |ui| {
+            ui.label(
+                egui::RichText::new(&rec.preview)
+                    .size(11.0)
+                    .monospace()
+                    .color(if rec.shape == Shape::ToolCall {
+                        color
+                    } else {
+                        ui.visuals().weak_text_color()
+                    }),
+            );
+        }),
+    }
+}
+
+/// Long bodies get a head and a tail; the middle of a pasted log is never the
+/// part anyone scrolls back for.
+fn clip(text: &str, max: usize) -> (String, bool) {
+    if text.chars().count() <= max {
+        return (text.to_owned(), false);
+    }
+    let head: String = text.chars().take(max * 3 / 4).collect();
+    let tail: String = {
+        let all: Vec<char> = text.chars().collect();
+        all[all.len() - max / 4..].iter().collect()
+    };
+    (format!("{head}\n\n…\n\n{tail}"), true)
+}
+
+// ---------------------------------------------------------------- structured
+
+/// Every record, one collapsed row each, expandable into a key→value tree.
+/// Same shape as karin's RecordRow, minus the browser — but now accented by
+/// what the record *is*, with the harness's bookkeeping pushed into the grey.
+fn show_structured(ui: &mut egui::Ui, doc: &Doc, root: Option<&str>, follow: bool) {
+    let rows: Vec<&records::Record> = doc.records.iter().filter(|r| r.kind != "blank").collect();
+    let start = rows.len().saturating_sub(MAX_ROWS);
+    if start > 0 {
+        let note = dim(
+            ui,
+            &format!("showing the last {MAX_ROWS} of {} records", rows.len()),
         );
         ui.label(note);
     }
@@ -577,8 +763,9 @@ fn show_records(ui: &mut egui::Ui, doc: &Doc, root: Option<&str>, follow: bool) 
         .stick_to_bottom(follow)
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
-            for rec in &doc.records[start..] {
-                record_row(ui, rec, root);
+            for rec in &rows[start..] {
+                let color = accent(ui, rec.shape);
+                ruled(ui, color, |ui| record_row(ui, rec, root));
             }
         });
 }
@@ -595,8 +782,14 @@ fn record_row(ui: &mut egui::Ui, rec: &records::Record, root: Option<&str>) {
                 .size(10.0)
                 .color(ui.visuals().weak_text_color());
             ui.label(no);
-            ui.label(chip(ui, &rec.kind));
-            let preview = egui::RichText::new(&rec.preview).size(11.5);
+            // The chip says what the record *is*; its own `type` is one hover
+            // away, so the common case reads as English.
+            ui.label(chip(ui, rec.shape.label(), accent(ui, rec.shape)))
+                .on_hover_text(&rec.kind);
+            let mut preview = egui::RichText::new(&rec.preview).size(11.5);
+            if rec.shape.is_chatter() {
+                preview = preview.color(ui.visuals().weak_text_color());
+            }
             ui.add(egui::Label::new(preview).truncate());
         })
         .body(|ui| {
@@ -637,32 +830,15 @@ fn record_row(ui: &mut egui::Ui, rec: &records::Record, root: Option<&str>) {
         });
 }
 
-/// A muted, type-coloured tag. Unknown kinds fall back to neutral, so a record
-/// shape nobody has seen yet still renders.
-fn chip(ui: &egui::Ui, kind: &str) -> egui::RichText {
-    let base = kind.split('/').next().unwrap_or(kind);
-    let dark = ui.visuals().dark_mode;
-    let hue = match base {
-        "user" => Some((90, 165, 220)),
-        "assistant" => Some((90, 195, 150)),
-        "system" => Some((215, 165, 85)),
-        "summary" => Some((175, 140, 225)),
-        "response_item" => Some((150, 175, 215)),
-        "session_meta" => Some((215, 145, 175)),
-        "queue-operation" | "blank" | "text" => None,
-        _ => None,
-    };
-    let (r, g, b) = hue.unwrap_or((150, 150, 150));
-    let fg = if dark {
-        egui::Color32::from_rgb(r, g, b)
-    } else {
-        egui::Color32::from_rgb(r / 2, g / 2, b / 2)
-    };
-    let bg = egui::Color32::from_rgba_unmultiplied(r, g, b, if dark { 32 } else { 46 });
-    egui::RichText::new(kind)
+/// A muted tag in the shape's own colour, tinted rather than filled so a long
+/// column of them stays quiet.
+fn chip(ui: &egui::Ui, text: &str, color: egui::Color32) -> egui::RichText {
+    let alpha = if ui.visuals().dark_mode { 30 } else { 40 };
+    let bg = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha);
+    egui::RichText::new(format!("{text:>9}"))
         .monospace()
         .size(10.0)
-        .color(fg)
+        .color(color)
         .background_color(bg)
 }
 
@@ -809,6 +985,27 @@ fn by_name(a: &str, b: &str) -> std::cmp::Ordering {
     a.to_lowercase().cmp(&b.to_lowercase())
 }
 
+/// One session in the list: whose agent wrote it, how long ago, and what it
+/// was asked. Returns whether it was clicked.
+fn session_row(
+    ui: &mut egui::Ui,
+    titles: &mut Titles,
+    budget: &mut u32,
+    rec: &index::FileRec,
+    is_sel: bool,
+    indent: f32,
+) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 5.0;
+        ui.add_space(indent);
+        logo::draw(ui, logo::source_of(&rec.path));
+        let label = row_label(titles, budget, rec);
+        clicked = ui.selectable_label(is_sel, label).clicked();
+    });
+    clicked
+}
+
 /// A session row: its age, then its opening prompt. Reading that prompt costs a
 /// file open, so unresolved rows fall back to the filename until a later frame
 /// has budget for them.
@@ -913,14 +1110,10 @@ fn draw_dir(
         if !needle.is_empty() && !rec.path.to_string_lossy().to_lowercase().contains(needle) {
             continue;
         }
-        let label = row_label(titles, budget, rec);
-        ui.horizontal(|ui| {
-            ui.add_space(indent + 12.0);
-            let is_sel = selected.as_ref() == Some(f);
-            if ui.selectable_label(is_sel, label).clicked() {
-                *pick = Some(f.clone());
-            }
-        });
+        let is_sel = selected.as_ref() == Some(f);
+        if session_row(ui, titles, budget, rec, is_sel, indent + 12.0) {
+            *pick = Some(f.clone());
+        }
     }
 }
 
@@ -993,24 +1186,26 @@ fn prefs_path() -> PathBuf {
 }
 
 /// One tiny text file, so the window opens the way it was left. No serde.
-fn load_prefs() -> (Theme, SortBy) {
-    let (mut theme, mut sort) = (Theme::Dark, SortBy::Recent);
+fn load_prefs() -> (Theme, SortBy, Pane) {
+    let (mut theme, mut sort, mut pane) = (Theme::Dark, SortBy::Recent, Pane::Clean);
     let Ok(text) = std::fs::read_to_string(prefs_path()) else {
-        return (theme, sort);
+        return (theme, sort, pane);
     };
     for line in text.lines() {
         match line.trim().split_once('=') {
             Some(("theme", "light")) => theme = Theme::Light,
             Some(("sort", "name")) => sort = SortBy::Name,
+            Some(("pane", "structured")) => pane = Pane::Structured,
+            Some(("pane", "raw")) => pane = Pane::Raw,
             _ => {}
         }
     }
-    (theme, sort)
+    (theme, sort, pane)
 }
 
-fn save_prefs(theme: Theme, sort: SortBy) {
+fn save_prefs(theme: Theme, sort: SortBy, pane: Pane) {
     let text = format!(
-        "theme={}\nsort={}\n",
+        "theme={}\nsort={}\npane={}\n",
         match theme {
             Theme::Light => "light",
             Theme::Dark => "dark",
@@ -1018,6 +1213,11 @@ fn save_prefs(theme: Theme, sort: SortBy) {
         match sort {
             SortBy::Name => "name",
             SortBy::Recent => "recent",
+        },
+        match pane {
+            Pane::Clean => "clean",
+            Pane::Structured => "structured",
+            Pane::Raw => "raw",
         }
     );
     let _ = std::fs::write(prefs_path(), text);

@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.239",
+        title: "Three ways to read a session",
+        summary: "Clean, structured, and raw views, with a source mark on every session.",
+        detail: Some(
+            "Clean shows the conversation only: prompts, replies, and one quiet line per tool. Structured keeps every record but accents it by what it actually is and greys the harness's bookkeeping. Raw is unchanged. Both harnesses replay tool output under the user's name and inject context there too, so a record is now classified by what it is rather than by its type field. Each session row carries its agent's mark, and Ctrl+B hides the list so a narrow window can give the whole width to the transcript.",
+        ),
+    },
+    Entry {
         version: "v.238",
         title: "Instant start, cheap updates",
         summary: "Remember the session list between runs and patch it instead of rebuilding it.",

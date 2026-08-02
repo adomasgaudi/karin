@@ -4,6 +4,7 @@ mod app;
 mod changelog;
 mod index;
 mod jsonview;
+mod logo;
 mod manifest;
 mod meta;
 mod records;
