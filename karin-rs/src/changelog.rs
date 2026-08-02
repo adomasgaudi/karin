@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.238",
+        title: "Instant start, cheap updates",
+        summary: "Remember the session list between runs and patch it instead of rebuilding it.",
+        detail: Some(
+            "A manifest at ~/.karin-rs.index caches every file's size, working directory, and opening prompt, so a launch shows the full list immediately rather than walking two trees and opening a thousand transcripts. A background walk then verifies it, never overwriting a newer reading from the watcher. Live appends now patch the snapshot in place — one file, one folder chain — instead of re-sorting everything.",
+        ),
+    },
+    Entry {
         version: "v.237",
         title: "Correct project labels",
         summary: "Group sessions by working directory and use actual user prompts for titles.",

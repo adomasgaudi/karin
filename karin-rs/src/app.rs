@@ -6,7 +6,11 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::index::{self, Snapshot};
 use crate::meta;
-use crate::{jsonview, records};
+use crate::{jsonview, manifest, records};
+
+/// How often the manifest is rewritten while the app is open, so a crash costs
+/// at most this much re-reading on the next launch.
+const SAVE_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Never load more than this from the end of a file; session logs grow unbounded.
 const TAIL_BYTES: u64 = 8 * 1024 * 1024;
@@ -110,6 +114,13 @@ pub struct App {
     follow: bool,
     latency_ms: f32,
     scanning: bool,
+    /// Duration of the last full walk — what the manifest saves on every launch.
+    scan_ms: f32,
+    last_save: Instant,
+    /// What the manifest on disk was written from: the index generation plus
+    /// how many titles and cwds were resolved. Titles fill in over later frames
+    /// without moving the generation, so they need their own term.
+    saved_key: (u64, usize, usize),
 }
 
 impl App {
@@ -117,8 +128,24 @@ impl App {
         let (theme, sort) = load_prefs();
         style(&cc.egui_ctx, theme);
 
+        // The manifest is read before anything else: it is what makes the first
+        // frame show a full list instead of an empty pane behind a scan.
+        let cached = manifest::load();
+        let mut cwds = HashMap::new();
+        let mut titles = Titles::new();
+        for (path, entry) in &cached {
+            if let Some(cwd) = entry.cwd.clone() {
+                cwds.insert(path.clone(), cwd);
+            }
+            if let Some(title) = entry.title.clone() {
+                titles.insert(path.clone(), title);
+            }
+        }
+
         let ctx = cc.egui_ctx.clone();
-        let shared = index::start(index::default_roots(), move || ctx.request_repaint());
+        let shared = index::start(index::default_roots(), &cached, move || {
+            ctx.request_repaint()
+        });
 
         let mut expanded = HashSet::new();
         for root in index::default_roots() {
@@ -136,8 +163,8 @@ impl App {
             collapsed: HashSet::new(),
             groups: Vec::new(),
             groups_key: None,
-            cwds: HashMap::new(),
-            titles: HashMap::new(),
+            cwds,
+            titles,
             selected: None,
             doc: Doc::default(),
             pane: Pane::Readable,
@@ -145,24 +172,62 @@ impl App {
             follow: true,
             latency_ms: 0.0,
             scanning: true,
+            scan_ms: 0.0,
+            last_save: Instant::now(),
+            saved_key: (0, 0, 0),
         }
     }
 
-    /// Pull a new snapshot only when the index actually moved.
+    /// Patch the snapshot from the index. Cheap by design: a live session's
+    /// append touches one file, one folder chain, and nothing else.
     fn sync(&mut self) {
-        let ix = self.shared.lock().unwrap();
+        let mut ix = self.shared.lock().unwrap();
         self.scanning = ix.scanning;
-        if ix.generation == self.snap.generation && !self.snap.roots.is_empty() {
+        self.scan_ms = ix.scan_ms;
+        if ix.generation == self.snap.generation && !ix.rebuilt {
             return;
         }
         if let Some(t) = ix.last_event {
             self.latency_ms = t.elapsed().as_secs_f32() * 1000.0;
         }
-        self.snap = index::snapshot(&ix);
+        index::sync(&mut self.snap, &mut ix);
     }
 
-    /// Regroup only when the index moved or the sort changed — not every frame.
+    /// Write everything this run learned — sizes, working directories, opening
+    /// prompts — so the next launch never opens these transcripts again.
+    fn cache_key(&self) -> (u64, usize, usize) {
+        (self.snap.generation, self.titles.len(), self.cwds.len())
+    }
+
+    fn save_manifest(&mut self) {
+        self.saved_key = self.cache_key();
+        self.last_save = Instant::now();
+        let rows: Vec<(PathBuf, manifest::Entry)> = self
+            .snap
+            .by_path
+            .values()
+            .map(|rec| {
+                (
+                    rec.path.clone(),
+                    manifest::Entry {
+                        mtime: rec.mtime,
+                        size: rec.size,
+                        cwd: self.cwds.get(&rec.path).cloned(),
+                        title: self.titles.get(&rec.path).cloned(),
+                    },
+                )
+            })
+            .collect();
+        std::thread::spawn(move || manifest::save(rows.into_iter()));
+    }
+
+    /// Regroup only when the index moved or the sort changed — and only while
+    /// the project view is actually on screen, since grouping is the one part
+    /// of a repaint that still touches every file.
     fn ensure_groups(&mut self) {
+        if self.mode != Mode::Project {
+            return;
+        }
         let key = (self.snap.generation, self.sort);
         if self.groups_key == Some(key) {
             return;
@@ -200,6 +265,12 @@ impl eframe::App for App {
         self.sync();
         self.ensure_groups();
         self.reload_if_stale();
+        if !self.scanning
+            && self.last_save.elapsed() > SAVE_EVERY
+            && self.cache_key() != self.saved_key
+        {
+            self.save_manifest();
+        }
         // Only so the "3s ago" column keeps ticking; real updates come from the watcher.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
 
@@ -244,11 +315,12 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.theme, Theme::Light, "light");
                 ui.separator();
                 let status = if self.scanning {
-                    dim(ui, "scanning…")
+                    dim(ui, "verifying…")
                 } else {
                     dim(ui, &format!("event→ui {:.1} ms", self.latency_ms))
                 };
-                ui.label(status);
+                ui.label(status)
+                    .on_hover_text(format!("last full walk: {:.0} ms", self.scan_ms));
                 ui.separator();
                 let files = dim(ui, &format!("{} files", self.snap.by_path.len()));
                 ui.label(files);
@@ -461,6 +533,28 @@ impl eframe::App for App {
                     }
                 });
         }
+    }
+
+    /// Last chance to record what this run learned.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        let rows: Vec<(PathBuf, manifest::Entry)> = self
+            .snap
+            .by_path
+            .values()
+            .map(|rec| {
+                (
+                    rec.path.clone(),
+                    manifest::Entry {
+                        mtime: rec.mtime,
+                        size: rec.size,
+                        cwd: self.cwds.get(&rec.path).cloned(),
+                        title: self.titles.get(&rec.path).cloned(),
+                    },
+                )
+            })
+            .collect();
+        // On the way out, write it here — a spawned thread may not outlive us.
+        manifest::save(rows.into_iter());
     }
 }
 
