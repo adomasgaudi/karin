@@ -63,6 +63,28 @@ export function fmtLiveDateTime(value: Date): string {
   return `${MONTHS[value.getMonth()]} ${value.getDate()} ${fmtTime(value)}`
 }
 
+// h:MM:ss — wall-clock time with an unpadded hour. Deliberately not fmtTime's zero-padded
+// HH:MM:SS: this sits beside a session title, where a leading zero reads as noise.
+export function fmtClockTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getHours()}:${twoDigits(d.getMinutes())}:${twoDigits(d.getSeconds())}`
+}
+
+// The timestamp of a session's LAST step, taken from its own feed records rather than the
+// session's updated_at — for Claude that field is the transcript file's mtime, which drifts
+// from the last event Claude actually logged. Records are written in order, so this walks
+// back from the end and stops at the first usable stamp instead of scanning thousands.
+export function lastRecordTime(records: { timestamp?: unknown }[] | null | undefined): string | null {
+  if (!records) return null
+  for (let i = records.length - 1; i >= 0; i--) {
+    const stamp = records[i]?.timestamp
+    if (typeof stamp === 'string' && !Number.isNaN(Date.parse(stamp))) return stamp
+  }
+  return null
+}
+
 export function relativeAge(value: string | null | undefined, now: Date = new Date()): string {
   if (!value) return 'n/a'
   const then = new Date(value)

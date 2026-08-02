@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.228',
+    title: 'Pinned title, last-step clock',
+    summary: 'The session title stays put while you scroll, shows when the last step ran, and clicking it collapses everything.',
+    detail:
+      'Only the title line is sticky — pinning the whole header would eat the viewport, and the title is the one thing that still answers "which session am I in?" thirty screens down. Next to it sits the wall-clock time of the session\'s LAST step in h:MM:ss, read from the newest record\'s own timestamp rather than updated_at, which for Claude is only the transcript file\'s mtime. Clicking the title collapses every cycle and scrolls back to the top, so there is a one-click way out of a deep session.',
+  },
+  {
     version: 'v.227',
     title: 'Electron shell, live reader',
     summary: 'First half of the direct-read branch: a desktop shell whose renderer reads ~/.claude and ~/.codex itself.',

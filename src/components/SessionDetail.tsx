@@ -5,7 +5,7 @@ import type { ClaudeDetailSession } from '../lib/claudeModel'
 import type { ClaudeSession } from '../lib/claudeRaw'
 import { useKarin } from '../store/karin'
 import { buildCycles, cycleModelEffort } from '../lib/unifiedCycles'
-import { fmtNum, shortAge } from '../lib/format'
+import { fmtClockTime, fmtNum, lastRecordTime, shortAge } from '../lib/format'
 import {
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
@@ -147,6 +147,8 @@ export default function SessionDetail() {
   const selectedUid = useKarin((st) => st.selectedUid)
   const now = useLiveNow()
   const bodyRef = useRef<HTMLDivElement>(null)
+  // The scrolling element itself — the pinned title scrolls it back to the top on click.
+  const scrollRef = useRef<HTMLDivElement>(null)
   // Shared global toggle (see the sidebar) so switching units re-expresses every
   // token display across both panes at once.
   const unitMode = useKarin((st) => st.unitMode)
@@ -221,9 +223,18 @@ export default function SessionDetail() {
   const nextMode = DETAIL_MODES[(DETAIL_MODES.indexOf(mode) + 1) % DETAIL_MODES.length]
   const ModeIcon = DETAIL_MODE_META[mode].Icon
   const records: FeedRecord[] = hasRaw ? s.rawRecords ?? [] : []
+  // Prefer the last step's own timestamp; updated_at is the transcript file's mtime.
+  const lastStepClock = fmtClockTime(lastRecordTime(records) ?? s.updated_at)
   const typeCounts = s.recordTypeCounts ?? {}
   const typeKeys = Object.keys(typeCounts)
   const shownRecords = typeFilter === 'all' ? records : records.filter((r) => r._type === typeFilter)
+
+  // Clicking the pinned title is the way back out of a deep session: shut every cycle and
+  // return to the top in one action.
+  function collapseAllAndScrollTop() {
+    setAllOpen('none')
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   function setAllOpen(m: 'all' | 'none' | 'cycles') {
     const root = bodyRef.current
@@ -239,18 +250,38 @@ export default function SessionDetail() {
     // Publishing this session's working directory lets every value tree drop the project
     // prefix from paths inside it, while paths elsewhere on disk stay complete.
     <WorkspaceRootContext.Provider value={s.cwd}>
-    <div className="flex h-full min-w-0 flex-col overflow-y-auto">
+    <div ref={scrollRef} className="flex h-full min-w-0 flex-col overflow-y-auto">
+      {/* ONLY the title is pinned. It is the one line that still answers "which session am
+          I in?" thirty screens into a transcript; pinning the whole header would eat the
+          viewport. Sticky works here because this bar is a direct child of the scroller, so
+          its containing block is the full scroll height rather than the header box. */}
+      <div className="sticky top-0 z-30 flex min-w-0 items-baseline gap-2 border-b border-neutral-200/80 bg-white/90 px-3 py-2 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight">
+          <button
+            type="button"
+            onClick={collapseAllAndScrollTop}
+            title="Collapse all cycles and scroll to top"
+            className="min-w-0 max-w-full cursor-pointer truncate text-left text-neutral-950 hover:text-sky-700 dark:text-neutral-50 dark:hover:text-sky-300"
+          >
+            {s.title || s.id}
+          </button>
+        </h1>
+        {/* Clock time of the session's LAST step, h:MM:ss. */}
+        {lastStepClock && (
+          <span
+            className="shrink-0 font-mono text-xs tabular-nums text-neutral-400 dark:text-neutral-500"
+            title="Time of the last step in this session"
+          >
+            {lastStepClock}
+          </span>
+        )}
+        {/* The version lives in the nav bar — repeating it in every session header was noise. */}
+        <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
+      </div>
       <div className="shrink-0 border-b border-neutral-200/80 bg-white/90 p-3 shadow-sm shadow-neutral-950/[0.03] backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-baseline gap-2">
-              <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-neutral-950 dark:text-neutral-50">
-                {s.title || s.id}
-              </h1>
-              {/* The version lives in the nav bar — repeating it in every session header was noise. */}
-              <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
-            </div>
-            <SourceBadge source={s.source} className="mt-0.5 px-1 py-0.5 text-[0.5rem]" />
+            <SourceBadge source={s.source} className="px-1 py-0.5 text-[0.5rem]" />
             {s.isSubagent && (
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.68rem] text-neutral-500 dark:text-neutral-400">
                 <span className="shrink-0">Parallel child · inherited fork context hidden</span>
