@@ -179,17 +179,22 @@ The `karin-rs/` crate is the native session viewer in this repository.
 that is what the Desktop shortcut (`Karin Rust.lnk`) points at, directly, with no
 `.cmd` in between. `windows_subsystem = "windows"` is set only for release, so a
 debug build always flashes a console window; never point the shortcut at one.
-Release takes about 18s to build. Source edits are not visible until:
+Release takes about 15s to build. **Always build through the wrapper**, which
+works whether or not Karin is open:
 
 ```powershell
-& "$env:USERPROFILE\.cargo\bin\cargo.exe" build --release --manifest-path karin-rs/Cargo.toml
+pwsh -File build-karin-rs.ps1
 ```
 
+A plain `cargo build --release` fails with `Access is denied (os error 5)`
+whenever the owner has Karin open — Windows will not overwrite a running `.exe`.
+It *will* rename one, though, so the script parks the old binary as
+`karin-rs.inuse-*.exe`, builds fresh, and sweeps the parked copies on a later
+run. The running window is unaffected and picks up the new build next launch.
+
 🔴 **Never close or restart the owner's karin-rs window.** They keep it open and
-read it while you work. If a build fails with `Access is denied (os error 5)` on
-the exe, that means it is running: ask them to close it, or fall back to `cargo
-check` / `cargo test`, which build a differently-named binary and never collide.
-Verify rendering with unit tests, not by cycling the app.
+read it while you work. There is no longer any reason to: the wrapper builds
+around it. Verify rendering with unit tests, not by cycling the app.
 
 Debug tooling on the binary itself:
 
