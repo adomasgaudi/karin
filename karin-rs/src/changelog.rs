@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.236",
+        title: "One-click Rust launcher",
+        summary: "Launch the native viewer directly from a clickable repository file.",
+        detail: Some(
+            "karin-rs-launch.cmd resolves the repository-relative binary, builds it automatically when needed, and opens the native viewer. Double-click it from File Explorer whenever you want to start Karin without opening a terminal.",
+        ),
+    },
+    Entry {
         version: "v.235",
         title: "Readable session records",
         summary: "Inspect JSONL sessions as collapsible records with raw JSON fallback.",
