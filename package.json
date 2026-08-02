@@ -1,22 +1,26 @@
 {
   "name": "karin",
   "version": "0.1.0",
-  "displayVersion": "v.226",
+  "displayVersion": "v.227",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "description": "Karin Ã¢â‚¬â€ local Codex session viewer. React 19 + Vite + TS + Tailwind v4. Load-your-own data; transcripts never leave your machine.",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "electron"
     ]
   },
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:local": "tsc --noEmit && vite build --mode offline",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "app": "pnpm build && electron .",
+    "app:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on tcp:127.0.0.1:5173 && node electron/dev.cjs\"",
     "index": "python bin/karin.py",
     "index:watch": "python bin/karin.py --watch",
     "index:claude": "python bin/karin_claude.py",
@@ -43,8 +47,11 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^10.0.4",
+    "electron": "^43.2.0",
     "tailwindcss": "^4.0.6",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "wait-on": "^9.1.0"
   }
 }

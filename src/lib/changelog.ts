@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.227',
+    title: 'Electron shell, live reader',
+    summary: 'First half of the direct-read branch: a desktop shell whose renderer reads ~/.claude and ~/.codex itself.',
+    detail:
+      'Karin now has an Electron window with nodeIntegration on, so the React renderer holds the filesystem directly — no HTTP, no IPC, no data/*.json and no indexer process between the transcripts and the UI. src/live/fs.ts discovers transcripts, tails only the bytes appended since it last looked, and watches both roots through ReadDirectoryChangesW. Measured: 1709 Claude files discovered in 67ms, 158 Codex in 8ms, and a change event delivered ~23ms after the write. A file that vanishes mid-scan is skipped rather than thrown — the exact race that kept killing the Python watcher. The parsers are not ported yet, so the app still reads the old feeds; that lands next.',
+  },
+  {
     version: 'v.226',
     title: 'Claude feed 10x faster',
     summary: 'An unchanged-session cache that was too small to work now holds the corpus: a watch tick drops from 62s to 6.5s.',
