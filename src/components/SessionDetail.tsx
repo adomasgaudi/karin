@@ -7,10 +7,12 @@ import { useKarin } from '../store/karin'
 import { buildCycles, cycleModelEffort } from '../lib/unifiedCycles'
 import { fmtClockTime, fmtNum, lastRecordTime, shortAge } from '../lib/format'
 import {
+  BLOCK_SCALE_LABELS,
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
+  blockScales,
   currencyModes,
   effectiveRates,
   priceBasisModes,
@@ -40,6 +42,17 @@ const DETAIL_MODE_META: Record<DetailMode, { label: string; Icon: typeof Braces 
   structured: { label: 'Structured', Icon: ListTree },
   raw: { label: 'Raw', Icon: Rows3 },
   json: { label: 'JSON', Icon: Braces },
+}
+
+// The header's live clock, isolated so its one-second tick re-renders this span alone
+// instead of the entire session body (see the `now` comment in SessionDetail).
+function LiveClock() {
+  const now = useLiveNow(1000)
+  return (
+    <span className="text-neutral-400 dark:text-neutral-500" title="Current time">
+      {fmtClockTime(now)}
+    </span>
+  )
 }
 
 const selectClass =
@@ -145,7 +158,12 @@ function TitleOpsPanel({ ops, now }: { ops: ClaudeSession[] | undefined; now: Da
 export default function SessionDetail() {
   const sessions = useKarin((st) => st.sessions)
   const selectedUid = useKarin((st) => st.selectedUid)
-  const now = useLiveNow()
+  // 15s, not 1s. This `now` is threaded into every cycle and event for ages and durations,
+  // so each tick re-renders the WHOLE detail body — at one second that was a full re-render
+  // of thousands of nodes every second, and it made every click feel a beat late. Nothing
+  // here needs sub-minute resolution ("4m ago"); the one thing that does, the header clock,
+  // runs its own 1s timer in LiveClock below.
+  const now = useLiveNow(15_000)
   const bodyRef = useRef<HTMLDivElement>(null)
   // The scrolling element itself — the pinned title scrolls it back to the top on click.
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -159,6 +177,8 @@ export default function SessionDetail() {
   const setTokenMult = useKarin((st) => st.setTokenMult)
   const currency = useKarin((st) => st.currency)
   const setCurrency = useKarin((st) => st.setCurrency)
+  const blockScale = useKarin((st) => st.blockScale)
+  const setBlockScale = useKarin((st) => st.setBlockScale)
   const priceBasis = useKarin((st) => st.priceBasis)
   const setPriceBasis = useKarin((st) => st.setPriceBasis)
   const subDivisors = useKarin((st) => st.subDivisors)
@@ -276,9 +296,7 @@ export default function SessionDetail() {
             </span>
           )}
           {lastStepClock && <span className="px-1 text-neutral-300 dark:text-neutral-700">·</span>}
-          <span className="text-neutral-400 dark:text-neutral-500" title="Current time">
-            {fmtClockTime(now)}
-          </span>
+          <LiveClock />
         </span>
         {/* The version lives in the nav bar — repeating it in every session header was noise. */}
         <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
@@ -398,6 +416,16 @@ export default function SessionDetail() {
               {CURRENCY_LABELS[currency]}
             </button>
           )}
+          {/* Block denomination — its own control, not part of the currency cycle: it sizes
+              the usage SQUARES, which are always cents no matter which unit the labels use. */}
+          <button
+            type="button"
+            onClick={() => setBlockScale(blockScales[(blockScales.indexOf(blockScale) + 1) % blockScales.length])}
+            title="What one usage square is worth. 10c: every bar uses ten-cent boxes, so a small session is one box partly filled rather than a row of tiny dots. Adding 1c and 0.1c lets small bars use finer marks."
+            className="shrink-0 rounded-md border border-neutral-300 bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700"
+          >
+            {BLOCK_SCALE_LABELS[blockScale]}
+          </button>
           {/* money → which price: theoretical API list vs the subscription plan estimate. */}
           {unitMode === 'money' && (
             <button

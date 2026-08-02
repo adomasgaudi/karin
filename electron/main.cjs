@@ -43,7 +43,10 @@ function createWindow() {
 
   if (DEV_URL) {
     void win.loadURL(DEV_URL)
-    win.webContents.openDevTools({ mode: 'detach' })
+    // NOT opened by default. DevTools attached to a page holding tens of thousands of
+    // usage-block nodes costs real frame time on every update, which reads as general
+    // sluggishness rather than as a debugger being open. Set KARIN_DEVTOOLS=1 to get it.
+    if (process.env.KARIN_DEVTOOLS) win.webContents.openDevTools({ mode: 'detach' })
   } else {
     void win.loadFile(join(__dirname, '..', 'dist', 'index.html'))
   }

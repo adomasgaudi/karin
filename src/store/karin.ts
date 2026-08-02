@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { KarinData, KarinStatus, UnifiedSession, SessionSource } from '../types'
 import type { ClaudeRawData } from '../lib/claudeRaw'
 import type { WarpRawData } from '../lib/warpRaw'
-import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis } from '../lib/pricing'
+import type { UsageUnitMode, CurrencyMode, TokenUnitRef, PriceBasis, BlockScale } from '../lib/pricing'
 import { DEFAULT_TOKEN_MULT, SUB_DIVISOR_DEFAULTS } from '../lib/pricing'
 import { saveCodex, saveClaude, saveWarp, loadSaved, clearSaved } from '../lib/persist'
 import {
@@ -78,6 +78,14 @@ function initialCurrency(): CurrencyMode {
   return 'eur'
 }
 
+// How fine the usage BLOCKS may get. Defaults to all three denominations, which is the
+// behaviour the bars have always had; '10c' forces every bar onto ten-cent boxes.
+function initialBlockScale(): BlockScale {
+  const saved = localStorage.getItem('karin-blockscale')
+  if (saved === 'c10' || saved === 'c1_10' || saved === 'c01_1_10') return saved
+  return 'c01_1_10'
+}
+
 // Which price the money mode shows: theoretical API list price, or the subscription
 // plan estimate. Defaults to the plan estimate — the number the owner actually cares about.
 function initialPriceBasis(): PriceBasis {
@@ -116,6 +124,7 @@ interface KarinStore {
   tokenRef: TokenUnitRef
   tokenMult: number
   currency: CurrencyMode
+  blockScale: BlockScale
   priceBasis: PriceBasis
   subDivisors: Record<SessionSource, number>
   keepStepsOpen: boolean
@@ -140,6 +149,7 @@ interface KarinStore {
   setTokenRef: (r: TokenUnitRef) => void
   setTokenMult: (n: number) => void
   setCurrency: (c: CurrencyMode) => void
+  setBlockScale: (s: BlockScale) => void
   setPriceBasis: (b: PriceBasis) => void
   setSubDivisor: (source: SessionSource, n: number) => void
   setKeepStepsOpen: (keep: boolean) => void
@@ -249,6 +259,7 @@ export const useKarin = create<KarinStore>((set, get) => ({
   tokenRef: initialTokenRef(),
   tokenMult: initialTokenMult(),
   currency: initialCurrency(),
+  blockScale: initialBlockScale(),
   priceBasis: initialPriceBasis(),
   subDivisors: {
     codex: initialSubDivisor('karin-subdiv-codex', SUB_DIVISOR_DEFAULTS.codex),
@@ -441,18 +452,12 @@ export const useKarin = create<KarinStore>((set, get) => ({
 
     const data = get().claude
     if (!data) return
-    let touched = false
-    const projects = data.projects.map((p) => ({
-      ...p,
-      sessions: p.sessions.map((s) => {
-        if (s.id !== id || !needsHydration('claude', s as unknown as Record<string, unknown>)) return s
-        touched = true
-        return s
-      }),
-    }))
-    if (!touched) return
+    // Find the one session FIRST. The refresh loop calls this on every idle tick, and the
+    // rebuild below spreads ~54 projects and ~880 sessions into fresh objects — allocating
+    // all of that several times a second only to discover nothing needed hydrating.
     const target = data.projects.flatMap((p) => p.sessions).find((s) => s.id === id)
-    if (!target) return
+    if (!target || !needsHydration('claude', target as unknown as Record<string, unknown>)) return
+    const projects = data.projects
     const full = await hydrateSession('claude', target as never)
     if (full === (target as never)) return
     if (get().claude !== data) return
@@ -486,6 +491,10 @@ export const useKarin = create<KarinStore>((set, get) => ({
   setCurrency: (c) => {
     localStorage.setItem('karin-currency', c)
     set({ currency: c })
+  },
+  setBlockScale: (b) => {
+    localStorage.setItem('karin-blockscale', b)
+    set({ blockScale: b })
   },
   setPriceBasis: (b) => {
     localStorage.setItem('karin-pricebasis', b)
@@ -526,15 +535,34 @@ let refreshStopped = true
 // change downloads megabytes and can outlast the gap, and overlapping runs would
 // pile up. The gap is measured from completion, so the loop can never lap itself.
 const REFRESH_GAP_MS = 300
+const MAX_REFRESH_GAP_MS = 15_000
+// How much idle time to leave per unit of work the last tick cost. A cheap tick
+// (three HEADs, ~5ms) keeps the 300ms floor; an expensive one earns a proportional rest.
+const REFRESH_DUTY_FACTOR = 6
+
+// The gap AFTER a tick that took `ms`.
+//
+// A fixed 300ms gap is only cheap while the feeds sit still. When an indexer is actively
+// rewriting a ~50 MB feed — which is exactly what happens while you are working, the case
+// this app exists to watch — every tick sees a moved tag, re-downloads the feed and
+// JSON.parses it on the main thread. At 300ms that is a multi-second freeze restarting
+// three times a second, and the whole UI reads as a second behind every click. Backing off
+// in proportion to the last tick's cost keeps idle polling instant and caps a churning
+// feed at a fraction of the main thread instead of all of it.
+function nextRefreshGap(ms: number): number {
+  return Math.min(MAX_REFRESH_GAP_MS, Math.max(REFRESH_GAP_MS, Math.round(ms * REFRESH_DUTY_FACTOR)))
+}
 
 function startLocalRefreshLoop() {
   if (!refreshStopped) return
   refreshStopped = false
   const tick = async () => {
+    const started = performance.now()
     try {
       await useKarin.getState().refreshLocalData()
     } finally {
-      if (!refreshStopped) refreshTimer = window.setTimeout(() => void tick(), REFRESH_GAP_MS)
+      const gap = nextRefreshGap(performance.now() - started)
+      if (!refreshStopped) refreshTimer = window.setTimeout(() => void tick(), gap)
     }
   }
   refreshTimer = window.setTimeout(() => void tick(), REFRESH_GAP_MS)

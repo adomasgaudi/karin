@@ -16,31 +16,30 @@ export type UsageUnitMode = 'tokens' | 'token_units' | 'money'
 export type TokenUnitRef = 'input' | 'cached' | 'output' | 'scaled'
 
 // How monetary amounts are displayed. Cents variants multiply by 100.
-//
-// The coin_* variants render an amount as counts of coin denominations instead of a
-// decimal — "3×10c 7×1c" rather than "37.4¢". A number like 0.00037 says nothing about
-// scale at a glance; "1×0.1c" does. Each mode adds a finer denomination, so the same
-// figure can be read coarse or exact without changing what is being measured.
-export type CurrencyMode =
-  | 'usd'
-  | 'usd_cents'
-  | 'eur'
-  | 'eur_cents'
-  | 'coin_10'
-  | 'coin_1_10'
-  | 'coin_01_1_10'
+export type CurrencyMode = 'usd' | 'usd_cents' | 'eur' | 'eur_cents'
 
-// Denominations per coin mode, coarsest first. The finest one absorbs the remainder.
-export const COIN_DENOMINATIONS: Record<'coin_10' | 'coin_1_10' | 'coin_01_1_10', number[]> = {
-  coin_10: [10],
-  coin_1_10: [10, 1],
-  coin_01_1_10: [10, 1, 0.1],
+// Which coin denominations the usage BLOCKS may use. Every mark in a usage bar is one
+// coin, so this is what a mark is worth — and therefore how many marks a bar has.
+//   c10       only 10c boxes. A 3c session is one box a third full, not three small dots,
+//             so bars stay directly comparable by counting boxes across sessions.
+//   c1_10     10c boxes and 1c dots.
+//   c01_1_10  adds the 0.1c point, so tiny steps still show something.
+// The bar picks the coarsest denomination its total can fill; this caps how fine it may go.
+export type BlockScale = 'c10' | 'c1_10' | 'c01_1_10'
+
+export const blockScales: BlockScale[] = ['c10', 'c1_10', 'c01_1_10']
+
+export const BLOCK_SCALE_LABELS: Record<BlockScale, string> = {
+  c10: '10c',
+  c1_10: '1c+10c',
+  c01_1_10: '0.1c+1c+10c',
 }
 
-export function coinDenominations(currency: CurrencyMode): number[] | null {
-  return currency in COIN_DENOMINATIONS
-    ? COIN_DENOMINATIONS[currency as keyof typeof COIN_DENOMINATIONS]
-    : null
+// The finest coin each mode allows, in cents.
+export const BLOCK_SCALE_FLOOR: Record<BlockScale, number> = {
+  c10: 10,
+  c1_10: 1,
+  c01_1_10: 0.1,
 }
 
 // WHICH price the money mode shows — this is the toggle that answers "what kind of
@@ -215,20 +214,9 @@ export const CURRENCY_LABELS: Record<CurrencyMode, string> = {
   usd_cents: '¢',
   eur: '€',
   eur_cents: '€¢',
-  coin_10: '10c',
-  coin_1_10: '1c+10c',
-  coin_01_1_10: '0.1c+1c+10c',
 }
 
-export const currencyModes: CurrencyMode[] = [
-  'usd',
-  'usd_cents',
-  'eur',
-  'eur_cents',
-  'coin_10',
-  'coin_1_10',
-  'coin_01_1_10',
-]
+export const currencyModes: CurrencyMode[] = ['usd', 'usd_cents', 'eur', 'eur_cents']
 
 export const priceBasisModes: PriceBasis[] = ['api', 'sub']
 

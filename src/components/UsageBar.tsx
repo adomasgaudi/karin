@@ -1,6 +1,8 @@
 import type { TokenUsage } from '../types'
 import { fmtCompact, fmtCurrency } from '../lib/format'
+import { useKarin } from '../store/karin'
 import {
+  BLOCK_SCALE_FLOOR,
   EUR_PER_USD,
   splitUsage,
   usageCost,
@@ -24,6 +26,8 @@ const POINT_BLOCK_PX = 2
 type BlockShape = 'point' | 'dot' | 'box'
 const BLOCK_UNIT: Record<BlockShape, number> = { point: 0.1, dot: 1, box: 10 }
 const BLOCK_PX: Record<BlockShape, number> = { point: POINT_BLOCK_PX, dot: DOT_BLOCK_PX, box: FULL_BLOCK_PX }
+// Inverse of BLOCK_UNIT, for resolving a blockScale floor back to the shape that draws it.
+const SHAPE_FOR_UNIT: Record<number, BlockShape> = { 0.1: 'point', 1: 'dot', 10: 'box' }
 
 type Segment = {
   key: 'freshInput' | 'cachedInput' | 'cacheCreate' | 'output' | 'reasoning'
@@ -115,6 +119,9 @@ export default function UsageBar({
   // Estimated (not measured) usage: render hatched + faded so it reads as a guess.
   estimated?: boolean
 }) {
+  // Read from the store rather than taking a prop: every one of the five call sites would
+  // otherwise have to thread it through, and two of them (Cycle, EventEntry) only pass it on.
+  const blockScale = useKarin((st) => st.blockScale)
   const parts = splitUsage(usage)
   const cost = usageCost(parts, rates)
   const allSegments: Segment[] = [
@@ -137,8 +144,13 @@ export default function UsageBar({
   const blockTotal = valuedSegments.reduce((sum, segment) => sum + segment.blockValue, 0)
   const tokenTotal = parts.total || usage?.total_tokens || 0
   // Pick the mark size from the total: tenth-cent points under 5c, one-cent dots under
-  // 50c, ten-cent boxes above — see BLOCK_UNIT.
-  const shape: BlockShape = blockTotal <= 5 ? 'point' : blockTotal <= 50 ? 'dot' : 'box'
+  // 50c, ten-cent boxes above — see BLOCK_UNIT. The blockScale toggle then CLAMPS that
+  // choice to the coarsest denomination it allows, so on '10c' a 3c session draws one
+  // ten-cent box a third full rather than three one-cent dots. Same box everywhere means
+  // two rows compare by counting boxes instead of by guessing which tier each one used.
+  const preferred: BlockShape = blockTotal <= 5 ? 'point' : blockTotal <= 50 ? 'dot' : 'box'
+  const floor = BLOCK_SCALE_FLOOR[blockScale]
+  const shape: BlockShape = BLOCK_UNIT[preferred] < floor ? SHAPE_FOR_UNIT[floor] : preferred
   const boxUnit = BLOCK_UNIT[shape]
   const blockPx = Math.min(FULL_BLOCK_PX, MAX_BLOCK_LINE_PX / Math.max(1, Math.ceil(blockTotal / boxUnit)))
   const isMoney = mode === 'money' && rates != null

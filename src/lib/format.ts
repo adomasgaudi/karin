@@ -2,7 +2,6 @@ import type { Session, UnifiedSession } from '../types'
 import {
   EUR_PER_USD,
   TOKEN_UNIT_REF_LABELS,
-  coinDenominations,
   usageUnitTotal,
   type CurrencyMode,
   type TokenRates,
@@ -188,28 +187,8 @@ export function fmtCompact(n: number | null | undefined): string {
 
 // Format a USD amount in the chosen currency/denomination. Cents variants append ¢.
 // Amounts follow the same 2-/3-sig-fig policy as every other measured number.
-// An amount as counts of coin denominations: "3×10c 7×1c". Coarse denominations take
-// whole counts and the FINEST one absorbs what is left, so the terms always re-add to the
-// original amount at that resolution. Deliberately always US cents — the point of a coin
-// mode is the size of the denomination, and folding an FX rate in would make two readings
-// on the same screen incomparable.
-function fmtCoins(usd: number, denoms: number[]): string {
-  let cents = Math.abs(usd) * 100
-  const parts: string[] = []
-  denoms.forEach((denom, i) => {
-    const finest = i === denoms.length - 1
-    const count = finest ? Math.round(cents / denom) : Math.floor(cents / denom)
-    cents -= count * denom
-    if (count > 0) parts.push(`${fmtNum(count)}×${denom}c`)
-  })
-  if (!parts.length) return `0×${denoms[denoms.length - 1]}c`
-  return `${usd < 0 ? '-' : ''}${parts.join(' ')}`
-}
-
 export function fmtCurrency(usd: number | null | undefined, currency: CurrencyMode = 'usd'): string {
   if (typeof usd !== 'number' || !Number.isFinite(usd)) return 'n/a'
-  const coins = coinDenominations(currency)
-  if (coins) return fmtCoins(usd, coins)
   if (currency === 'usd' || currency === 'eur') {
     const raw = currency === 'usd' ? usd : usd * EUR_PER_USD
     const value = raw === 0 ? 0 : Number(raw.toPrecision(sigFigsFor(raw)))

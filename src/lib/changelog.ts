@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.231',
+    title: 'Stop the one-second lag',
+    summary: 'Three costs that made every click feel a beat late are gone, and the block size is its own button.',
+    detail:
+      'The refresh loop polled every 300ms. That is cheap while the feeds sit still, but the moment an indexer starts rewriting the 48 MB Claude feed — which is exactly while you are working — every tick re-downloaded and JSON.parsed it on the main thread, three times a second. The gap now scales with what the last tick actually cost, so idle polling stays instant and a churning feed cannot eat the whole main thread. Second, the detail pane held a one-second clock that re-rendered every cycle and event once a second; it now ticks at 15s and the header clock runs its own timer. Third, hydrating the selected session rebuilt all 54 projects and 880 sessions on every idle tick just to find nothing to do. DevTools no longer opens itself in the Electron window. Separately, the coin denominations moved out of the currency toggle into their own button, where they belong: they size the usage SQUARES, so on "10c" a small session is one ten-cent box partly filled instead of a row of one-cent dots.',
+  },
+  {
     version: 'v.230',
     title: 'Coin modes for money',
     summary: 'Money can now be counted in coin denominations — 10c, 1c+10c, or 0.1c+1c+10c — instead of a decimal.',

@@ -5,10 +5,12 @@ import { useKarin } from '../store/karin'
 import { sessionMatchesUnified } from '../lib/format'
 import { cn } from '../lib/cn'
 import {
+  BLOCK_SCALE_LABELS,
   CURRENCY_LABELS,
   PRICE_BASIS_LABELS,
   TOKEN_UNIT_REF_LABELS,
   UNIT_MODE_LABELS,
+  blockScales,
   currencyModes,
   effectiveRates,
   priceBasisModes,
@@ -107,6 +109,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const setTokenMult = useKarin((s) => s.setTokenMult)
   const currency = useKarin((s) => s.currency)
   const setCurrency = useKarin((s) => s.setCurrency)
+  const blockScale = useKarin((s) => s.blockScale)
+  const setBlockScale = useKarin((s) => s.setBlockScale)
   const priceBasis = useKarin((s) => s.priceBasis)
   const setPriceBasis = useKarin((s) => s.setPriceBasis)
   const subDivisors = useKarin((s) => s.subDivisors)
@@ -337,6 +341,15 @@ export default function Sidebar({ className }: SidebarProps) {
               {CURRENCY_LABELS[currency]}
             </button>
           )}
+          {/* Block denomination — always shown: the squares are cents whatever the labels say. */}
+          <button
+            type="button"
+            onClick={() => setBlockScale(blockScales[(blockScales.indexOf(blockScale) + 1) % blockScales.length])}
+            title="What one usage square is worth. 10c: every bar uses ten-cent boxes, so a small session is one box partly filled rather than a row of tiny dots."
+            className="shrink-0 px-1.5 py-0.5 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            {BLOCK_SCALE_LABELS[blockScale]}
+          </button>
           {/* money → API list price vs subscription plan estimate (see the detail pane's ? panel). */}
           {unitMode === 'money' && (
             <button
