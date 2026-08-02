@@ -26,15 +26,15 @@ type Titles = HashMap<PathBuf, Option<String>>;
 /// pathological file from freezing a frame.
 const MAX_ROWS: usize = 4000;
 
-/// How the selected file is shown, in three steps away from the file itself:
-/// the conversation, every record, or the literal bytes.
+/// How the selected file is shown, in three steps of decreasing curation.
 #[derive(PartialEq, Clone, Copy)]
 enum Pane {
     /// Just the conversation — prompts, replies, and one line per tool.
     Clean,
-    /// Every record, accented and expandable. Nothing hidden, only quietened.
+    /// Every record, accented by what it is; a row expands into its fields.
     Structured,
-    /// The file as written.
+    /// Every record as a key → value tree, nothing hidden and nothing renamed
+    /// away, with expand/collapse-all over the lot.
     Raw,
 }
 
@@ -123,6 +123,8 @@ pub struct App {
     /// Whether the session list is on screen. Off, the transcript gets the
     /// whole window — the only way to read wide JSON on a small screen.
     sidebar: bool,
+    /// Set by expand/collapse-all and cleared at the end of the same frame.
+    force_open: Option<bool>,
     follow: bool,
     latency_ms: f32,
     scanning: bool,
@@ -187,6 +189,7 @@ impl App {
             pane,
             show_changelog: false,
             sidebar: true,
+            force_open: None,
             follow: true,
             latency_ms: 0.0,
             scanning: true,
@@ -505,6 +508,15 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.pane, Pane::Raw, "raw")
                     .on_hover_text("the file as written");
                 ui.separator();
+                if self.pane == Pane::Raw {
+                    if ui.small_button("expand all").clicked() {
+                        self.force_open = Some(true);
+                    }
+                    if ui.small_button("collapse all").clicked() {
+                        self.force_open = Some(false);
+                    }
+                    ui.separator();
+                }
                 ui.label(egui::RichText::new(short(&path)).monospace());
                 ui.add_space((ui.available_width() - 260.0).max(8.0));
                 let t = dim(
@@ -529,10 +541,11 @@ impl eframe::App for App {
                 return;
             }
 
+            let root = self.root();
             match self.pane {
                 Pane::Clean => show_clean(ui, &self.doc, self.follow),
-                Pane::Structured => show_structured(ui, &self.doc, self.root(), self.follow),
-                Pane::Raw => show_raw(ui, &self.doc, self.follow),
+                Pane::Structured => show_structured(ui, &self.doc, root, self.follow),
+                Pane::Raw => show_raw(ui, &self.doc, root, self.follow, self.force_open),
             }
         });
 
@@ -568,6 +581,10 @@ impl eframe::App for App {
                     }
                 });
         }
+
+        // One frame is all it takes: egui has stored the forced state by now, so
+        // clearing it here hands every branch back to the mouse.
+        self.force_open = None;
     }
 
     /// Last chance to record what this run learned.
@@ -820,7 +837,7 @@ fn record_row(ui: &mut egui::Ui, rec: &records::Record, root: Option<&str>) {
             });
             ui.indent(id, |ui| match (&rec.value, raw) {
                 // The chip already says the type; repeating it is noise.
-                (Some(v), false) => jsonview::View { root }.show(ui, v, &["type"]),
+                (Some(v), false) => jsonview::View { root, force: None }.show(ui, v, &["type"]),
                 (Some(v), true) => {
                     let text = serde_json::to_string_pretty(v).unwrap_or_default();
                     ui.label(egui::RichText::new(text).monospace().size(11.0));
@@ -844,24 +861,59 @@ fn chip(ui: &egui::Ui, text: &str, color: egui::Color32) -> egui::RichText {
         .background_color(bg)
 }
 
-/// The literal file, line-numbered — kept for when the exact bytes matter.
-fn show_raw(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
-    let row_h = ui.text_style_height(&egui::TextStyle::Monospace);
-    let gutter = ui.visuals().weak_text_color();
-    let text = ui.visuals().text_color();
-    let digits = digits_for(doc.lines.len());
-
-    egui::ScrollArea::both()
+/// Every record as a key → value tree, with nothing hidden and nothing renamed
+/// away — the structured pane curates, this one does not. `force` moves every
+/// branch at once for the frame an expand/collapse-all is pressed.
+fn show_raw(ui: &mut egui::Ui, doc: &Doc, root: Option<&str>, follow: bool, force: Option<bool>) {
+    let total = doc.records.len();
+    let start = total.saturating_sub(MAX_ROWS);
+    if start > 0 {
+        let note = dim(
+            ui,
+            &format!("showing the last {MAX_ROWS} of {total} records"),
+        );
+        ui.label(note);
+    }
+    let digits = digits_for(total);
+    egui::ScrollArea::vertical()
         .auto_shrink([false; 2])
         .stick_to_bottom(follow)
-        .show_rows(ui, row_h, doc.lines.len(), |ui, range| {
-            ui.set_min_width(ui.available_width());
-            for i in range {
-                let mut job = egui::text::LayoutJob::default();
-                job.wrap.max_width = f32::INFINITY;
-                job.append(&format!("{:>w$}  ", i + 1, w = digits), 0.0, fmt(gutter));
-                job.append(&doc.lines[i], 0.0, fmt(text));
-                ui.label(job);
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
+            for rec in &doc.records[start..] {
+                raw_row(ui, rec, root, force, digits);
+            }
+        });
+}
+
+fn raw_row(
+    ui: &mut egui::Ui,
+    rec: &records::Record,
+    root: Option<&str>,
+    force: Option<bool>,
+    digits: usize,
+) {
+    // Collapsed, a row still has to say which record it is, so the head carries
+    // the line number, the record's own type, and its preview.
+    let mut job = egui::text::LayoutJob::default();
+    let weak = ui.visuals().weak_text_color();
+    job.append(&format!("{:>w$}  ", rec.line, w = digits), 0.0, fmt(weak));
+    job.append(
+        &format!("{:<22}", rec.kind),
+        0.0,
+        fmt(accent(ui, rec.shape)),
+    );
+    job.append(&rec.preview, 0.0, fmt(ui.visuals().text_color()));
+
+    egui::CollapsingHeader::new(job)
+        .id_salt(rec.line)
+        .default_open(false)
+        .open(force)
+        .show(ui, |ui| match &rec.value {
+            Some(v) => jsonview::View { root, force }.show(ui, v, &[]),
+            // A line that was never JSON has no pairs to show; it is its own value.
+            None => {
+                ui.label(egui::RichText::new(&rec.preview).monospace().size(11.0));
             }
         });
 }

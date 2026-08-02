@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.241",
+        title: "Raw reads as key and value",
+        summary: "The raw pane became a collapsible field tree with expand and collapse all.",
+        detail: Some(
+            "Raw used to be the literal line-numbered text, which answered \"what bytes are in the file\" and nothing else. It now shows every record as a key to value tree with nothing hidden and nothing renamed away, so it stays the uncurated view while still being readable. Two buttons move every branch in the file at once, and each row stays collapsed with its line number, type, and preview so a long session is still scannable shut.",
+        ),
+    },
+    Entry {
         version: "v.240",
         title: "An icon, and no terminal",
         summary: "Karin's glasses as the app icon, and the shortcut opens the window directly.",

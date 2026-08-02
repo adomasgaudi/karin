@@ -21,6 +21,10 @@ pub struct View<'a> {
     /// The session's working directory: paths inside it drop the part the owner
     /// already knows. `None` shortens nothing.
     pub root: Option<&'a str>,
+    /// Set for the single frame an "expand all" / "collapse all" is pressed.
+    /// egui stores the state it is given, so one frame is enough to move every
+    /// branch at once and hand control straight back to the mouse.
+    pub force: Option<bool>,
 }
 
 impl View<'_> {
@@ -151,6 +155,7 @@ impl View<'_> {
         egui::CollapsingHeader::new(head)
             .id_salt((label.to_owned(), depth, children))
             .default_open(open)
+            .open(self.force)
             .show(ui, |ui| body(self, ui));
     }
 
