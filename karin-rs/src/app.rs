@@ -100,7 +100,7 @@ pub struct App {
     groups: Vec<Group>,
     /// (snapshot generation, sort) the cached groups were built from.
     groups_key: Option<(u64, SortBy)>,
-    /// Folder → the cwd its sessions ran in. Read once, never re-read.
+    /// Session file → the cwd it ran in. Read once, never re-read.
     cwds: HashMap<PathBuf, Option<PathBuf>>,
     titles: Titles,
     selected: Option<PathBuf>,
@@ -190,8 +190,8 @@ impl App {
 
     /// The working directory of the selected session, for shortening paths.
     fn root(&self) -> Option<&str> {
-        let dir = self.selected.as_ref()?.parent()?;
-        self.cwds.get(dir)?.as_ref()?.to_str()
+        let path = self.selected.as_ref()?;
+        self.cwds.get(path)?.as_ref()?.to_str()
     }
 }
 
@@ -596,7 +596,7 @@ fn show_raw(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
 
 // ------------------------------------------------------------------ grouping
 
-/// Bucket every file by the folder it lives in, then order both levels by `sort`.
+/// Bucket every file by its recorded working directory, then order both levels.
 fn build_groups(
     snap: &Snapshot,
     sort: SortBy,
@@ -606,16 +606,21 @@ fn build_groups(
     let mut groups: Vec<Group> = Vec::new();
 
     for rec in &snap.recent {
-        let dir = rec
+        let physical_dir = rec
             .path
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| rec.path.clone());
+        let cwd = cwds
+            .entry(rec.path.clone())
+            .or_insert_with(|| meta::read(&rec.path).cwd)
+            .clone();
+        let dir = cwd.clone().unwrap_or(physical_dir);
         let i = *at.entry(dir.clone()).or_insert_with(|| {
             groups.push(Group {
                 label: String::new(),
                 dir: dir.clone(),
-                cwd: None,
+                cwd,
                 files: Vec::new(),
                 mtime: UNIX_EPOCH,
             });
@@ -625,14 +630,9 @@ fn build_groups(
         groups[i].files.push(rec.clone());
     }
 
-    // `snap.recent` is newest-first, so files[0] is the freshest session in the
-    // folder — the cheapest one file to open for the folder's real cwd.
+    // The group key is already the recorded cwd when one exists. For files with
+    // no metadata, it remains the physical transcript folder as a fallback.
     for g in &mut groups {
-        let newest = g.files.first().map(|r| r.path.clone());
-        g.cwd = cwds
-            .entry(g.dir.clone())
-            .or_insert_with(|| newest.and_then(|p| meta::read(&p).cwd))
-            .clone();
         g.label = group_label(g, &snap.roots);
     }
     dedupe_labels(&mut groups);
@@ -650,16 +650,10 @@ fn build_groups(
     groups
 }
 
-/// Claude gives one folder per project, so its cwd names the whole group.
-/// Codex buckets by date, and one day mixes projects — so it stays a date.
+/// Use the actual project folder for both Claude and Codex sessions.
 fn group_label(g: &Group, roots: &[PathBuf]) -> String {
-    let claude = roots
-        .iter()
-        .any(|r| root_tag(r) == "claude" && g.dir.starts_with(r));
-    if claude {
-        if let Some(name) = g.cwd.as_deref().and_then(leaf_name) {
-            return name;
-        }
+    if let Some(name) = g.cwd.as_deref().and_then(leaf_name) {
+        return name;
     }
     project_label(&g.dir, roots)
 }

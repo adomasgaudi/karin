@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.237",
+        title: "Correct project labels",
+        summary: "Group sessions by working directory and use actual user prompts for titles.",
+        detail: Some(
+            "Codex transcripts are stored under date folders, but their session metadata contains the real project cwd. The project view now uses that cwd for grouping, while title extraction skips injected AGENTS context and reads the explicit user request.",
+        ),
+    },
+    Entry {
         version: "v.236",
         title: "One-click Rust launcher",
         summary: "Launch the native viewer directly from a clickable repository file.",

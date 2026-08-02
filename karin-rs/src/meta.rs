@@ -34,7 +34,8 @@ pub fn read(path: &Path) -> Meta {
     for line in text.lines().take(MAX_LINES) {
         // JSON parsing dominates the cost, so only pay it on candidate lines.
         let wants_cwd = meta.cwd.is_none() && line.contains("\"cwd\"");
-        let wants_title = meta.title.is_none() && line.contains("\"role\":\"user\"");
+        let wants_title = meta.title.is_none()
+            && (line.contains("\"role\":\"user\"") || line.contains("\"type\":\"user_message\""));
         if !wants_cwd && !wants_title {
             continue;
         }
@@ -65,8 +66,19 @@ fn find_cwd(v: &Value) -> Option<String> {
 }
 
 /// The first prompt a human actually typed — Claude nests it under `message`,
-/// Codex under `payload`. Tool results and injected context are not titles.
+/// Codex records it in an `event_msg/user_message` entry. Tool results and
+/// injected response context are not titles.
 fn find_title(v: &Value) -> Option<String> {
+    if v.get("type").and_then(Value::as_str) == Some("response_item") {
+        return None;
+    }
+    if v.get("type").and_then(Value::as_str) == Some("event_msg") {
+        let payload = v.get("payload")?;
+        if payload.get("type").and_then(Value::as_str) != Some("user_message") {
+            return None;
+        }
+        return clean_user_message(payload.get("message")?.as_str()?);
+    }
     let body = v.get("message").or_else(|| v.get("payload"))?;
     if body.get("role")?.as_str()? != "user" {
         return None;
@@ -82,6 +94,18 @@ fn find_title(v: &Value) -> Option<String> {
         }),
         _ => None,
     }
+}
+
+/// Codex's UI envelope may include attachment notes before the actual prompt.
+/// Prefer the explicit request section, then fall back to the first ordinary line.
+fn clean_user_message(s: &str) -> Option<String> {
+    if let Some((_, request)) = s.split_once("## My request for Codex:") {
+        return request.lines().map(str::trim).find_map(clean);
+    }
+    s.lines()
+        .map(str::trim)
+        .filter(|line| !line.starts_with("# Files mentioned") && !line.starts_with("## "))
+        .find_map(clean)
 }
 
 /// One tidy line. Anything opening with `<` is injected context
