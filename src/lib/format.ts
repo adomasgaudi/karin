@@ -65,9 +65,10 @@ export function fmtLiveDateTime(value: Date): string {
 
 // h:MM:ss — wall-clock time with an unpadded hour. Deliberately not fmtTime's zero-padded
 // HH:MM:SS: this sits beside a session title, where a leading zero reads as noise.
-export function fmtClockTime(value: string | null | undefined): string {
+// Takes an ISO string (a record's timestamp) or a Date (the live clock).
+export function fmtClockTime(value: string | Date | null | undefined): string {
   if (!value) return ''
-  const d = new Date(value)
+  const d = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   return `${d.getHours()}:${twoDigits(d.getMinutes())}:${twoDigits(d.getSeconds())}`
 }

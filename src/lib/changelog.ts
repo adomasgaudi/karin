@@ -19,6 +19,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v.229',
+    title: 'Current time in the header',
+    summary: 'The pinned title now shows the live clock beside the last step\'s time, both h:MM:ss.',
+    detail:
+      'Reading "10:41:07 · 10:45:22" states absolutely what the "4m ago" beside it states relatively, which is the easier of the two to act on when you are deciding whether a session is still running. The right-hand clock ticks every second off the same shared live clock the age indicator already used, so it costs no extra timer.',
+  },
+  {
     version: 'v.228',
     title: 'Pinned title, last-step clock',
     summary: 'The session title stays put while you scroll, shows when the last step ran, and clicking it collapses everything.',

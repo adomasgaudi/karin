@@ -266,15 +266,20 @@ export default function SessionDetail() {
             {s.title || s.id}
           </button>
         </h1>
-        {/* Clock time of the session's LAST step, h:MM:ss. */}
-        {lastStepClock && (
-          <span
-            className="shrink-0 font-mono text-xs tabular-nums text-neutral-400 dark:text-neutral-500"
-            title="Time of the last step in this session"
-          >
-            {lastStepClock}
+        {/* Two clocks, both h:MM:ss: when the session's LAST step ran, then the time right
+            now (ticking every second off the shared live clock). Reading them together is
+            the same information as the "Xm ago" beside them, stated absolutely. */}
+        <span className="shrink-0 font-mono text-xs tabular-nums">
+          {lastStepClock && (
+            <span className="text-neutral-500 dark:text-neutral-400" title="Time of the last step in this session">
+              {lastStepClock}
+            </span>
+          )}
+          {lastStepClock && <span className="px-1 text-neutral-300 dark:text-neutral-700">·</span>}
+          <span className="text-neutral-400 dark:text-neutral-500" title="Current time">
+            {fmtClockTime(now)}
           </span>
-        )}
+        </span>
         {/* The version lives in the nav bar — repeating it in every session header was noise. */}
         <AgeIndicator value={s.updated_at} now={now} className="shrink-0 text-xs" />
       </div>
