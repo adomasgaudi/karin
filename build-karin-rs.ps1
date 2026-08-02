@@ -17,20 +17,29 @@ $profileName = if ($Debug) { 'debug' } else { 'release' }
 $outDir = Join-Path $root "karin-rs\target\$profileName"
 $exe = Join-Path $outDir 'karin-rs.exe'
 
-# Sweep up binaries parked by earlier runs, now that they may be free.
-Get-ChildItem $outDir -Filter 'karin-rs.inuse*.exe' -ErrorAction SilentlyContinue | ForEach-Object {
-    try { Remove-Item $_.FullName -Force } catch { }
+# Cargo links the binary twice: it builds `deps\karin_rs.exe` and hard-links it
+# to `karin-rs.exe`. Both names are the SAME file, so parking only one leaves the
+# running process holding the other and the linker still fails. Park both.
+$targets = @($exe, (Join-Path $outDir 'deps\karin_rs.exe'))
+$stamp = Get-Date -Format 'HHmmss'
+
+foreach ($dir in @($outDir, (Join-Path $outDir 'deps'))) {
+    # Sweep up binaries parked by earlier runs, now that they may be free.
+    Get-ChildItem $dir -Filter '*.inuse-*.exe' -ErrorAction SilentlyContinue | ForEach-Object {
+        try { Remove-Item $_.FullName -Force } catch { }
+    }
 }
 
-if (Test-Path $exe) {
+foreach ($target in $targets) {
+    if (-not (Test-Path $target)) { continue }
     try {
-        Remove-Item $exe -Force
+        Remove-Item $target -Force
     } catch {
         # Held by a running Karin. A unique name, so several parked copies can
         # coexist if the owner keeps more than one window open.
-        $parked = "karin-rs.inuse-$(Get-Date -Format 'HHmmss').exe"
-        Rename-Item $exe $parked
-        Write-Host "karin-rs is running; parked the old binary as $parked"
+        $parked = "$([IO.Path]::GetFileNameWithoutExtension($target)).inuse-$stamp.exe"
+        Rename-Item $target $parked
+        Write-Host "karin-rs is running; parked $([IO.Path]::GetFileName($target)) as $parked"
     }
 }
 

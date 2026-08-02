@@ -8,6 +8,14 @@ pub struct Entry {
 /// Newest first. The app version is derived from this first entry.
 pub const CHANGELOG: &[Entry] = &[
     Entry {
+        version: "v.242",
+        title: "Cycles, and quieter rows",
+        summary: "The clean view groups by turn, and no view uses disclosure triangles any more.",
+        detail: Some(
+            "A session reads as turns: one prompt and everything the agent did before asking again. The clean view now draws it that way, numbering each turn and counting its steps. Keys in the structured and raw trees are left-aligned in their own column so they scan down one edge, and the triangles are gone — a branch is simply darker and heavier than a leaf, and the whole row lights up and toggles on click. The sidebar remembers the width you drag it to and can never take more than half a narrow window.",
+        ),
+    },
+    Entry {
         version: "v.241",
         title: "Raw reads as key and value",
         summary: "The raw pane became a collapsible field tree with expand and collapse all.",

@@ -4,6 +4,8 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use egui::collapsing_header::CollapsingState;
+
 use crate::index::{self, Snapshot};
 use crate::meta;
 use crate::{jsonview, logo, manifest, records};
@@ -25,6 +27,10 @@ type Titles = HashMap<PathBuf, Option<String>>;
 /// Record rows drawn at once. Well past any real session; the cap only stops a
 /// pathological file from freezing a frame.
 const MAX_ROWS: usize = 4000;
+
+/// Turns drawn at once in the clean view. A cycle is many rows, so the cap is
+/// lower than the per-record one.
+const MAX_CYCLES: usize = 400;
 
 /// How the selected file is shown, in three steps of decreasing curation.
 #[derive(PartialEq, Clone, Copy)]
@@ -125,6 +131,8 @@ pub struct App {
     sidebar: bool,
     /// Set by expand/collapse-all and cleared at the end of the same frame.
     force_open: Option<bool>,
+    /// Panel width, remembered across runs like the theme.
+    sidebar_w: f32,
     follow: bool,
     latency_ms: f32,
     scanning: bool,
@@ -139,7 +147,7 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let (theme, sort, pane) = load_prefs();
+        let (theme, sort, pane, sidebar_w) = load_prefs();
         style(&cc.egui_ctx, theme);
 
         // The manifest is read before anything else: it is what makes the first
@@ -190,6 +198,7 @@ impl App {
             show_changelog: false,
             sidebar: true,
             force_open: None,
+            sidebar_w,
             follow: true,
             latency_ms: 0.0,
             scanning: true,
@@ -362,17 +371,20 @@ impl eframe::App for App {
                     style(ctx, self.theme);
                 }
                 if self.theme != theme_was || self.sort != sort_was || self.pane != pane_was {
-                    save_prefs(self.theme, self.sort, self.pane);
+                    save_prefs(self.theme, self.sort, self.pane, self.sidebar_w);
                 }
             });
             ui.add_space(2.0);
         });
 
-        egui::SidePanel::left("files")
+        // Never let the list take more than half a narrow window: the transcript
+        // is the point, and a fixed 900px ceiling is most of a small screen.
+        let cap = (ctx.screen_rect().width() * 0.5).clamp(200.0, 900.0);
+        let panel = egui::SidePanel::left("files")
             .resizable(true)
-            .default_width(360.0)
+            .default_width(self.sidebar_w)
             // Narrow enough to be a strip, wide enough to read a long prompt.
-            .width_range(120.0..=900.0)
+            .width_range(120.0..=cap)
             .show_animated(ctx, self.sidebar, |ui| {
                 let row_h = ui.text_style_height(&egui::TextStyle::Body) + 3.0;
                 let needle = self.filter.to_lowercase();
@@ -488,6 +500,15 @@ impl eframe::App for App {
                     ui.ctx().request_repaint();
                 }
             });
+
+        // Remember a drag of the panel edge, so the width outlives the session.
+        if let Some(panel) = panel {
+            let width = panel.response.rect.width();
+            if (width - self.sidebar_w).abs() > 0.5 {
+                self.sidebar_w = width;
+                save_prefs(self.theme, self.sort, self.pane, self.sidebar_w);
+            }
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let Some(path) = self.selected.clone() else {
@@ -656,27 +677,52 @@ fn ruled(ui: &mut egui::Ui, color: egui::Color32, content: impl FnOnce(&mut egui
 
 // --------------------------------------------------------------- clean pane
 
-/// The conversation and nothing else: what was asked, what was answered, and a
-/// single quiet line wherever a tool ran. Everything the harness wrote to talk
-/// to itself is dropped — see `records::Shape`.
-fn show_clean(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
-    let rows: Vec<&records::Record> = doc
-        .records
-        .iter()
-        .filter(|r| !r.shape.is_chatter())
-        .collect();
+/// One turn of the conversation: a prompt and everything the agent did before
+/// it asked again. This is Karin's unit of work — the web app's `cycles.ts`
+/// splits the same way, and it is the only grouping that matches how a session
+/// actually reads.
+struct Cycle<'a> {
+    /// The prompt that opened it. `None` for whatever preceded the first one.
+    prompt: Option<&'a records::Record>,
+    steps: Vec<&'a records::Record>,
+}
 
-    if rows.is_empty() {
+/// A new cycle starts at every prompt the owner actually typed. Injected
+/// context and replayed tool output do not open one, which is exactly why
+/// `records::classify` exists.
+fn cycles(records: &[records::Record]) -> Vec<Cycle<'_>> {
+    let mut out: Vec<Cycle> = Vec::new();
+    for rec in records.iter().filter(|r| !r.shape.is_chatter()) {
+        if rec.shape == records::Shape::User || out.is_empty() {
+            out.push(Cycle {
+                prompt: (rec.shape == records::Shape::User).then_some(rec),
+                steps: Vec::new(),
+            });
+            if rec.shape == records::Shape::User {
+                continue;
+            }
+        }
+        out.last_mut().expect("pushed above").steps.push(rec);
+    }
+    out
+}
+
+/// The conversation and nothing else, in cycles: what was asked, what was
+/// answered, and a single quiet line wherever a tool ran. Everything the
+/// harness wrote to talk to itself is dropped — see `records::Shape`.
+fn show_clean(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
+    let cycles = cycles(&doc.records);
+    if cycles.is_empty() {
         let t = dim(ui, "nothing conversational in this file — try structured");
         ui.label(t);
         return;
     }
 
-    let start = rows.len().saturating_sub(MAX_ROWS);
+    let start = cycles.len().saturating_sub(MAX_CYCLES);
     if start > 0 {
         let note = dim(
             ui,
-            &format!("showing the last {MAX_ROWS} of {} messages", rows.len()),
+            &format!("showing the last {MAX_CYCLES} of {} turns", cycles.len()),
         );
         ui.label(note);
     }
@@ -686,10 +732,75 @@ fn show_clean(ui: &mut egui::Ui, doc: &Doc, follow: bool) {
         .stick_to_bottom(follow)
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
-            for rec in &rows[start..] {
-                clean_row(ui, rec);
+            for (i, cycle) in cycles[start..].iter().enumerate() {
+                cycle_block(ui, cycle, start + i + 1);
             }
         });
+}
+
+fn cycle_block(ui: &mut egui::Ui, cycle: &Cycle, number: usize) {
+    ui.add_space(10.0);
+
+    // The prompt is the cycle's title, so it is drawn once, at the top, and not
+    // repeated among the steps.
+    match cycle.prompt {
+        Some(rec) => {
+            let color = accent(ui, records::Shape::User);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{number:>3}"))
+                        .monospace()
+                        .size(10.0)
+                        .color(ui.visuals().weak_text_color()),
+                );
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} step{}",
+                        cycle.steps.len(),
+                        plural(cycle.steps.len())
+                    ))
+                    .size(9.5)
+                    .color(ui.visuals().weak_text_color()),
+                );
+                if let Some(ts) = rec.timestamp.as_deref().and_then(short_clock) {
+                    ui.label(dim(ui, &ts));
+                }
+            });
+            ruled(ui, color, |ui| {
+                let (text, clipped) = clip(&rec.body, CLEAN_BODY_MAX);
+                ui.label(egui::RichText::new(text).size(12.5).strong());
+                if clipped {
+                    let t = dim(ui, "… clipped");
+                    ui.label(t);
+                }
+            });
+        }
+        None => {
+            let t = dim(ui, "before the first prompt");
+            ui.label(t);
+        }
+    }
+
+    for rec in &cycle.steps {
+        clean_row(ui, rec);
+    }
+    ui.add_space(6.0);
+    ui.separator();
+}
+
+fn plural(n: usize) -> &'static str {
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
+}
+
+/// `2026-08-02T15:32:23.088Z` → `15:32`. The date is the session's, not the turn's.
+fn short_clock(ts: &str) -> Option<String> {
+    let (_, rest) = ts.split_once('T')?;
+    let hhmm = rest.get(..5)?;
+    hhmm.contains(':').then(|| hhmm.to_owned())
 }
 
 fn clean_row(ui: &mut egui::Ui, rec: &records::Record) {
@@ -791,11 +902,11 @@ fn show_structured(ui: &mut egui::Ui, doc: &Doc, root: Option<&str>, follow: boo
 
 fn record_row(ui: &mut egui::Ui, rec: &records::Record, root: Option<&str>) {
     let id = ui.make_persistent_id(rec.line);
-    let state =
-        egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, false);
+    let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, false);
 
-    state
-        .show_header(ui, |ui| {
+    // No triangle: the row itself is the target, and it lights up on hover.
+    let header = ui
+        .horizontal(|ui| {
             let no = egui::RichText::new(format!("{:>5}", rec.line))
                 .monospace()
                 .size(10.0)
@@ -811,42 +922,61 @@ fn record_row(ui: &mut egui::Ui, rec: &records::Record, root: Option<&str>) {
             }
             ui.add(egui::Label::new(preview).truncate());
         })
-        .body(|ui| {
-            let raw_id = id.with("raw");
-            let mut raw = ui.data_mut(|d| d.get_temp::<bool>(raw_id).unwrap_or(false));
-            ui.horizontal(|ui| {
-                ui.add_space(18.0);
-                if let Some(ts) = &rec.timestamp {
-                    ui.label(dim(ui, ts));
-                    ui.separator();
-                }
-                if ui
-                    .small_button(if raw { "readable" } else { "raw json" })
-                    .clicked()
-                {
-                    raw = !raw;
-                    ui.data_mut(|d| d.insert_temp(raw_id, raw));
-                }
-                if ui.small_button("copy").clicked() {
-                    let text = match &rec.value {
-                        Some(v) => serde_json::to_string_pretty(v).unwrap_or_default(),
-                        None => rec.preview.clone(),
-                    };
-                    ui.output_mut(|o| o.copied_text = text);
-                }
-            });
-            ui.indent(id, |ui| match (&rec.value, raw) {
-                // The chip already says the type; repeating it is noise.
-                (Some(v), false) => jsonview::View { root, force: None }.show(ui, v, &["type"]),
-                (Some(v), true) => {
-                    let text = serde_json::to_string_pretty(v).unwrap_or_default();
-                    ui.label(egui::RichText::new(text).monospace().size(11.0));
-                }
-                (None, _) => {
-                    ui.label(egui::RichText::new(&rec.preview).monospace().size(11.0));
-                }
-            });
+        .response
+        .interact(egui::Sense::click());
+    hover_fill(ui, &header);
+    if header.clicked() {
+        state.toggle(ui);
+    }
+
+    state.show_body_indented(&header, ui, |ui| {
+        let raw_id = id.with("raw");
+        let mut raw = ui.data_mut(|d| d.get_temp::<bool>(raw_id).unwrap_or(false));
+        ui.horizontal(|ui| {
+            ui.add_space(18.0);
+            if let Some(ts) = &rec.timestamp {
+                ui.label(dim(ui, ts));
+                ui.separator();
+            }
+            if ui
+                .small_button(if raw { "readable" } else { "raw json" })
+                .clicked()
+            {
+                raw = !raw;
+                ui.data_mut(|d| d.insert_temp(raw_id, raw));
+            }
+            if ui.small_button("copy").clicked() {
+                let text = match &rec.value {
+                    Some(v) => serde_json::to_string_pretty(v).unwrap_or_default(),
+                    None => rec.preview.clone(),
+                };
+                ui.output_mut(|o| o.copied_text = text);
+            }
         });
+        ui.indent(id, |ui| match (&rec.value, raw) {
+            // The chip already says the type; repeating it is noise.
+            (Some(v), false) => jsonview::View { root, force: None }.show(ui, v, &["type"]),
+            (Some(v), true) => {
+                let text = serde_json::to_string_pretty(v).unwrap_or_default();
+                ui.label(egui::RichText::new(text).monospace().size(11.0));
+            }
+            (None, _) => {
+                ui.label(egui::RichText::new(&rec.preview).monospace().size(11.0));
+            }
+        });
+    });
+}
+
+/// The only thing standing in for a disclosure triangle: a row that responds.
+fn hover_fill(ui: &egui::Ui, resp: &egui::Response) {
+    if !resp.hovered() {
+        return;
+    }
+    ui.painter().rect_filled(
+        resp.rect.expand2(egui::vec2(4.0, 1.0)),
+        2.0,
+        ui.visuals().widgets.hovered.weak_bg_fill,
+    );
 }
 
 /// A muted tag in the shape's own colour, tinted rather than filled so a long
@@ -905,17 +1035,24 @@ fn raw_row(
     );
     job.append(&rec.preview, 0.0, fmt(ui.visuals().text_color()));
 
-    egui::CollapsingHeader::new(job)
-        .id_salt(rec.line)
-        .default_open(false)
-        .open(force)
-        .show(ui, |ui| match &rec.value {
-            Some(v) => jsonview::View { root, force }.show(ui, v, &[]),
-            // A line that was never JSON has no pairs to show; it is its own value.
-            None => {
-                ui.label(egui::RichText::new(&rec.preview).monospace().size(11.0));
-            }
-        });
+    let id = ui.make_persistent_id(rec.line);
+    let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, false);
+    if let Some(force) = force {
+        state.set_open(force);
+    }
+    // No triangle: the whole row is the target, and the indented body below is
+    // the only open/closed signal a reader needs.
+    let header = ui.add(egui::SelectableLabel::new(false, job));
+    if header.clicked() {
+        state.toggle(ui);
+    }
+    state.show_body_indented(&header, ui, |ui| match &rec.value {
+        Some(v) => jsonview::View { root, force }.show(ui, v, &[]),
+        // A line that was never JSON has no pairs to show; it is its own value.
+        None => {
+            ui.label(egui::RichText::new(&rec.preview).monospace().size(11.0));
+        }
+    });
 }
 
 // ------------------------------------------------------------------ grouping
@@ -1240,10 +1377,11 @@ fn prefs_path() -> PathBuf {
 }
 
 /// One tiny text file, so the window opens the way it was left. No serde.
-fn load_prefs() -> (Theme, SortBy, Pane) {
+fn load_prefs() -> (Theme, SortBy, Pane, f32) {
     let (mut theme, mut sort, mut pane) = (Theme::Dark, SortBy::Recent, Pane::Clean);
+    let mut width = 360.0f32;
     let Ok(text) = std::fs::read_to_string(prefs_path()) else {
-        return (theme, sort, pane);
+        return (theme, sort, pane, width);
     };
     for line in text.lines() {
         match line.trim().split_once('=') {
@@ -1251,15 +1389,20 @@ fn load_prefs() -> (Theme, SortBy, Pane) {
             Some(("sort", "name")) => sort = SortBy::Name,
             Some(("pane", "structured")) => pane = Pane::Structured,
             Some(("pane", "raw")) => pane = Pane::Raw,
+            Some(("sidebar", w)) => {
+                if let Ok(v) = w.trim().parse::<f32>() {
+                    width = v.clamp(120.0, 900.0);
+                }
+            }
             _ => {}
         }
     }
-    (theme, sort, pane)
+    (theme, sort, pane, width)
 }
 
-fn save_prefs(theme: Theme, sort: SortBy, pane: Pane) {
+fn save_prefs(theme: Theme, sort: SortBy, pane: Pane, sidebar: f32) {
     let text = format!(
-        "theme={}\nsort={}\npane={}\n",
+        "theme={}\nsort={}\npane={}\nsidebar={sidebar:.0}\n",
         match theme {
             Theme::Light => "light",
             Theme::Dark => "dark",
@@ -1351,5 +1494,57 @@ fn age(t: SystemTime) -> String {
         s if s < 3600 => format!("{:>3}m", s / 60),
         s if s < 86400 => format!("{:>3}h", s / 3600),
         s => format!("{:>3}d", s / 86400),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(lines: &[&str]) -> Vec<records::Record> {
+        lines
+            .iter()
+            .enumerate()
+            .map(|(i, l)| records::parse_line(i + 1, l))
+            .collect()
+    }
+
+    fn user(text: &str) -> String {
+        format!(
+            r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"{text}"}}]}}}}"#
+        )
+    }
+
+    const REPLY: &str = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}"#;
+    const CALL: &str = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Read"}]}}"#;
+    const NOISE: &str = r#"{"type":"queue-operation"}"#;
+
+    #[test]
+    fn a_cycle_runs_from_one_prompt_to_the_next() {
+        let recs = parse(&[&user("first"), CALL, REPLY, NOISE, &user("second"), REPLY]);
+        let cycles = cycles(&recs);
+
+        assert_eq!(cycles.len(), 2);
+        assert_eq!(cycles[0].prompt.map(|r| r.body.as_str()), Some("first"));
+        // The prompt titles the cycle and is not repeated among its steps.
+        assert_eq!(cycles[0].steps.len(), 2, "tool call and reply, no noise");
+        assert_eq!(cycles[1].prompt.map(|r| r.body.as_str()), Some("second"));
+        assert_eq!(cycles[1].steps.len(), 1);
+    }
+
+    #[test]
+    fn work_before_the_first_prompt_still_gets_a_home() {
+        let recs = parse(&[REPLY, CALL, &user("hello"), REPLY]);
+        let cycles = cycles(&recs);
+
+        assert_eq!(cycles.len(), 2);
+        assert!(cycles[0].prompt.is_none(), "no prompt opened it");
+        assert_eq!(cycles[0].steps.len(), 2);
+        assert_eq!(cycles[1].prompt.map(|r| r.body.as_str()), Some("hello"));
+    }
+
+    #[test]
+    fn a_file_of_pure_bookkeeping_has_no_cycles() {
+        assert!(cycles(&parse(&[NOISE, NOISE])).is_empty());
     }
 }

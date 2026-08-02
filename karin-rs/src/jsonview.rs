@@ -7,6 +7,7 @@
 
 use std::borrow::Cow;
 
+use egui::collapsing_header::CollapsingState;
 use egui::{Color32, RichText};
 use serde_json::{Map, Value};
 
@@ -101,11 +102,7 @@ impl View<'_> {
             scalar => {
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    let k = dim(ui, &label);
-                    ui.add_sized(
-                        [KEY_W, ui.spacing().interact_size.y * 0.7],
-                        egui::Label::new(k).truncate(),
-                    );
+                    key_cell(ui, &label);
                     self.scalar(ui, key, scalar);
                 });
             }
@@ -126,11 +123,7 @@ impl View<'_> {
 
     fn empty(&self, ui: &mut egui::Ui, label: &str, what: &str) {
         ui.horizontal_wrapped(|ui| {
-            let k = dim(ui, label);
-            ui.add_sized(
-                [KEY_W, ui.spacing().interact_size.y * 0.7],
-                egui::Label::new(k).truncate(),
-            );
+            key_cell(ui, label);
             ui.label(dim(ui, what));
         });
     }
@@ -148,15 +141,36 @@ impl View<'_> {
     ) {
         // Shallow, small branches open themselves; deep or wide ones wait to be asked.
         let open = depth < 2 && children <= 12;
-        let tag = if from_string { "  json" } else { "" };
-        let head = RichText::new(format!("{label}   {count}{tag}"))
-            .size(FONT)
-            .color(ui.visuals().text_color());
-        egui::CollapsingHeader::new(head)
-            .id_salt((label.to_owned(), depth, children))
-            .default_open(open)
-            .open(self.force)
-            .show(ui, |ui| body(self, ui));
+        let id = ui.make_persistent_id((label.to_owned(), depth, children));
+        let mut state = CollapsingState::load_with_default_open(ui.ctx(), id, open);
+        if let Some(force) = self.force {
+            state.set_open(force);
+        }
+
+        // No triangle. A branch key is simply darker and heavier than a leaf's,
+        // which is enough of a difference to read as "there is more in here" —
+        // and it keeps every key on the same left edge.
+        let header = ui
+            .horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let head = RichText::new(label)
+                    .size(FONT)
+                    .strong()
+                    .color(ui.visuals().text_color());
+                let resp = ui.add_sized(
+                    [KEY_W, ui.spacing().interact_size.y * 0.7],
+                    egui::SelectableLabel::new(false, head),
+                );
+                let tag = if from_string { "  json" } else { "" };
+                ui.label(dim(ui, &format!("{count}{tag}")));
+                resp
+            })
+            .inner;
+
+        if header.clicked() {
+            state.toggle(ui);
+        }
+        state.show_body_indented(&header, ui, |ui| body(self, ui));
     }
 
     fn scalar(&self, ui: &mut egui::Ui, key: &str, v: &Value) {
@@ -278,6 +292,20 @@ impl View<'_> {
 }
 
 // -------------------------------------------------------------------- bits
+
+/// The key column: fixed width so values line up, and **left**-aligned so the
+/// keys themselves do too. `add_sized` centres, which left a ragged edge that
+/// was harder to read down than the values it was meant to organise.
+fn key_cell(ui: &mut egui::Ui, label: &str) {
+    let h = ui.spacing().interact_size.y * 0.7;
+    ui.allocate_ui_with_layout(
+        egui::vec2(KEY_W, h),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.add(egui::Label::new(dim(ui, label)).truncate());
+        },
+    );
+}
 
 fn dim(ui: &egui::Ui, s: &str) -> RichText {
     RichText::new(s)
